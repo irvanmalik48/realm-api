@@ -1,37 +1,57 @@
 # Realm API
 
-High-performance backend API service for Realm built with **Go**, **Fiber v2**, and **PostgreSQL**.
+High-performance, observable backend API service for Realm built with **Go**, **Fiber v2**, and **PostgreSQL**.
+
+---
 
 ## Features
 
 - **Blazing Fast**: Powered by [Fiber v2](https://github.com/gofiber/fiber/v2) and fasthttp.
-- **RESTful Endpoints**: Clean versioned routes (`/v1/...`) with zero boilerplate.
-- **PostgreSQL Persistence**: Contact form submissions stored in PostgreSQL via `pgxpool` with automatic table migrations.
-- **Rate Limiting**: Built-in rate limiting protection for contact form submissions.
-- **LastFM Integration**: Recent scrobbles and user profile stats with caching and rate handling.
+- **OpenTelemetry v1.45.0**: Native distributed tracing, W3C `TraceContext` / `Baggage` propagators, OTLP HTTP exporter, and `X-Trace-Id` correlation headers.
+- **OpenAPI 3.2.0 Compliant**: Interactive API documentation powered by [Scalar](https://github.com/scalar/scalar) served live at `/docs`, `/openapi.yaml`, and `/openapi.json`.
+- **Health Check & Uptime**: Real-time heartbeat endpoint (`/health` & `/v1/health`) checking database connectivity and server uptime.
+- **Secure API Tokens**: Cryptographically secure token authentication (`realm_tok_...`) generated via CLI (`cmd/token`), hashed with SHA-256 in PostgreSQL, with in-memory TTL caching.
+- **Per-Token Rate Limiting**: Dynamic 1-minute sliding window rate limiter with standard `X-RateLimit-*` response headers.
+- **Zstandard (`zstd`) File Storage**: High-compression disk storage with automatic Blurhash calculation, dimension extraction, and on-the-fly WebP conversion (`?format=webp`).
+- **PostgreSQL Persistence**: Contact submissions, file metadata, and API tokens stored via `pgxpool` with automatic schema migrations.
+- **LastFM Integration**: AudioScrobbler recent tracks and user statistics with caching headers.
 - **Multi-channel Alerts**: Optional instant notifications to Discord webhooks or Telegram bots upon new contact messages.
-- **Security & Headers**: Configurable CORS origins, Cache-Control headers with `s-maxage` and `stale-while-revalidate`.
-- **Container Ready**: Multi-stage lightweight `Dockerfile` and `docker-compose.yml` with non-root security and PostgreSQL service.
+- **Container Ready**: Multi-stage lightweight `Dockerfile` containing `/app/server` and `/app/token` binaries, and `docker-compose.yml` with non-root security.
 
 ---
 
-## API Specification
+## API Specification & Interactive Docs
 
-Complete OpenAPI 3.2.0 compliant documentation and schema specifications are available in [`API.md`](./API.md).
+* **Interactive Docs**: `https://api.irvanma.eu.org/docs` (or `http://localhost:8080/docs`)
+* **OpenAPI 3.2.0 Spec (YAML)**: `GET /openapi.yaml` (or `/v1/openapi.yaml`)
+* **OpenAPI 3.2.0 Spec (JSON)**: `GET /openapi.json` (or `/v1/openapi.json`)
+* Complete endpoint guide and schema references are documented in [`API.md`](./API.md).
 
 ---
 
 ## API Reference
 
-### 1. Root / Health Check
-```http
-GET /
-```
-**Response (`200 OK`)**:
+### 1. Health & Status
+
+#### `GET /`
+Root greeting endpoint.
 ```json
 {
   "message": "Nothing to see here",
   "status": "success"
+}
+```
+
+#### `GET /health` or `GET /v1/health`
+Detailed service health, uptime, and database connectivity.
+```json
+{
+  "status": "healthy",
+  "service": "realm-api",
+  "version": "1.0.0",
+  "uptime_seconds": 86400,
+  "timestamp": "2026-08-20T13:18:31Z",
+  "database": "connected"
 }
 ```
 
@@ -42,14 +62,10 @@ Submits a contact form message and persists it into PostgreSQL.
 
 ```http
 POST /v1/contact
-```
-
-#### Request Headers
-```http
 Content-Type: application/json
+X-Realm-Request: 1
 ```
 
-#### Request Body
 ```json
 {
   "name": "Jane Doe",
@@ -67,139 +83,32 @@ Content-Type: application/json
 | `subject` | string | **Yes** | Min 3, max 200 characters |
 | `message` | string | **Yes** | Min 10, max 5000 characters |
 
-#### Success Response (`200 OK`)
-```json
-{
-  "message": "Your message has been sent successfully.",
-  "status": "success"
-}
-```
-
-#### Error Response (`400 Bad Request` / `429 Too Many Requests`)
-```json
-{
-  "error": "Invalid email address",
-  "status": "error"
-}
-```
-
 ---
 
-### 3. LastFM Recent Tracks
-Fetches recent scrobbles for a given LastFM user.
+### 3. LastFM Integration
 
+#### Get Recent Tracks
 ```http
 GET /v1/lastfm/track?username={username}&limit={limit}
 ```
 
-#### Query Parameters
-| Parameter | Type | Required | Default | Description |
-|---|---|---|---|---|
-| `username` | string | **Yes** | — | LastFM username |
-| `limit` | integer | No | `1` | Number of tracks to return (range `1`–`200`) |
-
-#### Response Headers
-```http
-Cache-Control: public, s-maxage=900, stale-while-revalidate=1800
-Content-Type: application/json
-```
-
-#### Success Response (`200 OK`)
-```json
-{
-  "recenttracks": {
-    "@attr": {
-      "page": "1",
-      "perPage": "1",
-      "total": "12345",
-      "totalPages": "12345",
-      "user": "username"
-    },
-    "track": [
-      {
-        "name": "Track Name",
-        "artist": {
-          "mbid": "",
-          "#text": "Artist Name"
-        },
-        "album": {
-          "mbid": "",
-          "#text": "Album Name"
-        },
-        "url": "https://www.last.fm/music/...",
-        "image": [
-          { "size": "small", "#text": "https://..." },
-          { "size": "medium", "#text": "https://..." },
-          { "size": "large", "#text": "https://..." },
-          { "size": "extralarge", "#text": "https://..." }
-        ]
-      }
-    ]
-  }
-}
-```
-
----
-
-### 4. LastFM User Info
-Fetches profile statistics for a LastFM user.
-
+#### Get User Profile Info
 ```http
 GET /v1/lastfm/user?username={username}
 ```
 
-#### Query Parameters
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `username` | string | **Yes** | LastFM username |
-
-#### Response Headers
-```http
-Cache-Control: public, s-maxage=900, stale-while-revalidate=1800
-Content-Type: application/json
-```
-
-#### Success Response (`200 OK`)
-```json
-{
-  "user": {
-    "name": "username",
-    "playcount": "54321",
-    "artist_count": "1200",
-    "track_count": "3400",
-    "album_count": "800",
-    "image": [
-      { "size": "small", "#text": "https://..." },
-      { "size": "medium", "#text": "https://..." },
-      { "size": "large", "#text": "https://..." },
-      { "size": "extralarge", "#text": "https://..." }
-    ],
-    "url": "https://www.last.fm/user/username"
-  }
-}
-```
-
 ---
 
-### 5. File Storage (Zstd Compressed & WebP)
+### 4. File Storage Subsystem (Zstd Compressed & WebP)
 
 #### Upload File
-Uploads any file, compresses it on disk using **Zstandard (`zstd`)**, and automatically calculates its **Blurhash** and dimensions if it is an image.
+Uploads any file, compresses it on disk using **Zstandard (`zstd`)**, and automatically calculates its **Blurhash** and dimensions.
 
 ```http
 POST /v1/storage/upload
-```
-
-##### Headers
-```http
+Authorization: Bearer realm_tok_...
 Content-Type: multipart/form-data
-X-API-Key: your_storage_api_key (Optional / if STORAGE_API_KEY configured)
 ```
-
-##### Form Fields
-| Field | Type | Description |
-|---|---|---|
-| `file` | Binary File | The file to upload |
 
 ##### Success Response (`201 Created`)
 ```json
@@ -224,51 +133,60 @@ X-API-Key: your_storage_api_key (Optional / if STORAGE_API_KEY configured)
 }
 ```
 
----
-
 #### Get File (Original or On-the-Fly WebP)
-Streams the decompressed file from disk. If requested with `?format=webp` or `Accept: image/webp`, dynamically converts images to WebP on-the-fly without storing duplicates.
+Streams the decompressed file from disk. Adding `?format=webp` or header `Accept: image/webp` dynamically converts images to WebP on-the-fly.
 
 ```http
 GET /v1/storage/{id}
 GET /v1/storage/{id}?format=webp
 ```
 
-##### Query Parameters
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `format` | string | original | Set to `webp` to convert image on-the-fly |
-| `download` | boolean | `false` | Set to `1` or `true` for `attachment` disposition |
-
-##### Response Headers
-```http
-Content-Type: image/webp (or original MIME type)
-ETag: "5e884898da280471..." (supports If-None-Match 304)
-Cache-Control: public, max-age=31536000, immutable
-X-Blurhash: LEHV6nWB2yk8pyo0adR*.7kCMdnj
-X-Image-Width: 1920
-X-Image-Height: 1080
-```
-
----
-
 #### Get File Info / Metadata
 ```http
 GET /v1/storage/{id}/info
 ```
 
----
-
 #### Delete File
 ```http
 DELETE /v1/storage/{id}
+Authorization: Bearer realm_tok_...
+```
+
+---
+
+## Administrative API Token CLI (`cmd/token`)
+
+Tokens are generated with direct database access via the administrative CLI tool.
+
+### Local Usage:
+```bash
+# Create a new API token
+go run ./cmd/token create -name "my-app" -scopes "storage:write,contact:read" -rpm 120 -expires 365d
+
+# List all tokens
+go run ./cmd/token list
+
+# Inspect a raw token secret against database
+go run ./cmd/token inspect -token realm_tok_...
+
+# Revoke a token
+go run ./cmd/token revoke -id <token-uuid>
+```
+
+### Docker Compose Usage:
+```bash
+# Create a full-access token inside Docker
+sudo docker compose exec api /app/token create -name "production-app" -scopes "*" -rpm 300
+
+# List tokens
+sudo docker compose exec api /app/token list
 ```
 
 ---
 
 ## Database Schema
 
-Automatic table migration creates the `contact_submissions` and `files` tables on startup:
+Migrations run automatically on server startup:
 
 ```sql
 CREATE TABLE IF NOT EXISTS contact_submissions (
@@ -282,7 +200,6 @@ CREATE TABLE IF NOT EXISTS contact_submissions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_contact_submissions_created_at ON contact_submissions(created_at DESC);
 CREATE TABLE IF NOT EXISTS files (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     filename VARCHAR(255) NOT NULL,
@@ -298,8 +215,18 @@ CREATE TABLE IF NOT EXISTS files (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_files_created_at ON files(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_files_sha256 ON files(sha256);
+CREATE TABLE IF NOT EXISTS api_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    token_prefix VARCHAR(50) NOT NULL,
+    token_hash VARCHAR(64) NOT NULL UNIQUE,
+    scopes TEXT[] NOT NULL DEFAULT '{"*"}',
+    rate_limit_rpm INT NOT NULL DEFAULT 60,
+    last_used_at TIMESTAMP WITH TIME ZONE,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    is_revoked BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 ```
 
 ---
@@ -313,7 +240,6 @@ CREATE INDEX IF NOT EXISTS idx_files_sha256 ON files(sha256);
 | `ALLOWED_ORIGINS` | `https://irvanma.eu.org` | Comma-separated CORS allowed origins |
 | `DATABASE_URL` | `""` | PostgreSQL connection string |
 | `STORAGE_DIR` | `./data/storage` | Directory path for Zstd compressed file storage |
-| `STORAGE_API_KEY` | `""` | Optional API Key required for upload and delete |
 | `MAX_UPLOAD_SIZE_MB` | `50` | Maximum allowed file upload size in megabytes |
 | `POSTGRES_USER` | `postgres` | PostgreSQL user for Docker Compose |
 | `POSTGRES_PASSWORD` | `postgres` | PostgreSQL password for Docker Compose |
@@ -321,6 +247,8 @@ CREATE INDEX IF NOT EXISTS idx_files_sha256 ON files(sha256);
 | `LASTFM_API_KEY` | `""` | LastFM AudioScrobbler API Key |
 | `LASTFM_API_SECRET` | `""` | LastFM API Secret (optional) |
 | `CACHE_REVALIDATE_SECONDS` | `900` | Caching TTL in seconds for response headers |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`| `""` | OpenTelemetry OTLP HTTP collector endpoint |
+| `OTEL_STDOUT_TRACING` | `false` | Set to `true` to print traces to stdout |
 | `DISCORD_WEBHOOK_URL` | `""` | Optional Discord webhook for instant notifications |
 | `TELEGRAM_BOT_TOKEN` | `""` | Optional Telegram bot token for alerts |
 | `TELEGRAM_CHAT_ID` | `""` | Optional Telegram chat ID for alerts |
@@ -352,23 +280,7 @@ go test -v ./...
 ### Building Binaries
 ```bash
 make build
-# Output in ./bin/server and ./bin/token
-```
-
-### Managing API Tokens (CLI)
-Generate and manage secure API tokens via the administrative CLI tool:
-```bash
-# Create a new API token
-go run ./cmd/token create -name "my-app" -scopes "storage:write,contact:read" -rpm 120 -expires 365d
-
-# List all tokens
-go run ./cmd/token list
-
-# Inspect / verify a raw token
-go run ./cmd/token inspect -token realm_tok_...
-
-# Revoke a token
-go run ./cmd/token revoke -id <token-uuid>
+# Outputs ./bin/server and ./bin/token
 ```
 
 ---
@@ -381,7 +293,7 @@ Ensure the external Caddy network exists before starting the stack:
 docker network create caddy_net
 ```
 
-### Using Docker Compose
+### Starting Services
 ```bash
 # Start API and PostgreSQL in background
 docker compose up -d
@@ -394,13 +306,11 @@ docker compose down
 ```
 
 ### Caddy Reverse Proxy Configuration
-Add the following to your server's `Caddyfile`:
 ```caddy
 api.irvanma.eu.org {
     reverse_proxy realm-api:8080
 }
 ```
-
 Reload Caddy:
 ```bash
 docker exec -w /etc/caddy caddy caddy reload
