@@ -101,10 +101,10 @@ All error responses follow a standard JSON structure:
 
 ## Endpoints
 
-### Root
+### Health & Status
 
 #### `GET /`
-Health check and service status.
+Root greeting endpoint.
 
 - **Request**: No parameters or headers required.
 - **Response (`200 OK`)**:
@@ -112,6 +112,22 @@ Health check and service status.
   {
     "message": "Nothing to see here",
     "status": "success"
+  }
+  ```
+
+#### `GET /health` / `GET /v1/health`
+Detailed service health, uptime, and database connectivity check.
+
+- **Request**: No parameters or headers required.
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "status": "healthy",
+    "service": "realm-api",
+    "version": "1.0.0",
+    "uptime_seconds": 86400,
+    "timestamp": "2026-08-20T13:18:31Z",
+    "database": "connected"
   }
   ```
 
