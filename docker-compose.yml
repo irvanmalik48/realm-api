@@ -5,13 +5,13 @@ services:
       dockerfile: Dockerfile
     container_name: realm-api
     restart: unless-stopped
-    ports:
-      - "${PORT:-8080}:8080"
+    expose:
+      - "8080"
     environment:
       - PORT=8080
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://irvanma.eu.org}
-      - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-realm}?sslmode=disable
+      - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@realm-postgres:5432/${POSTGRES_DB:-realm}?sslmode=disable
       - LASTFM_API_KEY=${LASTFM_API_KEY}
       - LASTFM_API_SECRET=${LASTFM_API_SECRET}
       - CACHE_REVALIDATE_SECONDS=${CACHE_REVALIDATE_SECONDS:-900}
@@ -21,6 +21,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - caddy_net
+      - internal_net
     env_file:
       - path: .env
         required: false
@@ -35,13 +38,19 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-realm}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "${DB_PORT:-5432}:5432"
+    networks:
+      - internal_net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-realm}"]
       interval: 5s
       timeout: 5s
       retries: 5
+
+networks:
+  caddy_net:
+    external: true
+  internal_net:
+    driver: bridge
 
 volumes:
   postgres_data:
