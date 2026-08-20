@@ -17,7 +17,7 @@ High-performance backend API service for Realm built with **Go**, **Fiber v2**, 
 
 ## API Specification
 
-Complete OpenAPI 3.1.0 compliant documentation and schema specifications are available in [`API.md`](./API.md).
+Complete OpenAPI 3.2.0 compliant documentation and schema specifications are available in [`API.md`](./API.md).
 
 ---
 
