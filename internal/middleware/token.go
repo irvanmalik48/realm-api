@@ -8,7 +8,6 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/irvanmalik48/realm-api/internal/auth"
-	"github.com/irvanmalik48/realm-api/internal/config"
 	"github.com/irvanmalik48/realm-api/internal/handler"
 	"github.com/irvanmalik48/realm-api/internal/model"
 	"github.com/irvanmalik48/realm-api/internal/service"
@@ -33,14 +32,9 @@ func ExtractRawToken(c *fiber.Ctx) string {
 }
 
 // RequireToken validates API token and checks for required scopes with per-token rate limiting
-func RequireToken(cfg *config.Config, svc service.TokenService, limiter *auth.TokenRateLimiter, requiredScopes ...string) fiber.Handler {
+func RequireToken(svc service.TokenService, limiter *auth.TokenRateLimiter, requiredScopes ...string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		rawToken := ExtractRawToken(c)
-
-		// Backward compatibility: If STORAGE_API_KEY is configured and matches rawToken exactly, grant access
-		if cfg != nil && cfg.StorageAPIKey != "" && rawToken == cfg.StorageAPIKey {
-			return c.Next()
-		}
 
 		if rawToken == "" {
 			return handler.ErrorResponse(c, "Unauthorized: missing API token", http.StatusUnauthorized)
