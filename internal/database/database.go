@@ -87,7 +87,7 @@ func (db *DB) migrate(ctx context.Context) error {
 	CREATE TABLE IF NOT EXISTS api_tokens (
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 		name VARCHAR(100) NOT NULL,
-		token_prefix VARCHAR(16) NOT NULL,
+		token_prefix VARCHAR(50) NOT NULL,
 		token_hash VARCHAR(64) NOT NULL UNIQUE,
 		scopes TEXT[] NOT NULL DEFAULT '{"*"}',
 		rate_limit_rpm INT NOT NULL DEFAULT 60,
@@ -96,6 +96,7 @@ func (db *DB) migrate(ctx context.Context) error {
 		is_revoked BOOLEAN NOT NULL DEFAULT false,
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 	);
+	ALTER TABLE api_tokens ALTER COLUMN token_prefix TYPE VARCHAR(50);
 	CREATE INDEX IF NOT EXISTS idx_api_tokens_token_hash ON api_tokens(token_hash);
 	CREATE INDEX IF NOT EXISTS idx_api_tokens_is_revoked ON api_tokens(is_revoked);
 	`
