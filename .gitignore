@@ -27,6 +27,6 @@ go.work
 # IDE / Editor
 .idea/
 .vscode/
-*.swp
-*~
-.DS_Store
+# Local data & storage
+/data/
+/storage/
