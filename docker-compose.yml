@@ -5,8 +5,6 @@ services:
       dockerfile: Dockerfile
     container_name: realm-api
     restart: unless-stopped
-    expose:
-      - "8080"
     environment:
       - PORT=8080
       - ENVIRONMENT=${ENVIRONMENT:-production}
