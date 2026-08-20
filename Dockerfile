@@ -1,10 +1,12 @@
 # Build stage
-FROM golang:1.24-alpine AS builder
+FROM golang:alpine AS builder
 
 # Install build dependencies & SSL certs
 RUN apk add --no-cache ca-certificates git tzdata
 
 WORKDIR /src
+
+ENV GOTOOLCHAIN=auto
 
 # Leverage caching for dependencies
 COPY go.mod go.sum ./
