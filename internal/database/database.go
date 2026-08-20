@@ -66,6 +66,23 @@ func (db *DB) migrate(ctx context.Context) error {
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 	);
 	CREATE INDEX IF NOT EXISTS idx_contact_submissions_created_at ON contact_submissions(created_at DESC);
+
+	CREATE TABLE IF NOT EXISTS files (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		filename VARCHAR(255) NOT NULL,
+		content_type VARCHAR(100) NOT NULL,
+		original_size BIGINT NOT NULL,
+		compressed_size BIGINT NOT NULL,
+		compression_algorithm VARCHAR(20) NOT NULL DEFAULT 'zstd',
+		sha256 VARCHAR(64) NOT NULL,
+		blurhash VARCHAR(100),
+		width INT,
+		height INT,
+		is_public BOOLEAN NOT NULL DEFAULT true,
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_files_created_at ON files(created_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_files_sha256 ON files(sha256);
 	`
 
 	_, err := db.Pool.Exec(ctx, query)
