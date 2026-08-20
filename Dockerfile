@@ -17,7 +17,11 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -trimpath \
     -ldflags="-w -s" \
-    -o /bin/server ./cmd/server
+    -o /bin/server ./cmd/server && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -trimpath \
+    -ldflags="-w -s" \
+    -o /bin/token ./cmd/token
 
 # Final runtime stage
 FROM alpine:3.21
@@ -28,8 +32,9 @@ RUN apk add --no-cache ca-certificates tzdata && \
 
 WORKDIR /app
 
-# Copy compiled binary from builder stage
+# Copy compiled binaries from builder stage
 COPY --from=builder /bin/server /app/server
+COPY --from=builder /bin/token /app/token
 
 # Use non-privileged user for security
 USER appuser:appgroup
