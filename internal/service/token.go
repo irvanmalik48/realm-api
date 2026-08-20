@@ -168,10 +168,21 @@ func (s *tokenService) Verify(ctx context.Context, rawToken string) (*model.APIT
 		s.cache.Set(tokenHash, token)
 	}
 
-	// Asynchronously update last used timestamp
-	go func(id uuid.UUID) {
-		_ = s.repo.UpdateLastUsed(context.Background(), id)
-	}(token.ID)
+	// Asynchronously update last used timestamp with 5-minute debounce to prevent database write saturation
+	now := time.Now().UTC()
+	if token.LastUsedAt == nil || now.Sub(*token.LastUsedAt) > 5*time.Minute {
+		token.LastUsedAt = &now
+		if s.cache != nil {
+			s.cache.Set(tokenHash, token)
+		}
+		if s.repo != nil {
+			go func(id uuid.UUID) {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				_ = s.repo.UpdateLastUsed(ctx, id)
+			}(token.ID)
+		}
+	}
 
 	return token, nil
 }

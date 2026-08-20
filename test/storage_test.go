@@ -266,3 +266,74 @@ func TestStorage_AuthProtection(t *testing.T) {
 		t.Errorf("expected 201 for valid API token, got %d", resp2.StatusCode)
 	}
 }
+
+func TestStorage_UploadSizeLimit(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "realm-storage-limit-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Set tight 1KB upload limit (0.001MB not supported so we set MaxUploadSizeMB to 1 and mock a 2MB payload)
+	cfg := &config.Config{
+		StorageDir:      tempDir,
+		MaxUploadSizeMB: 1, // 1 MB limit
+	}
+
+	engine, _ := storage.NewZstdEngine(tempDir)
+	repo := newMockStorageRepo()
+	svc := service.NewStorageService(cfg, repo, engine)
+
+	// Upload payload of 2MB
+	largePayload := bytes.Repeat([]byte("A"), 2*1024*1024)
+	_, err = svc.Upload(context.Background(), "large.txt", bytes.NewReader(largePayload), "text/plain")
+	if err == nil {
+		t.Fatalf("expected ErrFileTooLarge for 2MB file with 1MB limit")
+	}
+}
+
+func TestStorage_WebPCache(t *testing.T) {
+	app, tempDir, _, validToken := setupStorageTestApp(t, true)
+	defer os.RemoveAll(tempDir)
+
+	pngBytes := createTestPNG()
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, _ := writer.CreateFormFile("file", "cache-test.png")
+	_, _ = part.Write(pngBytes)
+	_ = writer.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/storage/upload", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+validToken)
+
+	resp, err := app.Test(req, -1)
+	if err != nil || resp.StatusCode != http.StatusCreated {
+		t.Fatalf("upload failed: %v", err)
+	}
+
+	var uploadResp model.FileUploadResponse
+	respBytes, _ := io.ReadAll(resp.Body)
+	_ = json.Unmarshal(respBytes, &uploadResp)
+	fileID := uploadResp.File.ID
+
+	// First WebP request converts and caches
+	req1 := httptest.NewRequest(http.MethodGet, "/v1/storage/"+fileID.String()+"?format=webp", nil)
+	resp1, err := app.Test(req1, -1)
+	if err != nil || resp1.StatusCode != http.StatusOK {
+		t.Fatalf("first webp request failed: %v", err)
+	}
+	bytes1, _ := io.ReadAll(resp1.Body)
+
+	// Second WebP request loads from disk cache
+	req2 := httptest.NewRequest(http.MethodGet, "/v1/storage/"+fileID.String()+"?format=webp", nil)
+	resp2, err := app.Test(req2, -1)
+	if err != nil || resp2.StatusCode != http.StatusOK {
+		t.Fatalf("second webp request failed: %v", err)
+	}
+	bytes2, _ := io.ReadAll(resp2.Body)
+
+	if len(bytes1) != len(bytes2) {
+		t.Errorf("cached webp size mismatch: %d vs %d", len(bytes1), len(bytes2))
+	}
+}

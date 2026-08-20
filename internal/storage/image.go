@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"bytes"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -33,14 +32,7 @@ func IsImageMime(contentType string) bool {
 
 // ProcessImage reads image data, computes width, height, and blurhash.
 func ProcessImage(reader io.Reader) (*ImageInfo, error) {
-	// Read full image bytes
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read image data: %w", err)
-	}
-
-	// Decode configuration and full image
-	img, _, err := image.Decode(bytes.NewReader(data))
+	img, _, err := image.Decode(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode image: %w", err)
 	}

@@ -61,16 +61,19 @@ func (s *storageService) Upload(ctx context.Context, filename string, reader io.
 		contentType = explicitContentType
 	}
 
-	// Reconstruct the full reader
-	fullReader := io.MultiReader(bytes.NewReader(sniffBuffer[:n]), reader)
+	// Reconstruct the full reader with size limit check
+	maxBytes := int64(s.cfg.MaxUploadSizeMB) * 1024 * 1024
+	var limitedReader io.Reader = io.MultiReader(bytes.NewReader(sniffBuffer[:n]), reader)
+	if maxBytes > 0 {
+		limitedReader = io.LimitReader(limitedReader, maxBytes+1)
+	}
 
 	// Save compressed file to disk with Zstandard
-	originalSize, compressedSize, sha256Hex, err := s.engine.Save(fullReader, fileID)
+	originalSize, compressedSize, sha256Hex, err := s.engine.Save(limitedReader, fileID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to store compressed file: %w", err)
 	}
 
-	maxBytes := int64(s.cfg.MaxUploadSizeMB) * 1024 * 1024
 	if maxBytes > 0 && originalSize > maxBytes {
 		_ = s.engine.Delete(fileID)
 		return nil, fmt.Errorf("%w: %d bytes (limit: %d MB)", ErrFileTooLarge, originalSize, s.cfg.MaxUploadSizeMB)
@@ -155,17 +158,43 @@ func (s *storageService) Get(ctx context.Context, id uuid.UUID) (*model.FileReco
 }
 
 func (s *storageService) GetAsWebP(ctx context.Context, id uuid.UUID) (*model.FileRecord, io.Reader, error) {
-	record, readCloser, err := s.Get(ctx, id)
-	if err != nil {
-		return nil, nil, err
+	var record *model.FileRecord
+	var err error
+
+	if s.repo != nil {
+		record, err = s.repo.GetByID(ctx, id)
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		record = &model.FileRecord{
+			ID:          id,
+			Filename:    id.String(),
+			ContentType: "application/octet-stream",
+		}
 	}
-	defer readCloser.Close()
 
 	if !storage.IsImageMime(record.ContentType) {
 		return nil, nil, ErrUnsupportedFormat
 	}
 
-	// If already WebP, stream directly
+	// 1. Check if cached WebP derivative exists on disk
+	cachedWebP, err := s.engine.OpenWebP(id)
+	if err == nil {
+		convertedRecord := *record
+		convertedRecord.ContentType = "image/webp"
+		convertedRecord.Filename = strings.TrimSuffix(record.Filename, filepath.Ext(record.Filename)) + ".webp"
+		return &convertedRecord, cachedWebP, nil
+	}
+
+	// 2. Open original stream for conversion
+	readCloser, err := s.engine.Open(id)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer readCloser.Close()
+
+	// If original is already WebP, stream directly
 	if strings.Contains(strings.ToLower(record.ContentType), "webp") {
 		buf := new(bytes.Buffer)
 		if _, err := io.Copy(buf, readCloser); err != nil {
@@ -174,11 +203,14 @@ func (s *storageService) GetAsWebP(ctx context.Context, id uuid.UUID) (*model.Fi
 		return record, buf, nil
 	}
 
-	// Convert to WebP on-the-fly
+	// 3. Convert to WebP
 	var webpBuf bytes.Buffer
 	if err := storage.EncodeToWebP(readCloser, &webpBuf); err != nil {
 		return nil, nil, fmt.Errorf("failed to convert image to webp: %w", err)
 	}
+
+	// 4. Cache converted WebP asynchronously / best-effort
+	_ = s.engine.SaveWebP(id, bytes.NewReader(webpBuf.Bytes()))
 
 	// Update record metadata for response headers
 	convertedRecord := *record

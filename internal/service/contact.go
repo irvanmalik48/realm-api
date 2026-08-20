@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -117,6 +119,7 @@ func (s *contactService) sendDiscordNotification(ctx context.Context, req *model
 		return err
 	}
 	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
 
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("discord returned status %d", resp.StatusCode)
@@ -128,13 +131,18 @@ func (s *contactService) sendDiscordNotification(ctx context.Context, req *model
 func (s *contactService) sendTelegramNotification(ctx context.Context, req *model.ContactRequest) error {
 	endpoint := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", s.cfg.TelegramBotToken)
 
-	msgText := fmt.Sprintf("📬 *New Contact Message*\n\n*Name:* %s\n*Email:* %s\n*Subject:* %s\n\n*Message:*\n%s",
-		req.Name, req.Email, req.Subject, req.Message)
+	nameEsc := html.EscapeString(req.Name)
+	emailEsc := html.EscapeString(req.Email)
+	subjectEsc := html.EscapeString(req.Subject)
+	messageEsc := html.EscapeString(req.Message)
+
+	msgText := fmt.Sprintf("📬 <b>New Contact Message</b>\n\n<b>Name:</b> %s\n<b>Email:</b> %s\n<b>Subject:</b> %s\n\n<b>Message:</b>\n%s",
+		nameEsc, emailEsc, subjectEsc, messageEsc)
 
 	data := url.Values{}
 	data.Set("chat_id", s.cfg.TelegramChatID)
 	data.Set("text", msgText)
-	data.Set("parse_mode", "Markdown")
+	data.Set("parse_mode", "HTML")
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewBufferString(data.Encode()))
 	if err != nil {
@@ -147,6 +155,7 @@ func (s *contactService) sendTelegramNotification(ctx context.Context, req *mode
 		return err
 	}
 	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
 
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("telegram returned status %d", resp.StatusCode)

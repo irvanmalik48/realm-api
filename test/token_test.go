@@ -197,3 +197,40 @@ func TestToken_RateLimitingMiddleware(t *testing.T) {
 		t.Errorf("expected X-RateLimit-Remaining 0, got %s", resp4.Header.Get("X-RateLimit-Remaining"))
 	}
 }
+
+func TestToken_DebouncedLastUsed(t *testing.T) {
+	repo := newMockTokenRepo()
+	cache := auth.NewTokenCache(5 * time.Minute)
+	limiter := auth.NewTokenRateLimiter()
+	svc := service.NewTokenService(repo, cache, limiter)
+
+	ctx := context.Background()
+	result, err := svc.Create(ctx, model.TokenCreateInput{
+		Name:         "debounce-test",
+		Scopes:       []string{"*"},
+		RateLimitRPM: 100,
+	})
+	if err != nil {
+		t.Fatalf("failed to create token: %v", err)
+	}
+
+	// 1st verification triggers timestamp update
+	tok1, err := svc.Verify(ctx, result.Raw)
+	if err != nil {
+		t.Fatalf("verify 1 failed: %v", err)
+	}
+	if tok1.LastUsedAt == nil {
+		t.Errorf("expected LastUsedAt to be set")
+	}
+
+	firstTs := *tok1.LastUsedAt
+
+	// 2nd verification immediately after should reuse cached LastUsedAt (debounced)
+	tok2, err := svc.Verify(ctx, result.Raw)
+	if err != nil {
+		t.Fatalf("verify 2 failed: %v", err)
+	}
+	if !tok2.LastUsedAt.Equal(firstTs) {
+		t.Errorf("expected debounced LastUsedAt to match, got %v vs %v", *tok2.LastUsedAt, firstTs)
+	}
+}
