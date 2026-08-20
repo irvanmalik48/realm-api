@@ -10,6 +10,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/irvanmalik48/realm-api/internal/auth"
 	"github.com/irvanmalik48/realm-api/internal/config"
 	"github.com/irvanmalik48/realm-api/internal/database"
 	"github.com/irvanmalik48/realm-api/internal/handler"
@@ -50,15 +51,18 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: allowedOrigins,
 		AllowMethods: "GET,POST,DELETE,OPTIONS",
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Realm-Request, X-Requested-With, X-API-Key",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Realm-Request, X-Requested-With, X-API-Key, X-API-Token",
 	}))
 
 	// Repositories & Services
 	var contactRepo repository.ContactRepository
 	var storageRepo repository.StorageRepository
+	var tokenRepo repository.TokenRepository
+
 	if db != nil {
 		contactRepo = repository.NewContactRepository(db)
 		storageRepo = repository.NewStorageRepository(db)
+		tokenRepo = repository.NewTokenRepository(db)
 	}
 
 	storageEngine, err := storage.NewZstdEngine(cfg.StorageDir)
@@ -66,9 +70,13 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 		panic(err)
 	}
 
+	tokenCache := auth.NewTokenCache(5 * time.Minute)
+	tokenLimiter := auth.NewTokenRateLimiter()
+
 	lastFMSvc := service.NewLastFMService(cfg.LastFMAPIKey, cfg.LastFMAPISecret)
 	contactSvc := service.NewContactService(cfg, contactRepo)
 	storageSvc := service.NewStorageService(cfg, storageRepo, storageEngine)
+	tokenSvc := service.NewTokenService(tokenRepo, tokenCache, tokenLimiter)
 
 	rootHdlr := handler.NewRootHandler()
 	lastFMHdlr := handler.NewLastFMHandler(cfg, lastFMSvc)
@@ -89,8 +97,8 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	v1.Get("/openapi.json", openapi.ServeJSON)
 	v1.Get("/docs", openapi.ServeDocs)
 
-	// LastFM endpoints
-	lastfm := v1.Group("/lastfm")
+	// LastFM endpoints with optional token auth and dynamic rate limiting
+	lastfm := v1.Group("/lastfm", middleware.OptionalToken(tokenSvc, tokenLimiter))
 	lastfm.Get("/track", lastFMHdlr.GetRecentTracks)
 	lastfm.Get("/user", lastFMHdlr.GetUserInfo)
 
@@ -106,10 +114,10 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 
 	// Storage endpoints (Zstd-compressed, Blurhash, on-the-fly WebP)
 	storageGroup := v1.Group("/storage")
-	storageGroup.Post("/upload", middleware.StorageAuth(cfg), storageHdlr.Upload)
-	storageGroup.Get("/:id", storageHdlr.GetFile)
-	storageGroup.Get("/:id/info", storageHdlr.GetFileInfo)
-	storageGroup.Delete("/:id", middleware.StorageAuth(cfg), storageHdlr.DeleteFile)
+	storageGroup.Post("/upload", middleware.RequireToken(cfg, tokenSvc, tokenLimiter, "storage:write"), storageHdlr.Upload)
+	storageGroup.Get("/:id", middleware.OptionalToken(tokenSvc, tokenLimiter), storageHdlr.GetFile)
+	storageGroup.Get("/:id/info", middleware.OptionalToken(tokenSvc, tokenLimiter), storageHdlr.GetFileInfo)
+	storageGroup.Delete("/:id", middleware.RequireToken(cfg, tokenSvc, tokenLimiter, "storage:write"), storageHdlr.DeleteFile)
 
 	// 404 Not Found fallback handler
 	app.Use(func(c *fiber.Ctx) error {
