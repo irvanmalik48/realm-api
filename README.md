@@ -175,9 +175,94 @@ Content-Type: application/json
 
 ---
 
+### 5. File Storage (Zstd Compressed & WebP)
+
+#### Upload File
+Uploads any file, compresses it on disk using **Zstandard (`zstd`)**, and automatically calculates its **Blurhash** and dimensions if it is an image.
+
+```http
+POST /v1/storage/upload
+```
+
+##### Headers
+```http
+Content-Type: multipart/form-data
+X-API-Key: your_storage_api_key (Optional / if STORAGE_API_KEY configured)
+```
+
+##### Form Fields
+| Field | Type | Description |
+|---|---|---|
+| `file` | Binary File | The file to upload |
+
+##### Success Response (`201 Created`)
+```json
+{
+  "status": "success",
+  "message": "File uploaded and compressed successfully",
+  "file": {
+    "id": "7fa84e72-d7b1-4bb2-b6be-4b95d0ef923b",
+    "filename": "wallpaper.png",
+    "content_type": "image/png",
+    "original_size": 2450000,
+    "compressed_size": 1120000,
+    "savings_percent": 54.28,
+    "sha256": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+    "blurhash": "LEHV6nWB2yk8pyo0adR*.7kCMdnj",
+    "width": 1920,
+    "height": 1080,
+    "url": "/v1/storage/7fa84e72-d7b1-4bb2-b6be-4b95d0ef923b",
+    "webp_url": "/v1/storage/7fa84e72-d7b1-4bb2-b6be-4b95d0ef923b?format=webp",
+    "created_at": "2026-08-20T12:00:00Z"
+  }
+}
+```
+
+---
+
+#### Get File (Original or On-the-Fly WebP)
+Streams the decompressed file from disk. If requested with `?format=webp` or `Accept: image/webp`, dynamically converts images to WebP on-the-fly without storing duplicates.
+
+```http
+GET /v1/storage/{id}
+GET /v1/storage/{id}?format=webp
+```
+
+##### Query Parameters
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `format` | string | original | Set to `webp` to convert image on-the-fly |
+| `download` | boolean | `false` | Set to `1` or `true` for `attachment` disposition |
+
+##### Response Headers
+```http
+Content-Type: image/webp (or original MIME type)
+ETag: "5e884898da280471..." (supports If-None-Match 304)
+Cache-Control: public, max-age=31536000, immutable
+X-Blurhash: LEHV6nWB2yk8pyo0adR*.7kCMdnj
+X-Image-Width: 1920
+X-Image-Height: 1080
+```
+
+---
+
+#### Get File Info / Metadata
+```http
+GET /v1/storage/{id}/info
+```
+
+---
+
+#### Delete File
+```http
+DELETE /v1/storage/{id}
+```
+
+---
+
 ## Database Schema
 
-Automatic table migration creates the `contact_submissions` table on startup:
+Automatic table migration creates the `contact_submissions` and `files` tables on startup:
 
 ```sql
 CREATE TABLE IF NOT EXISTS contact_submissions (
@@ -192,6 +277,23 @@ CREATE TABLE IF NOT EXISTS contact_submissions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_contact_submissions_created_at ON contact_submissions(created_at DESC);
+CREATE TABLE IF NOT EXISTS files (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    filename VARCHAR(255) NOT NULL,
+    content_type VARCHAR(100) NOT NULL,
+    original_size BIGINT NOT NULL,
+    compressed_size BIGINT NOT NULL,
+    compression_algorithm VARCHAR(20) NOT NULL DEFAULT 'zstd',
+    sha256 VARCHAR(64) NOT NULL,
+    blurhash VARCHAR(100),
+    width INT,
+    height INT,
+    is_public BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_files_created_at ON files(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_files_sha256 ON files(sha256);
 ```
 
 ---
@@ -204,6 +306,9 @@ CREATE INDEX IF NOT EXISTS idx_contact_submissions_created_at ON contact_submiss
 | `ENVIRONMENT` | `development` | Environment (`development`, `production`, `test`) |
 | `ALLOWED_ORIGINS` | `https://irvanma.eu.org` | Comma-separated CORS allowed origins |
 | `DATABASE_URL` | `""` | PostgreSQL connection string |
+| `STORAGE_DIR` | `./data/storage` | Directory path for Zstd compressed file storage |
+| `STORAGE_API_KEY` | `""` | Optional API Key required for upload and delete |
+| `MAX_UPLOAD_SIZE_MB` | `50` | Maximum allowed file upload size in megabytes |
 | `POSTGRES_USER` | `postgres` | PostgreSQL user for Docker Compose |
 | `POSTGRES_PASSWORD` | `postgres` | PostgreSQL password for Docker Compose |
 | `POSTGRES_DB` | `realm` | PostgreSQL database name |
