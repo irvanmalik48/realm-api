@@ -13,9 +13,14 @@ services:
       - LASTFM_API_KEY=${LASTFM_API_KEY}
       - LASTFM_API_SECRET=${LASTFM_API_SECRET}
       - CACHE_REVALIDATE_SECONDS=${CACHE_REVALIDATE_SECONDS:-900}
+      - STORAGE_DIR=/data/storage
+      - STORAGE_API_KEY=${STORAGE_API_KEY}
+      - MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-50}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    volumes:
+      - ./data/storage:/data/storage
     depends_on:
       postgres:
         condition: service_healthy
