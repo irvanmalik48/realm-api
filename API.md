@@ -32,14 +32,46 @@ Realm API is a RESTful backend service built with Go and Fiber v2. It provides e
 
 ---
 
-## Authentication
+## Authentication & Token Management
 
-| Scheme | Type | Header | Description |
-|---|---|---|---|
-| `ApiKeyAuth` | API Key | `X-API-Key: <key>` | Used for storage upload and delete operations |
-| `BearerAuth` | HTTP Bearer | `Authorization: Bearer <key>` | Alternative API key format |
+Realm API supports cryptographically secure API tokens (`realm_tok_...`) generated exclusively via the administrative CLI tool (`cmd/token`).
 
-Read-only endpoints (`GET /`, `GET /v1/lastfm/*`, `GET /v1/storage/*`) do not require authentication.
+### Authentication Headers
+
+| Scheme | Header | Description |
+|---|---|---|
+| **Bearer Token** | `Authorization: Bearer realm_tok_<secret>` | Standard Bearer token authentication |
+| **API Token** | `X-API-Token: realm_tok_<secret>` | Alternative token header |
+| **API Key** | `X-API-Key: realm_tok_<secret>` | Storage API key or API token |
+
+### Generating & Managing Tokens (CLI)
+
+Tokens can only be created with direct database access via the CLI tool:
+
+```bash
+# Generate a new token with specific scopes and rate limit
+go run ./cmd/token create -name "my-app" -scopes "storage:write,contact:read" -rpm 120 -expires 365d
+
+# List all active tokens
+go run ./cmd/token list
+
+# Inspect a raw token string
+go run ./cmd/token inspect -token realm_tok_...
+
+# Revoke a token by ID
+go run ./cmd/token revoke -id <token-uuid>
+```
+
+### Rate Limiting & Dynamic Headers
+
+Authenticated requests receive per-token rate limiting according to their configured RPM (requests per minute). The server includes standard rate limit headers on every response:
+
+| Header | Description |
+|---|---|
+| `X-RateLimit-Limit` | Maximum allowed requests per 1-minute window |
+| `X-RateLimit-Remaining` | Remaining requests allowed in the current window |
+| `X-RateLimit-Reset` | Unix timestamp (seconds) when the rate limit window resets |
+
 
 ---
 
