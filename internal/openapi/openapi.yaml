@@ -213,9 +213,8 @@ paths:
       tags:
         - Storage
       security:
-        - ApiKeyAuth: []
-        - BearerAuth: []
-        - {}
+        - ApiTokenAuth: []
+        - ApiTokenHeader: []
       requestBody:
         required: true
         content:
@@ -358,9 +357,8 @@ paths:
       tags:
         - Storage
       security:
-        - ApiKeyAuth: []
-        - BearerAuth: []
-        - {}
+        - ApiTokenAuth: []
+        - ApiTokenHeader: []
       parameters:
         - name: id
           in: path
@@ -437,15 +435,11 @@ components:
       scheme: bearer
       bearerFormat: realm_tok
       description: Cryptographically secure API token generated via CLI (e.g. realm_tok_...)
-    ApiKeyAuth:
+    ApiTokenHeader:
       type: apiKey
       in: header
-      name: X-API-Key
-      description: Storage API key or API token passed via X-API-Key or X-API-Token header
-    BearerAuth:
-      type: http
-      scheme: bearer
-      description: API token passed via Bearer authorization
+      name: X-API-Token
+      description: API token passed via X-API-Token or X-API-Key header
 
   schemas:
     RootResponse:
