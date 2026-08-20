@@ -36,6 +36,16 @@ func (h *ContactHandler) Handle(c *fiber.Ctx) error {
 	req.Email = strings.TrimSpace(req.Email)
 	req.Subject = strings.TrimSpace(req.Subject)
 	req.Message = strings.TrimSpace(req.Message)
+	req.Honeypot = strings.TrimSpace(req.Honeypot)
+
+	// Honeypot detection: if filled, drop silently
+	if req.Honeypot != "" {
+		log.Println("[Contact] Honeypot triggered, dropping bot submission silently.")
+		return c.Status(http.StatusOK).JSON(model.ContactResponse{
+			Message: "Your message has been sent successfully.",
+			Status:  "success",
+		})
+	}
 
 	if req.Name == "" {
 		return ErrorResponse(c, "Name is required", http.StatusBadRequest)
