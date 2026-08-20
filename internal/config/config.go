@@ -19,6 +19,11 @@ type Config struct {
 	// Database Settings
 	DatabaseURL string
 
+	// Storage Settings
+	StorageDir      string
+	StorageAPIKey   string
+	MaxUploadSizeMB int
+
 	// Contact Form Integration Settings
 	DiscordWebhookURL    string
 	TelegramBotToken     string
@@ -57,6 +62,14 @@ func Load() *Config {
 		databaseURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", dbUser, dbPass, dbHost, dbPort, dbName, dbSSL)
 	}
 
+	storageDir := getEnv("STORAGE_DIR", "./data/storage")
+	storageAPIKey := getEnv("STORAGE_API_KEY", "")
+	maxUploadMBStr := getEnv("MAX_UPLOAD_SIZE_MB", "50")
+	maxUploadMB, err := strconv.Atoi(maxUploadMBStr)
+	if err != nil || maxUploadMB <= 0 {
+		maxUploadMB = 50
+	}
+
 	smtpPortStr := getEnv("SMTP_PORT", "587")
 	smtpPort, err := strconv.Atoi(smtpPortStr)
 	if err != nil {
@@ -72,6 +85,10 @@ func Load() *Config {
 		CacheRevalidateSeconds: cacheRevalidate,
 
 		DatabaseURL: databaseURL,
+
+		StorageDir:      storageDir,
+		StorageAPIKey:   storageAPIKey,
+		MaxUploadSizeMB: maxUploadMB,
 
 		DiscordWebhookURL:    getEnv("DISCORD_WEBHOOK_URL", ""),
 		TelegramBotToken:     getEnv("TELEGRAM_BOT_TOKEN", ""),
