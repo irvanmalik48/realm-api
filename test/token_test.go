@@ -11,7 +11,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/irvanmalik48/realm-api/internal/auth"
-	"github.com/irvanmalik48/realm-api/internal/config"
 	"github.com/irvanmalik48/realm-api/internal/middleware"
 	"github.com/irvanmalik48/realm-api/internal/model"
 	"github.com/irvanmalik48/realm-api/internal/repository"
@@ -146,7 +145,6 @@ func TestToken_RateLimitingMiddleware(t *testing.T) {
 	cache := auth.NewTokenCache(1 * time.Minute)
 	limiter := auth.NewTokenRateLimiter()
 	svc := service.NewTokenService(repo, cache, limiter)
-	cfg := &config.Config{Environment: "test"}
 
 	ctx := context.Background()
 
@@ -161,7 +159,7 @@ func TestToken_RateLimitingMiddleware(t *testing.T) {
 	}
 
 	app := fiber.New()
-	app.Get("/protected", middleware.RequireToken(cfg, svc, limiter, "storage:write"), func(c *fiber.Ctx) error {
+	app.Get("/protected", middleware.RequireToken(svc, limiter, "storage:write"), func(c *fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
