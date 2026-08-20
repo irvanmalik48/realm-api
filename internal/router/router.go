@@ -36,6 +36,7 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	})
 
 	// Middlewares
+	app.Use(middleware.OpenTelemetryTracing())
 	app.Use(recover.New())
 	app.Use(logger.New(logger.Config{
 		Format: "[${time}] ${status} - ${latency} ${method} ${path}\n",
@@ -79,20 +80,23 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	tokenSvc := service.NewTokenService(tokenRepo, tokenCache, tokenLimiter)
 
 	rootHdlr := handler.NewRootHandler()
+	healthHdlr := handler.NewHealthHandler(db)
 	lastFMHdlr := handler.NewLastFMHandler(cfg, lastFMSvc)
 	contactHdlr := handler.NewContactHandler(cfg, contactSvc)
 	storageHdlr := handler.NewStorageHandler(cfg, storageSvc)
 
-	// Root route
+	// Root and Health routes
 	app.Get("/", rootHdlr.Handle)
+	app.Get("/health", healthHdlr.Handle)
 
 	// OpenAPI Specification and Interactive Docs
 	app.Get("/openapi.yaml", openapi.ServeYAML)
 	app.Get("/openapi.json", openapi.ServeJSON)
 	app.Get("/docs", openapi.ServeDocs)
 
-	// v1 routes (/v1/lastfm/track, /v1/lastfm/user, /v1/contact, /v1/storage)
+	// v1 routes (/v1/health, /v1/lastfm/track, /v1/lastfm/user, /v1/contact, /v1/storage)
 	v1 := app.Group("/v1")
+	v1.Get("/health", healthHdlr.Handle)
 	v1.Get("/openapi.yaml", openapi.ServeYAML)
 	v1.Get("/openapi.json", openapi.ServeJSON)
 	v1.Get("/docs", openapi.ServeDocs)
