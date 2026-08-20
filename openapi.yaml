@@ -432,15 +432,20 @@ paths:
 
 components:
   securitySchemes:
+    ApiTokenAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: realm_tok
+      description: Cryptographically secure API token generated via CLI (e.g. realm_tok_...)
     ApiKeyAuth:
       type: apiKey
       in: header
       name: X-API-Key
-      description: API Key passed via X-API-Key header
+      description: Storage API key or API token passed via X-API-Key or X-API-Token header
     BearerAuth:
       type: http
       scheme: bearer
-      description: API Key passed via Bearer token
+      description: API token passed via Bearer authorization
 
   schemas:
     RootResponse:
