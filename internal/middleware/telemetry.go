@@ -27,9 +27,9 @@ func (c fiberHeaderCarrier) Set(key, value string) {
 
 func (c fiberHeaderCarrier) Keys() []string {
 	var keys []string
-	c.ctx.Request().Header.VisitAll(func(key, _ []byte) {
+	for key := range c.ctx.Request().Header.All() {
 		keys = append(keys, string(key))
-	})
+	}
 	return keys
 }
 
