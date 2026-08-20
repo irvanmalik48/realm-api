@@ -35,17 +35,45 @@ tags:
 paths:
   /:
     get:
-      summary: Health check / Root endpoint
+      summary: Root greeting endpoint
       operationId: getRoot
       tags:
         - Health
       responses:
         '200':
-          description: Service is healthy
+          description: Root message
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RootResponse'
+
+  /health:
+    get:
+      summary: Service health check and uptime status
+      operationId: getHealth
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service health details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /v1/health:
+    get:
+      summary: Versioned health check
+      operationId: getV1Health
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service health details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
 
   /v1/lastfm/track:
     get:
@@ -454,6 +482,37 @@ components:
         status:
           type: string
           example: success
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - service
+        - version
+        - uptime_seconds
+        - timestamp
+        - database
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: healthy
+        service:
+          type: string
+          example: realm-api
+        version:
+          type: string
+          example: 1.0.0
+        uptime_seconds:
+          type: integer
+          example: 86400
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-08-20T13:18:31Z'
+        database:
+          type: string
+          example: connected
 
     ErrorResponse:
       type: object
