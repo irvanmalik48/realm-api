@@ -12,10 +12,24 @@ import (
 	"github.com/irvanmalik48/realm-api/internal/config"
 	"github.com/irvanmalik48/realm-api/internal/database"
 	"github.com/irvanmalik48/realm-api/internal/router"
+	"github.com/irvanmalik48/realm-api/internal/telemetry"
 )
 
 func main() {
 	cfg := config.Load()
+
+	// Initialize OpenTelemetry tracer
+	ctx := context.Background()
+	otelShutdown, err := telemetry.InitTracer(ctx, "realm-api", cfg.Environment)
+	if err != nil {
+		log.Printf("Warning: Failed to initialize OpenTelemetry tracer: %v\n", err)
+	} else if otelShutdown != nil {
+		defer func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = otelShutdown(shutdownCtx)
+		}()
+	}
 
 	// Initialize Database connection if configured
 	var db *database.DB
