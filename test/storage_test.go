@@ -13,9 +13,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/irvanmalik48/realm-api/internal/auth"
 	"github.com/irvanmalik48/realm-api/internal/config"
 	"github.com/irvanmalik48/realm-api/internal/handler"
 	"github.com/irvanmalik48/realm-api/internal/middleware"
@@ -66,7 +68,7 @@ func createTestPNG() []byte {
 	return buf.Bytes()
 }
 
-func setupStorageTestApp(t *testing.T, apiKey string) (*fiber.App, string, service.StorageService) {
+func setupStorageTestApp(t *testing.T, withAuth bool) (*fiber.App, string, service.StorageService, string) {
 	tempDir, err := os.MkdirTemp("", "realm-storage-test-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -74,7 +76,6 @@ func setupStorageTestApp(t *testing.T, apiKey string) (*fiber.App, string, servi
 
 	cfg := &config.Config{
 		StorageDir:      tempDir,
-		StorageAPIKey:   apiKey,
 		MaxUploadSizeMB: 10,
 	}
 
@@ -87,18 +88,36 @@ func setupStorageTestApp(t *testing.T, apiKey string) (*fiber.App, string, servi
 	svc := service.NewStorageService(cfg, repo, engine)
 	hdlr := handler.NewStorageHandler(cfg, svc)
 
+	tokenRepo := newMockTokenRepo()
+	tokenCache := auth.NewTokenCache(1 * time.Minute)
+	tokenLimiter := auth.NewTokenRateLimiter()
+	tokenSvc := service.NewTokenService(tokenRepo, tokenCache, tokenLimiter)
+
+	var validToken string
+	if withAuth {
+		tokResult, err := tokenSvc.Create(context.Background(), model.TokenCreateInput{
+			Name:         "test-storage",
+			Scopes:       []string{"storage:write"},
+			RateLimitRPM: 100,
+		})
+		if err != nil {
+			t.Fatalf("failed to create test token: %v", err)
+		}
+		validToken = tokResult.Raw
+	}
+
 	app := fiber.New()
 	v1 := app.Group("/v1/storage")
-	v1.Post("/upload", middleware.StorageAuth(cfg), hdlr.Upload)
+	v1.Post("/upload", middleware.RequireToken(tokenSvc, tokenLimiter, "storage:write"), hdlr.Upload)
 	v1.Get("/:id", hdlr.GetFile)
 	v1.Get("/:id/info", hdlr.GetFileInfo)
-	v1.Delete("/:id", middleware.StorageAuth(cfg), hdlr.DeleteFile)
+	v1.Delete("/:id", middleware.RequireToken(tokenSvc, tokenLimiter, "storage:write"), hdlr.DeleteFile)
 
-	return app, tempDir, svc
+	return app, tempDir, svc, validToken
 }
 
 func TestStorage_UploadAndServe(t *testing.T) {
-	app, tempDir, _ := setupStorageTestApp(t, "")
+	app, tempDir, _, validToken := setupStorageTestApp(t, true)
 	defer os.RemoveAll(tempDir)
 
 	pngBytes := createTestPNG()
@@ -115,6 +134,7 @@ func TestStorage_UploadAndServe(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/storage/upload", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+validToken)
 
 	resp, err := app.Test(req, -1)
 	if err != nil {
@@ -200,6 +220,7 @@ func TestStorage_UploadAndServe(t *testing.T) {
 
 	// 5. Delete file
 	delReq := httptest.NewRequest(http.MethodDelete, "/v1/storage/"+fileID.String(), nil)
+	delReq.Header.Set("Authorization", "Bearer "+validToken)
 	delResp, _ := app.Test(delReq, -1)
 	if delResp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200 OK for delete, got %d", delResp.StatusCode)
@@ -214,7 +235,7 @@ func TestStorage_UploadAndServe(t *testing.T) {
 }
 
 func TestStorage_AuthProtection(t *testing.T) {
-	app, tempDir, _ := setupStorageTestApp(t, "secret-api-key")
+	app, tempDir, _, validToken := setupStorageTestApp(t, true)
 	defer os.RemoveAll(tempDir)
 
 	// Unauthorized upload
@@ -224,7 +245,7 @@ func TestStorage_AuthProtection(t *testing.T) {
 		t.Errorf("expected 401 for missing key, got %d", resp1.StatusCode)
 	}
 
-	// Authorized upload with X-API-Key
+	// Authorized upload with Authorization Bearer token
 	pngBytes := createTestPNG()
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
@@ -234,7 +255,7 @@ func TestStorage_AuthProtection(t *testing.T) {
 
 	req2 := httptest.NewRequest(http.MethodPost, "/v1/storage/upload", body)
 	req2.Header.Set("Content-Type", writer.FormDataContentType())
-	req2.Header.Set("X-API-Key", "secret-api-key")
+	req2.Header.Set("Authorization", "Bearer "+validToken)
 
 	resp2, err := app.Test(req2, -1)
 	if err != nil {
@@ -242,6 +263,6 @@ func TestStorage_AuthProtection(t *testing.T) {
 	}
 
 	if resp2.StatusCode != http.StatusCreated {
-		t.Errorf("expected 201 for valid API key, got %d", resp2.StatusCode)
+		t.Errorf("expected 201 for valid API token, got %d", resp2.StatusCode)
 	}
 }
