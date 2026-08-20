@@ -16,6 +16,7 @@ import (
 	"github.com/irvanmalik48/realm-api/internal/middleware"
 	"github.com/irvanmalik48/realm-api/internal/repository"
 	"github.com/irvanmalik48/realm-api/internal/service"
+	"github.com/irvanmalik48/realm-api/internal/storage"
 )
 
 func New(cfg *config.Config, db *database.DB) *fiber.App {
@@ -47,27 +48,36 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	}
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: allowedOrigins,
-		AllowMethods: "GET,POST,OPTIONS",
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Realm-Request, X-Requested-With",
+		AllowMethods: "GET,POST,DELETE,OPTIONS",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Realm-Request, X-Requested-With, X-API-Key",
 	}))
 
 	// Repositories & Services
 	var contactRepo repository.ContactRepository
+	var storageRepo repository.StorageRepository
 	if db != nil {
 		contactRepo = repository.NewContactRepository(db)
+		storageRepo = repository.NewStorageRepository(db)
+	}
+
+	storageEngine, err := storage.NewZstdEngine(cfg.StorageDir)
+	if err != nil {
+		panic(err)
 	}
 
 	lastFMSvc := service.NewLastFMService(cfg.LastFMAPIKey, cfg.LastFMAPISecret)
 	contactSvc := service.NewContactService(cfg, contactRepo)
+	storageSvc := service.NewStorageService(cfg, storageRepo, storageEngine)
 
 	rootHdlr := handler.NewRootHandler()
 	lastFMHdlr := handler.NewLastFMHandler(cfg, lastFMSvc)
 	contactHdlr := handler.NewContactHandler(cfg, contactSvc)
+	storageHdlr := handler.NewStorageHandler(cfg, storageSvc)
 
 	// Root route
 	app.Get("/", rootHdlr.Handle)
 
-	// v1 routes (/v1/lastfm/track, /v1/lastfm/user, /v1/contact)
+	// v1 routes (/v1/lastfm/track, /v1/lastfm/user, /v1/contact, /v1/storage)
 	v1 := app.Group("/v1")
 
 	// LastFM endpoints
@@ -84,6 +94,13 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 		},
 	})
 	v1.Post("/contact", middleware.CSRFProtection(cfg), contactLimiter, contactHdlr.Handle)
+
+	// Storage endpoints (Zstd-compressed, Blurhash, on-the-fly WebP)
+	storageGroup := v1.Group("/storage")
+	storageGroup.Post("/upload", middleware.StorageAuth(cfg), storageHdlr.Upload)
+	storageGroup.Get("/:id", storageHdlr.GetFile)
+	storageGroup.Get("/:id/info", storageHdlr.GetFileInfo)
+	storageGroup.Delete("/:id", middleware.StorageAuth(cfg), storageHdlr.DeleteFile)
 
 	// 404 Not Found fallback handler
 	app.Use(func(c *fiber.Ctx) error {
