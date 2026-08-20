@@ -349,10 +349,26 @@ make test
 go test -v ./...
 ```
 
-### Building Binary
+### Building Binaries
 ```bash
 make build
-# Binary output in ./bin/server
+# Output in ./bin/server and ./bin/token
+```
+
+### Managing API Tokens (CLI)
+Generate and manage secure API tokens via the administrative CLI tool:
+```bash
+# Create a new API token
+go run ./cmd/token create -name "my-app" -scopes "storage:write,contact:read" -rpm 120 -expires 365d
+
+# List all tokens
+go run ./cmd/token list
+
+# Inspect / verify a raw token
+go run ./cmd/token inspect -token realm_tok_...
+
+# Revoke a token
+go run ./cmd/token revoke -id <token-uuid>
 ```
 
 ---
