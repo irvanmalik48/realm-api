@@ -270,12 +270,7 @@ docker compose down
 Add the following to your server's `Caddyfile`:
 ```caddy
 api.irvanma.eu.org {
-    reverse_proxy realm-api:8080 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
+    reverse_proxy realm-api:8080
 }
 ```
 
