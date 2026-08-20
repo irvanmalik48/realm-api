@@ -14,6 +14,7 @@ import (
 	"github.com/irvanmalik48/realm-api/internal/database"
 	"github.com/irvanmalik48/realm-api/internal/handler"
 	"github.com/irvanmalik48/realm-api/internal/middleware"
+	"github.com/irvanmalik48/realm-api/internal/openapi"
 	"github.com/irvanmalik48/realm-api/internal/repository"
 	"github.com/irvanmalik48/realm-api/internal/service"
 	"github.com/irvanmalik48/realm-api/internal/storage"
@@ -77,8 +78,16 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	// Root route
 	app.Get("/", rootHdlr.Handle)
 
+	// OpenAPI Specification and Interactive Docs
+	app.Get("/openapi.yaml", openapi.ServeYAML)
+	app.Get("/openapi.json", openapi.ServeJSON)
+	app.Get("/docs", openapi.ServeDocs)
+
 	// v1 routes (/v1/lastfm/track, /v1/lastfm/user, /v1/contact, /v1/storage)
 	v1 := app.Group("/v1")
+	v1.Get("/openapi.yaml", openapi.ServeYAML)
+	v1.Get("/openapi.json", openapi.ServeJSON)
+	v1.Get("/docs", openapi.ServeDocs)
 
 	// LastFM endpoints
 	lastfm := v1.Group("/lastfm")
