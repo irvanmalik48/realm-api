@@ -13,6 +13,7 @@ import (
 	"github.com/irvanmalik48/realm-api/internal/config"
 	"github.com/irvanmalik48/realm-api/internal/database"
 	"github.com/irvanmalik48/realm-api/internal/handler"
+	"github.com/irvanmalik48/realm-api/internal/middleware"
 	"github.com/irvanmalik48/realm-api/internal/repository"
 	"github.com/irvanmalik48/realm-api/internal/service"
 )
@@ -47,7 +48,7 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: allowedOrigins,
 		AllowMethods: "GET,POST,OPTIONS",
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Realm-Request, X-Requested-With",
 	}))
 
 	// Repositories & Services
@@ -74,7 +75,7 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	lastfm.Get("/track", lastFMHdlr.GetRecentTracks)
 	lastfm.Get("/user", lastFMHdlr.GetUserInfo)
 
-	// Contact endpoint with rate limiting (5 requests per 10 minutes)
+	// Contact endpoint with CSRF protection and rate limiting (5 requests per 10 minutes)
 	contactLimiter := limiter.New(limiter.Config{
 		Max:        5,
 		Expiration: 10 * time.Minute,
@@ -82,7 +83,7 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 			return handler.ErrorResponse(c, "Too many requests. Please try again later.", http.StatusTooManyRequests)
 		},
 	})
-	v1.Post("/contact", contactLimiter, contactHdlr.Handle)
+	v1.Post("/contact", middleware.CSRFProtection(cfg), contactLimiter, contactHdlr.Handle)
 
 	// 404 Not Found fallback handler
 	app.Use(func(c *fiber.Ctx) error {
