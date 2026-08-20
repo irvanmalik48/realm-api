@@ -21,7 +21,6 @@ type Config struct {
 
 	// Storage Settings
 	StorageDir      string
-	StorageAPIKey   string
 	MaxUploadSizeMB int
 
 	// Contact Form Integration Settings
@@ -63,7 +62,6 @@ func Load() *Config {
 	}
 
 	storageDir := getEnv("STORAGE_DIR", "./data/storage")
-	storageAPIKey := getEnv("STORAGE_API_KEY", "")
 	maxUploadMBStr := getEnv("MAX_UPLOAD_SIZE_MB", "50")
 	maxUploadMB, err := strconv.Atoi(maxUploadMBStr)
 	if err != nil || maxUploadMB <= 0 {
@@ -87,7 +85,6 @@ func Load() *Config {
 		DatabaseURL: databaseURL,
 
 		StorageDir:      storageDir,
-		StorageAPIKey:   storageAPIKey,
 		MaxUploadSizeMB: maxUploadMB,
 
 		DiscordWebhookURL:    getEnv("DISCORD_WEBHOOK_URL", ""),
