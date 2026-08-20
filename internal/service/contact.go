@@ -13,6 +13,7 @@ import (
 	"github.com/irvanmalik48/realm-api/internal/config"
 	"github.com/irvanmalik48/realm-api/internal/model"
 	"github.com/irvanmalik48/realm-api/internal/repository"
+	"github.com/irvanmalik48/realm-api/internal/security"
 )
 
 type ContactService interface {
@@ -27,11 +28,9 @@ type contactService struct {
 
 func NewContactService(cfg *config.Config, repo repository.ContactRepository) ContactService {
 	return &contactService{
-		cfg:  cfg,
-		repo: repo,
-		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
-		},
+		cfg:        cfg,
+		repo:       repo,
+		httpClient: security.NewSafeHTTPClient(10 * time.Second),
 	}
 }
 
@@ -54,25 +53,33 @@ func (s *contactService) SendMessage(ctx context.Context, req *model.ContactRequ
 		}
 	}
 
-	// Send notifications asynchronously or best-effort
+	// Send notifications asynchronously or best-effort with SSRF protection
 	if s.cfg.DiscordWebhookURL != "" {
-		go func() {
-			notifyCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			if err := s.sendDiscordNotification(notifyCtx, req); err != nil {
-				log.Printf("[Contact] Failed to send Discord notification: %v\n", err)
-			}
-		}()
+		if err := security.ValidateDiscordWebhookURL(s.cfg.DiscordWebhookURL); err != nil {
+			log.Printf("[Contact] SSRF guard blocked invalid Discord webhook: %v\n", err)
+		} else {
+			go func() {
+				notifyCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				if err := s.sendDiscordNotification(notifyCtx, req); err != nil {
+					log.Printf("[Contact] Failed to send Discord notification: %v\n", err)
+				}
+			}()
+		}
 	}
 
 	if s.cfg.TelegramBotToken != "" && s.cfg.TelegramChatID != "" {
-		go func() {
-			notifyCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			if err := s.sendTelegramNotification(notifyCtx, req); err != nil {
-				log.Printf("[Contact] Failed to send Telegram notification: %v\n", err)
-			}
-		}()
+		if !security.ValidateTelegramBotToken(s.cfg.TelegramBotToken) {
+			log.Println("[Contact] SSRF guard blocked invalid Telegram bot token format")
+		} else {
+			go func() {
+				notifyCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				if err := s.sendTelegramNotification(notifyCtx, req); err != nil {
+					log.Printf("[Contact] Failed to send Telegram notification: %v\n", err)
+				}
+			}()
+		}
 	}
 
 	return submission, nil
