@@ -5,6 +5,7 @@ dev:
 
 build:
 	CGO_ENABLED=0 go build -trimpath -ldflags="-w -s" -o bin/server ./cmd/server
+	CGO_ENABLED=0 go build -trimpath -ldflags="-w -s" -o bin/token ./cmd/token
 
 test:
 	go test -v ./...
