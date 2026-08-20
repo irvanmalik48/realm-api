@@ -1,4 +1,4 @@
-package handler_test
+package test
 
 import (
 	"context"
@@ -36,7 +36,7 @@ func (m *mockLastFMService) GetUserInfo(ctx context.Context, username string) (*
 	return m.userResponse, nil
 }
 
-func setupTestApp(cfg *config.Config, svc service.LastFMService) *fiber.App {
+func setupLastFMTestApp(cfg *config.Config, svc service.LastFMService) *fiber.App {
 	app := fiber.New()
 	hdlr := handler.NewLastFMHandler(cfg, svc)
 
@@ -52,7 +52,7 @@ func TestGetRecentTracks_MissingAPIKey(t *testing.T) {
 		LastFMAPIKey: "",
 	}
 	svc := &mockLastFMService{}
-	app := setupTestApp(cfg, svc)
+	app := setupLastFMTestApp(cfg, svc)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/lastfm/track?username=test", nil)
 	resp, err := app.Test(req, -1)
@@ -70,7 +70,7 @@ func TestGetRecentTracks_MissingUsername(t *testing.T) {
 		LastFMAPIKey: "dummy-key",
 	}
 	svc := &mockLastFMService{}
-	app := setupTestApp(cfg, svc)
+	app := setupLastFMTestApp(cfg, svc)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/lastfm/track", nil)
 	resp, err := app.Test(req, -1)
@@ -88,7 +88,7 @@ func TestGetRecentTracks_InvalidLimit(t *testing.T) {
 		LastFMAPIKey: "dummy-key",
 	}
 	svc := &mockLastFMService{}
-	app := setupTestApp(cfg, svc)
+	app := setupLastFMTestApp(cfg, svc)
 
 	testCases := []string{
 		"/v1/lastfm/track?username=test&limit=0",
@@ -127,7 +127,7 @@ func TestGetRecentTracks_Success(t *testing.T) {
 			},
 		},
 	}
-	app := setupTestApp(cfg, svc)
+	app := setupLastFMTestApp(cfg, svc)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/lastfm/track?username=test&limit=5", nil)
 	resp, err := app.Test(req, -1)
@@ -168,7 +168,7 @@ func TestGetUserInfo_Success(t *testing.T) {
 			},
 		},
 	}
-	app := setupTestApp(cfg, svc)
+	app := setupLastFMTestApp(cfg, svc)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/lastfm/user?username=testuser", nil)
 	resp, err := app.Test(req, -1)
@@ -201,7 +201,7 @@ func TestGetUserInfo_UpstreamError(t *testing.T) {
 			Message:    "User not found",
 		},
 	}
-	app := setupTestApp(cfg, svc)
+	app := setupLastFMTestApp(cfg, svc)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/lastfm/user?username=unknown", nil)
 	resp, err := app.Test(req, -1)
@@ -221,7 +221,7 @@ func TestGetUserInfo_GenericError(t *testing.T) {
 	svc := &mockLastFMService{
 		err: errors.New("connection failed"),
 	}
-	app := setupTestApp(cfg, svc)
+	app := setupLastFMTestApp(cfg, svc)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/lastfm/user?username=test", nil)
 	resp, err := app.Test(req, -1)
