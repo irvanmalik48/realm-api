@@ -42,7 +42,7 @@ Realm API supports cryptographically secure API tokens (`realm_tok_...`) generat
 |---|---|---|
 | **Bearer Token** | `Authorization: Bearer realm_tok_<secret>` | Standard Bearer token authentication |
 | **API Token** | `X-API-Token: realm_tok_<secret>` | Alternative token header |
-| **API Key** | `X-API-Key: realm_tok_<secret>` | Storage API key or API token |
+| **API Key Header** | `X-API-Key: realm_tok_<secret>` | Alternative token header |
 
 ### Generating & Managing Tokens (CLI)
 
