@@ -114,10 +114,10 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 
 	// Storage endpoints (Zstd-compressed, Blurhash, on-the-fly WebP)
 	storageGroup := v1.Group("/storage")
-	storageGroup.Post("/upload", middleware.RequireToken(cfg, tokenSvc, tokenLimiter, "storage:write"), storageHdlr.Upload)
+	storageGroup.Post("/upload", middleware.RequireToken(tokenSvc, tokenLimiter, "storage:write"), storageHdlr.Upload)
 	storageGroup.Get("/:id", middleware.OptionalToken(tokenSvc, tokenLimiter), storageHdlr.GetFile)
 	storageGroup.Get("/:id/info", middleware.OptionalToken(tokenSvc, tokenLimiter), storageHdlr.GetFileInfo)
-	storageGroup.Delete("/:id", middleware.RequireToken(cfg, tokenSvc, tokenLimiter, "storage:write"), storageHdlr.DeleteFile)
+	storageGroup.Delete("/:id", middleware.RequireToken(tokenSvc, tokenLimiter, "storage:write"), storageHdlr.DeleteFile)
 
 	// 404 Not Found fallback handler
 	app.Use(func(c *fiber.Ctx) error {
