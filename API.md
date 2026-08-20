@@ -1,6 +1,6 @@
 # Realm API Specification
 
-OpenAPI 3.1.0 compliant specification and route documentation for Realm API.
+OpenAPI 3.2.0 compliant specification and route documentation for Realm API.
 
 ---
 
@@ -15,7 +15,7 @@ OpenAPI 3.1.0 compliant specification and route documentation for Realm API.
   - [LastFM](#lastfm)
   - [Contact](#contact)
   - [Storage](#storage)
-- [OpenAPI 3.1.0 Specification](#openapi-310-specification)
+- [OpenAPI 3.2.0 Specification](#openapi-320-specification)
 
 ---
 
@@ -303,12 +303,13 @@ Deletes the compressed file from disk and its metadata from PostgreSQL.
 
 ---
 
-## OpenAPI 3.1.0 Specification
+## OpenAPI 3.2.0 Specification
 
-The following is the complete, valid OpenAPI 3.1.0 definition in YAML format:
+The following is the complete, valid OpenAPI 3.2.0 definition in YAML format:
 
 ```yaml
-openapi: 3.1.0
+openapi: 3.2.0
+$self: https://api.irvanma.eu.org/openapi.yaml
 info:
   title: Realm API
   description: High-performance backend API service for Realm built with Go, Fiber v2, and PostgreSQL.
@@ -326,6 +327,20 @@ servers:
     description: Production Server
   - url: http://localhost:8080
     description: Local Development Server
+
+tags:
+  - name: Health
+    summary: Health check and status
+    description: Core service health and uptime endpoints.
+  - name: LastFM
+    summary: LastFM Scrobble and User Data
+    description: Proxied, cached endpoints for LastFM track scrobbles and user statistics.
+  - name: Contact
+    summary: Contact Form Submissions
+    description: Contact message ingestion with CSRF protection, rate limiting, and instant notifications.
+  - name: Storage
+    summary: Zstandard Compressed File Storage
+    description: High-performance file storage with Zstd compression, Blurhash analysis, and endpoint-level WebP conversion.
 
 paths:
   /:
