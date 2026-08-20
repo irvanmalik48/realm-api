@@ -248,6 +248,12 @@ make build
 
 ## Docker & Docker Compose
 
+### Prerequisites
+Ensure the external Caddy network exists before starting the stack:
+```bash
+docker network create caddy_net
+```
+
 ### Using Docker Compose
 ```bash
 # Start API and PostgreSQL in background
@@ -258,4 +264,22 @@ docker compose logs -f
 
 # Stop containers
 docker compose down
+```
+
+### Caddy Reverse Proxy Configuration
+Add the following to your server's `Caddyfile`:
+```caddy
+api.irvanma.eu.org {
+    reverse_proxy realm-api:8080 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+```
+
+Reload Caddy:
+```bash
+docker exec -w /etc/caddy caddy caddy reload
 ```
