@@ -32,6 +32,7 @@ type AuthService interface {
 	HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserInfo) (*model.AuthResponse, error)
 	GetProfile(ctx context.Context, userID uuid.UUID) (*model.UserDTO, error)
 	UpdateProfile(ctx context.Context, userID uuid.UUID, input model.UpdateProfileInput) (*model.UserDTO, error)
+	CheckAvailability(ctx context.Context, username, email string) (*model.CheckAvailabilityResponse, error)
 }
 
 type authService struct {
@@ -302,9 +303,58 @@ func (s *authService) UpdateProfile(ctx context.Context, userID uuid.UUID, input
 	return user.ToDTO(), nil
 }
 
+func (s *authService) CheckAvailability(ctx context.Context, username, email string) (*model.CheckAvailabilityResponse, error) {
+	resp := &model.CheckAvailabilityResponse{}
+
+	if username != "" {
+		trimmedUsername := strings.TrimSpace(username)
+		if !usernameRegex.MatchString(trimmedUsername) {
+			avail := false
+			resp.UsernameAvailable = &avail
+			resp.UsernameReason = "Username must be 3-30 characters (alphanumeric and underscores only)"
+		} else {
+			_, err := s.userRepo.GetByUsername(ctx, trimmedUsername)
+			if errors.Is(err, repository.ErrUserNotFound) {
+				avail := true
+				resp.UsernameAvailable = &avail
+			} else if err == nil {
+				avail := false
+				resp.UsernameAvailable = &avail
+				resp.UsernameReason = "Username is already taken"
+			} else {
+				return nil, err
+			}
+		}
+	}
+
+	if email != "" {
+		trimmedEmail := strings.TrimSpace(email)
+		if _, err := mail.ParseAddress(trimmedEmail); err != nil || !strings.Contains(trimmedEmail, "@") {
+			avail := false
+			resp.EmailAvailable = &avail
+			resp.EmailReason = "Invalid email format"
+		} else {
+			_, err := s.userRepo.GetByEmail(ctx, trimmedEmail)
+			if errors.Is(err, repository.ErrUserNotFound) {
+				avail := true
+				resp.EmailAvailable = &avail
+			} else if err == nil {
+				avail := false
+				resp.EmailAvailable = &avail
+				resp.EmailReason = "Email is already registered"
+			} else {
+				return nil, err
+			}
+		}
+	}
+
+	return resp, nil
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a
 	}
 	return b
 }
+
