@@ -106,7 +106,9 @@ func setupStorageTestApp(t *testing.T, withAuth bool) (*fiber.App, string, servi
 		validToken = tokResult.Raw
 	}
 
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		BodyLimit: cfg.MaxUploadSizeMB * 1024 * 1024,
+	})
 	v1 := app.Group("/v1/storage")
 	v1.Post("/upload", middleware.RequireToken(tokenSvc, tokenLimiter, "storage:write"), hdlr.Upload)
 	v1.Get("/:id", hdlr.GetFile)
@@ -274,21 +276,31 @@ func TestStorage_UploadSizeLimit(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	// Set tight 1KB upload limit (0.001MB not supported so we set MaxUploadSizeMB to 1 and mock a 2MB payload)
+	// Set 10MB upload limit
 	cfg := &config.Config{
 		StorageDir:      tempDir,
-		MaxUploadSizeMB: 1, // 1 MB limit
+		MaxUploadSizeMB: 10, // 10 MB limit
 	}
 
 	engine, _ := storage.NewZstdEngine(tempDir)
 	repo := newMockStorageRepo()
 	svc := service.NewStorageService(cfg, repo, engine)
 
-	// Upload payload of 2MB
-	largePayload := bytes.Repeat([]byte("A"), 2*1024*1024)
+	// Upload payload of 11MB exceeds 10MB limit
+	largePayload := bytes.Repeat([]byte("A"), 11*1024*1024)
 	_, err = svc.Upload(context.Background(), "large.txt", bytes.NewReader(largePayload), "text/plain")
 	if err == nil {
-		t.Fatalf("expected ErrFileTooLarge for 2MB file with 1MB limit")
+		t.Fatalf("expected ErrFileTooLarge for 11MB file with 10MB limit")
+	}
+
+	// Upload payload within limit (e.g. 1MB) succeeds
+	smallPayload := bytes.Repeat([]byte("B"), 1*1024*1024)
+	dto, err := svc.Upload(context.Background(), "small.txt", bytes.NewReader(smallPayload), "text/plain")
+	if err != nil {
+		t.Fatalf("expected upload within limit to succeed, got: %v", err)
+	}
+	if dto == nil {
+		t.Fatalf("expected non-nil DTO")
 	}
 }
 
