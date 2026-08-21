@@ -181,7 +181,7 @@ func setupAuthTestApp(t *testing.T) (*fiber.App, service.AuthService, auth.Paset
 	repo := newMockUserRepo()
 	authSvc := service.NewAuthService(repo, pasetoSvc)
 	oauthSvc := service.NewOAuthService(&config.Config{})
-	hdlr := handler.NewAuthHandler(&config.Config{}, authSvc, oauthSvc)
+	hdlr := handler.NewAuthHandler(&config.Config{}, authSvc, oauthSvc, pasetoSvc)
 
 	app := fiber.New()
 	v1 := app.Group("/v1/auth")
