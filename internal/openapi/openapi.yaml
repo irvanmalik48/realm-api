@@ -78,6 +78,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
 
+  /v1/auth/check:
+    get:
+      summary: Check username and email availability
+      operationId: checkAvailability
+      tags:
+        - Authentication
+      parameters:
+        - name: username
+          in: query
+          required: false
+          schema:
+            type: string
+            example: janedoe
+        - name: email
+          in: query
+          required: false
+          schema:
+            type: string
+            format: email
+            example: jane@example.com
+      responses:
+        '200':
+          description: Availability check result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckAvailabilityResponse'
+
   /v1/auth/register:
     post:
       summary: Register a new user account
@@ -1015,4 +1043,21 @@ components:
           type: string
         user:
           $ref: '#/components/schemas/UserDTO'
+
+    CheckAvailabilityResponse:
+      type: object
+      properties:
+        username_available:
+          type: boolean
+          example: true
+        email_available:
+          type: boolean
+          example: true
+        username_reason:
+          type: string
+          example: Username is already taken
+        email_reason:
+          type: string
+          example: Email is already registered
+
 
