@@ -122,10 +122,12 @@ func (db *DB) migrate(ctx context.Context) error {
 		provider VARCHAR(30) NOT NULL,
 		provider_id VARCHAR(255) NOT NULL,
 		email VARCHAR(255),
+		avatar_url TEXT,
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 		UNIQUE(provider, provider_id),
 		UNIQUE(user_id, provider)
 	);
+	ALTER TABLE user_oauth_accounts ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 	CREATE INDEX IF NOT EXISTS idx_user_oauth_accounts_user_id ON user_oauth_accounts(user_id);
 	CREATE INDEX IF NOT EXISTS idx_user_oauth_accounts_provider ON user_oauth_accounts(provider, provider_id);
 	`
