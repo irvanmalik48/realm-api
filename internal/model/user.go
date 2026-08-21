@@ -82,3 +82,11 @@ type UserClaims struct {
 	IssuedAt  time.Time `json:"iat"`
 	ExpiresAt time.Time `json:"exp"`
 }
+
+type CheckAvailabilityResponse struct {
+	UsernameAvailable *bool  `json:"username_available,omitempty"`
+	EmailAvailable    *bool  `json:"email_available,omitempty"`
+	UsernameReason    string `json:"username_reason,omitempty"`
+	EmailReason       string `json:"email_reason,omitempty"`
+}
+
