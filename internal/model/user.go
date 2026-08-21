@@ -25,19 +25,27 @@ type OAuthAccount struct {
 	Provider   string    `json:"provider"`
 	ProviderID string    `json:"provider_id"`
 	Email      *string   `json:"email,omitempty"`
+	AvatarURL  *string   `json:"avatar_url,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
 }
 
+type OAuthAccountDTO struct {
+	Provider  string  `json:"provider"`
+	Email     *string `json:"email,omitempty"`
+	AvatarURL *string `json:"avatar_url,omitempty"`
+}
+
 type UserDTO struct {
-	ID                 uuid.UUID `json:"id"`
-	Email              string    `json:"email"`
-	Username           string    `json:"username"`
-	FullName           string    `json:"full_name"`
-	AvatarURL          *string   `json:"avatar_url,omitempty"`
-	Provider           string    `json:"provider"`
-	HasPassword        bool      `json:"has_password"`
-	ConnectedProviders []string  `json:"connected_providers"`
-	CreatedAt          time.Time `json:"created_at"`
+	ID                 uuid.UUID         `json:"id"`
+	Email              string            `json:"email"`
+	Username           string            `json:"username"`
+	FullName           string            `json:"full_name"`
+	AvatarURL          *string           `json:"avatar_url,omitempty"`
+	Provider           string            `json:"provider"`
+	HasPassword        bool              `json:"has_password"`
+	ConnectedProviders []string          `json:"connected_providers"`
+	ConnectedAccounts  []OAuthAccountDTO `json:"connected_accounts"`
+	CreatedAt          time.Time         `json:"created_at"`
 }
 
 func (u *User) ToDTO() *UserDTO {
@@ -46,8 +54,15 @@ func (u *User) ToDTO() *UserDTO {
 	}
 	hasPassword := u.PasswordHash != nil && *u.PasswordHash != ""
 	providers := make([]string, 0)
+	accounts := make([]OAuthAccountDTO, 0)
+
 	if u.Provider != "" && u.Provider != "local" {
 		providers = append(providers, u.Provider)
+		accounts = append(accounts, OAuthAccountDTO{
+			Provider:  u.Provider,
+			Email:     &u.Email,
+			AvatarURL: u.AvatarURL,
+		})
 	}
 
 	return &UserDTO{
@@ -59,8 +74,62 @@ func (u *User) ToDTO() *UserDTO {
 		Provider:           u.Provider,
 		HasPassword:        hasPassword,
 		ConnectedProviders: providers,
+		ConnectedAccounts:  accounts,
 		CreatedAt:          u.CreatedAt,
 	}
+}
+
+func (u *User) ToDTOWithAccounts(oauthAccounts []OAuthAccount) *UserDTO {
+	dto := u.ToDTO()
+	if dto == nil {
+		return nil
+	}
+
+	seenProviders := make(map[string]bool)
+	providers := make([]string, 0)
+	accounts := make([]OAuthAccountDTO, 0)
+
+	for _, p := range dto.ConnectedProviders {
+		if !seenProviders[p] {
+			seenProviders[p] = true
+			providers = append(providers, p)
+		}
+	}
+	for _, a := range dto.ConnectedAccounts {
+		accounts = append(accounts, a)
+	}
+
+	for _, a := range oauthAccounts {
+		if !seenProviders[a.Provider] {
+			seenProviders[a.Provider] = true
+			providers = append(providers, a.Provider)
+		}
+		// Check if already in accounts list
+		found := false
+		for i, existing := range accounts {
+			if existing.Provider == a.Provider {
+				found = true
+				if a.AvatarURL != nil && *a.AvatarURL != "" {
+					accounts[i].AvatarURL = a.AvatarURL
+				}
+				if a.Email != nil && *a.Email != "" {
+					accounts[i].Email = a.Email
+				}
+				break
+			}
+		}
+		if !found {
+			accounts = append(accounts, OAuthAccountDTO{
+				Provider:  a.Provider,
+				Email:     a.Email,
+				AvatarURL: a.AvatarURL,
+			})
+		}
+	}
+
+	dto.ConnectedProviders = providers
+	dto.ConnectedAccounts = accounts
+	return dto
 }
 
 func (u *User) ToDTOWithProviders(connectedProviders []string) *UserDTO {
@@ -69,7 +138,6 @@ func (u *User) ToDTOWithProviders(connectedProviders []string) *UserDTO {
 		return nil
 	}
 
-	// Merge unique providers
 	seen := make(map[string]bool)
 	merged := make([]string, 0)
 	for _, p := range dto.ConnectedProviders {
