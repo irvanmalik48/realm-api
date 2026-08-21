@@ -22,6 +22,8 @@ var (
 	ErrInvalidUsername    = errors.New("username must be 3-30 characters (alphanumeric and underscores only)")
 	ErrPasswordTooShort   = errors.New("password must be at least 8 characters long")
 	ErrFullNameRequired   = errors.New("full name must be between 2 and 100 characters")
+	ErrCurrentPasswordReq = errors.New("current password is required to change password")
+	ErrCurrentPasswordBad = errors.New("incorrect current password")
 )
 
 var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]{3,30}$`)
@@ -32,13 +34,16 @@ type AuthService interface {
 	HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserInfo) (*model.AuthResponse, error)
 	GetProfile(ctx context.Context, userID uuid.UUID) (*model.UserDTO, error)
 	UpdateProfile(ctx context.Context, userID uuid.UUID, input model.UpdateProfileInput) (*model.UserDTO, error)
+	SetPassword(ctx context.Context, userID uuid.UUID, input model.SetPasswordInput) error
+	LinkOAuthAccount(ctx context.Context, userID uuid.UUID, userInfo *OAuthUserInfo) error
+	UnlinkOAuthAccount(ctx context.Context, userID uuid.UUID, provider string) error
 	CheckAvailability(ctx context.Context, username, email string) (*model.CheckAvailabilityResponse, error)
 }
 
 type authService struct {
-	userRepo   repository.UserRepository
-	pasetoSvc  auth.PasetoService
-	tokenTTL   time.Duration
+	userRepo  repository.UserRepository
+	pasetoSvc auth.PasetoService
+	tokenTTL  time.Duration
 }
 
 func NewAuthService(userRepo repository.UserRepository, pasetoSvc auth.PasetoService) AuthService {
@@ -47,6 +52,21 @@ func NewAuthService(userRepo repository.UserRepository, pasetoSvc auth.PasetoSer
 		pasetoSvc: pasetoSvc,
 		tokenTTL:  7 * 24 * time.Hour,
 	}
+}
+
+func (s *authService) getConnectedProviders(ctx context.Context, userID uuid.UUID) []string {
+	if s.userRepo == nil {
+		return nil
+	}
+	accts, err := s.userRepo.GetOAuthAccounts(ctx, userID)
+	if err != nil {
+		return nil
+	}
+	providers := make([]string, 0, len(accts))
+	for _, a := range accts {
+		providers = append(providers, a.Provider)
+	}
+	return providers
 }
 
 func (s *authService) Register(ctx context.Context, input model.RegisterInput) (*model.AuthResponse, error) {
@@ -68,25 +88,14 @@ func (s *authService) Register(ctx context.Context, input model.RegisterInput) (
 		return nil, ErrFullNameRequired
 	}
 
-	if s.userRepo == nil {
-		return nil, errors.New("database user repository unavailable")
-	}
-
-	// 2. Check duplicates
-	if existing, _ := s.userRepo.GetByEmail(ctx, email); existing != nil {
-		return nil, repository.ErrUserAlreadyExists
-	}
-	if existing, _ := s.userRepo.GetByUsername(ctx, username); existing != nil {
-		return nil, repository.ErrUserAlreadyExists
-	}
-
-	// 3. Hash password
-	hashed, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	// 2. Hash Password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
-	hashStr := string(hashed)
+	hashStr := string(hashedPassword)
 
+	// 3. Create User in Repository
 	now := time.Now().UTC()
 	user := &model.User{
 		ID:           uuid.New(),
@@ -104,7 +113,7 @@ func (s *authService) Register(ctx context.Context, input model.RegisterInput) (
 		return nil, err
 	}
 
-	// 4. Issue PASETO token
+	// 4. Generate PASETO Bearer Token
 	token, err := s.pasetoSvc.GenerateToken(user, s.tokenTTL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
@@ -122,10 +131,6 @@ func (s *authService) Login(ctx context.Context, input model.LoginInput) (*model
 	identifier := strings.TrimSpace(input.Identifier)
 	if identifier == "" || input.Password == "" {
 		return nil, ErrInvalidCredentials
-	}
-
-	if s.userRepo == nil {
-		return nil, errors.New("database user repository unavailable")
 	}
 
 	user, err := s.userRepo.GetByIdentifier(ctx, identifier)
@@ -149,11 +154,13 @@ func (s *authService) Login(ctx context.Context, input model.LoginInput) (*model
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
+	connected := s.getConnectedProviders(ctx, user.ID)
+
 	return &model.AuthResponse{
 		Status:  "success",
 		Message: "Login successful",
 		Token:   token,
-		User:    user.ToDTO(),
+		User:    user.ToDTOWithProviders(connected),
 	}, nil
 }
 
@@ -162,8 +169,8 @@ func (s *authService) HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserI
 		return nil, errors.New("database user repository unavailable")
 	}
 
-	// 1. Try finding by provider and provider ID
-	user, err := s.userRepo.GetByProvider(ctx, userInfo.Provider, userInfo.ProviderID)
+	// 1. Try finding by OAuth account
+	user, err := s.userRepo.GetByOAuthAccount(ctx, userInfo.Provider, userInfo.ProviderID)
 	if err == nil && user != nil {
 		// Update avatar if provided
 		if userInfo.AvatarURL != "" && (user.AvatarURL == nil || *user.AvatarURL == "") {
@@ -176,36 +183,44 @@ func (s *authService) HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserI
 		if err != nil {
 			return nil, err
 		}
+		connected := s.getConnectedProviders(ctx, user.ID)
 		return &model.AuthResponse{
 			Status:  "success",
 			Message: "OAuth login successful",
 			Token:   token,
-			User:    user.ToDTO(),
+			User:    user.ToDTOWithProviders(connected),
 		}, nil
 	}
 
 	// 2. Try finding by email to link account
 	user, err = s.userRepo.GetByEmail(ctx, userInfo.Email)
 	if err == nil && user != nil {
-		user.Provider = userInfo.Provider
-		user.ProviderID = &userInfo.ProviderID
+		oauthAcct := &model.OAuthAccount{
+			ID:         uuid.New(),
+			UserID:     user.ID,
+			Provider:   userInfo.Provider,
+			ProviderID: userInfo.ProviderID,
+			Email:      &userInfo.Email,
+			CreatedAt:  time.Now().UTC(),
+		}
+		_ = s.userRepo.LinkOAuthAccount(ctx, oauthAcct)
+
 		if user.AvatarURL == nil || *user.AvatarURL == "" {
 			user.AvatarURL = &userInfo.AvatarURL
-		}
-		user.UpdatedAt = time.Now().UTC()
-		if err := s.userRepo.Update(ctx, user); err != nil {
-			return nil, err
+			user.UpdatedAt = time.Now().UTC()
+			_ = s.userRepo.Update(ctx, user)
 		}
 
 		token, err := s.pasetoSvc.GenerateToken(user, s.tokenTTL)
 		if err != nil {
 			return nil, err
 		}
+		connected := s.getConnectedProviders(ctx, user.ID)
 		return &model.AuthResponse{
 			Status:  "success",
 			Message: "OAuth login successful",
 			Token:   token,
-			User:    user.ToDTO(),
+			User:    user.ToDTOWithProviders(connected),
 		}, nil
 	}
 
@@ -218,64 +233,80 @@ func (s *authService) HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserI
 
 	// Ensure username uniqueness
 	originalUsername := cleanUsername
-	for i := 1; i <= 10; i++ {
-		existing, _ := s.userRepo.GetByUsername(ctx, cleanUsername)
-		if existing == nil {
+	counter := 1
+	for {
+		_, err := s.userRepo.GetByUsername(ctx, cleanUsername)
+		if errors.Is(err, repository.ErrUserNotFound) {
 			break
 		}
-		cleanUsername = fmt.Sprintf("%s_%d", originalUsername[:min(len(originalUsername), 20)], i)
+		cleanUsername = fmt.Sprintf("%s_%d", originalUsername[:min(len(originalUsername), 20)], counter)
+		counter++
+		if counter > 50 {
+			cleanUsername = fmt.Sprintf("user_%s", uuid.New().String()[:8])
+			break
+		}
 	}
 
-	var avatarPtr *string
-	if userInfo.AvatarURL != "" {
-		avatarPtr = &userInfo.AvatarURL
+	fullName := strings.TrimSpace(userInfo.FullName)
+	if fullName == "" {
+		fullName = cleanUsername
 	}
 
 	newUser := &model.User{
-		ID:         uuid.New(),
-		Email:      strings.ToLower(strings.TrimSpace(userInfo.Email)),
-		Username:   cleanUsername,
-		FullName:   userInfo.FullName,
-		AvatarURL:  avatarPtr,
-		Provider:   userInfo.Provider,
-		ProviderID: &userInfo.ProviderID,
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		ID:           uuid.New(),
+		Email:        strings.ToLower(strings.TrimSpace(userInfo.Email)),
+		Username:     cleanUsername,
+		FullName:     fullName,
+		PasswordHash: nil,
+		AvatarURL:    &userInfo.AvatarURL,
+		Provider:     userInfo.Provider,
+		ProviderID:   &userInfo.ProviderID,
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
 
 	if err := s.userRepo.Create(ctx, newUser); err != nil {
 		return nil, fmt.Errorf("failed to create oauth user: %w", err)
 	}
 
+	// Also link in oauth accounts table
+	oauthAcct := &model.OAuthAccount{
+		ID:         uuid.New(),
+		UserID:     newUser.ID,
+		Provider:   userInfo.Provider,
+		ProviderID: userInfo.ProviderID,
+		Email:      &userInfo.Email,
+		CreatedAt:  now,
+	}
+	_ = s.userRepo.LinkOAuthAccount(ctx, oauthAcct)
+
 	token, err := s.pasetoSvc.GenerateToken(newUser, s.tokenTTL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
+
+	connected := s.getConnectedProviders(ctx, newUser.ID)
 
 	return &model.AuthResponse{
 		Status:  "success",
 		Message: "OAuth registration successful",
 		Token:   token,
-		User:    newUser.ToDTO(),
+		User:    newUser.ToDTOWithProviders(connected),
 	}, nil
 }
 
 func (s *authService) GetProfile(ctx context.Context, userID uuid.UUID) (*model.UserDTO, error) {
-	if s.userRepo == nil {
-		return nil, errors.New("database user repository unavailable")
-	}
-
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-
-	return user.ToDTO(), nil
+	connected := s.getConnectedProviders(ctx, userID)
+	return user.ToDTOWithProviders(connected), nil
 }
 
 func (s *authService) UpdateProfile(ctx context.Context, userID uuid.UUID, input model.UpdateProfileInput) (*model.UserDTO, error) {
 	if s.userRepo == nil {
-		return nil, errors.New("database user repository unavailable")
+		return nil, errors.New("database repository unavailable")
 	}
 
 	user, err := s.userRepo.GetByID(ctx, userID)
@@ -300,7 +331,66 @@ func (s *authService) UpdateProfile(ctx context.Context, userID uuid.UUID, input
 		return nil, err
 	}
 
-	return user.ToDTO(), nil
+	connected := s.getConnectedProviders(ctx, userID)
+	return user.ToDTOWithProviders(connected), nil
+}
+
+func (s *authService) SetPassword(ctx context.Context, userID uuid.UUID, input model.SetPasswordInput) error {
+	if s.userRepo == nil {
+		return errors.New("database repository unavailable")
+	}
+
+	if len(input.NewPassword) < 8 {
+		return ErrPasswordTooShort
+	}
+
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	// If user already has a password, verify current password
+	if user.PasswordHash != nil && *user.PasswordHash != "" {
+		if input.CurrentPassword == nil || *input.CurrentPassword == "" {
+			return ErrCurrentPasswordReq
+		}
+		if err := bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(*input.CurrentPassword)); err != nil {
+			return ErrCurrentPasswordBad
+		}
+	}
+
+	// Hash new password
+	newHash, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	return s.userRepo.UpdatePassword(ctx, userID, string(newHash))
+}
+
+func (s *authService) LinkOAuthAccount(ctx context.Context, userID uuid.UUID, userInfo *OAuthUserInfo) error {
+	if s.userRepo == nil {
+		return errors.New("database repository unavailable")
+	}
+
+	oauthAcct := &model.OAuthAccount{
+		ID:         uuid.New(),
+		UserID:     userID,
+		Provider:   userInfo.Provider,
+		ProviderID: userInfo.ProviderID,
+		Email:      &userInfo.Email,
+		CreatedAt:  time.Now().UTC(),
+	}
+
+	return s.userRepo.LinkOAuthAccount(ctx, oauthAcct)
+}
+
+func (s *authService) UnlinkOAuthAccount(ctx context.Context, userID uuid.UUID, provider string) error {
+	if s.userRepo == nil {
+		return errors.New("database repository unavailable")
+	}
+
+	return s.userRepo.UnlinkOAuthAccount(ctx, userID, provider)
 }
 
 func (s *authService) CheckAvailability(ctx context.Context, username, email string) (*model.CheckAvailabilityResponse, error) {
@@ -357,4 +447,3 @@ func min(a, b int) int {
 	}
 	return b
 }
-
