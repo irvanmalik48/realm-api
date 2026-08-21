@@ -176,6 +176,7 @@ type SetPasswordInput struct {
 
 type UpdateProfileInput struct {
 	FullName  *string `json:"full_name,omitempty"`
+	Username  *string `json:"username,omitempty"`
 	AvatarURL *string `json:"avatar_url,omitempty"`
 }
 
