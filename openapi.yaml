@@ -22,6 +22,9 @@ tags:
   - name: Health
     summary: Health check and status
     description: Core service health and uptime endpoints.
+  - name: Authentication
+    summary: User Authentication & Sessions
+    description: User registration, credentials login, profile management, and Google/GitHub OIDC flows with PASETO bearer tokens.
   - name: LastFM
     summary: LastFM Scrobble and User Data
     description: Proxied, cached endpoints for LastFM track scrobbles and user statistics.
@@ -74,6 +77,182 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+
+  /v1/auth/register:
+    post:
+      summary: Register a new user account
+      operationId: registerUser
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterInput'
+      responses:
+        '201':
+          description: User registered successfully and PASETO session token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid input validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: User with this email or username already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/login:
+    post:
+      summary: Authenticate with username or email and password
+      operationId: loginUser
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginInput'
+      responses:
+        '200':
+          description: Successfully authenticated and PASETO session token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid username/email or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/me:
+    get:
+      summary: Get current authenticated user profile
+      operationId: getCurrentUserProfile
+      tags:
+        - Authentication
+      security:
+        - PasetoAuth: []
+      responses:
+        '200':
+          description: Current user profile data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponse'
+        '401':
+          description: Missing or expired PASETO authentication token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/profile:
+    patch:
+      summary: Update user profile
+      operationId: updateUserProfile
+      tags:
+        - Authentication
+      security:
+        - PasetoAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileInput'
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponse'
+        '400':
+          description: Invalid input validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or expired PASETO authentication token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/google:
+    get:
+      summary: Initiate Google OIDC sign-in
+      operationId: googleLogin
+      tags:
+        - Authentication
+      responses:
+        '307':
+          description: Temporary redirect to Google OAuth consent screen
+
+  /v1/auth/google/callback:
+    get:
+      summary: Google OIDC OAuth callback handler
+      operationId: googleCallback
+      tags:
+        - Authentication
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '307':
+          description: Redirects to frontend application with PASETO session token
+
+  /v1/auth/github:
+    get:
+      summary: Initiate GitHub OAuth2 sign-in
+      operationId: githubLogin
+      tags:
+        - Authentication
+      responses:
+        '307':
+          description: Temporary redirect to GitHub OAuth consent screen
+
+  /v1/auth/github/callback:
+    get:
+      summary: GitHub OAuth2 callback handler
+      operationId: githubCallback
+      tags:
+        - Authentication
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '307':
+          description: Redirects to frontend application with PASETO session token
 
   /v1/lastfm/track:
     get:
@@ -458,6 +637,11 @@ paths:
 
 components:
   securitySchemes:
+    PasetoAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: paseto
+      description: PASETO v2.local symmetric encrypted token (e.g. v2.local...)
     ApiTokenAuth:
       type: http
       scheme: bearer
@@ -716,3 +900,119 @@ components:
               type: string
             url:
               type: string
+
+    UserDTO:
+      type: object
+      required:
+        - id
+        - email
+        - username
+        - full_name
+        - provider
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+        full_name:
+          type: string
+        avatar_url:
+          type: string
+          nullable: true
+        provider:
+          type: string
+          enum: [local, google, github]
+        created_at:
+          type: string
+          format: date-time
+
+    RegisterInput:
+      type: object
+      required:
+        - email
+        - username
+        - password
+        - full_name
+      properties:
+        email:
+          type: string
+          format: email
+          example: jane@example.com
+        username:
+          type: string
+          example: janedoe
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: SecurePassword123!
+        full_name:
+          type: string
+          example: Jane Doe
+        avatar_url:
+          type: string
+          nullable: true
+          example: https://example.com/avatar.png
+
+    LoginInput:
+      type: object
+      required:
+        - identifier
+        - password
+      properties:
+        identifier:
+          type: string
+          description: Username or email address
+          example: janedoe
+        password:
+          type: string
+          format: password
+          example: SecurePassword123!
+
+    UpdateProfileInput:
+      type: object
+      properties:
+        full_name:
+          type: string
+          example: Jane Smith
+        avatar_url:
+          type: string
+          example: https://example.com/new-avatar.png
+
+    AuthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: Login successful
+        token:
+          type: string
+          description: PASETO v2.local symmetric token
+          example: v2.local.k7x...
+        user:
+          $ref: '#/components/schemas/UserDTO'
+
+    ProfileResponse:
+      type: object
+      required:
+        - status
+        - user
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserDTO'
+
