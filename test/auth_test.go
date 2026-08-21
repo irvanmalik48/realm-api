@@ -582,6 +582,18 @@ func TestAuth_OAuthLinkingAndUnlinking(t *testing.T) {
 		t.Errorf("expected avatar URL to be nil after clearing, got %v", clearedProfile.AvatarURL)
 	}
 
+	// 5b. Test updating username to an available username
+	newUsername := "brandnew_user"
+	nameUpdatedProfile, err := authSvc.UpdateProfile(ctx, userID, model.UpdateProfileInput{
+		Username: &newUsername,
+	})
+	if err != nil {
+		t.Fatalf("failed to update username: %v", err)
+	}
+	if nameUpdatedProfile.Username != newUsername {
+		t.Errorf("expected username %s, got %s", newUsername, nameUpdatedProfile.Username)
+	}
+
 	// 6. Set local password on the OAuth user
 	err = authSvc.SetPassword(ctx, userID, model.SetPasswordInput{
 		NewPassword: "BrandNewPassword123!",
