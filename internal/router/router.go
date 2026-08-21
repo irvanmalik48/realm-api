@@ -65,11 +65,13 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	var contactRepo repository.ContactRepository
 	var storageRepo repository.StorageRepository
 	var tokenRepo repository.TokenRepository
+	var userRepo repository.UserRepository
 
 	if db != nil {
 		contactRepo = repository.NewContactRepository(db)
 		storageRepo = repository.NewStorageRepository(db)
 		tokenRepo = repository.NewTokenRepository(db)
+		userRepo = repository.NewUserRepository(db)
 	}
 
 	storageEngine, err := storage.NewZstdEngine(cfg.StorageDir)
@@ -80,16 +82,24 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	tokenCache := auth.NewTokenCache(5 * time.Minute)
 	tokenLimiter := auth.NewTokenRateLimiter()
 
+	pasetoSvc, err := auth.NewPasetoService(cfg.PASETOSymmetricKey)
+	if err != nil {
+		panic(err)
+	}
+
 	lastFMSvc := service.NewLastFMService(cfg.LastFMAPIKey, cfg.LastFMAPISecret)
 	contactSvc := service.NewContactService(cfg, contactRepo)
 	storageSvc := service.NewStorageService(cfg, storageRepo, storageEngine)
 	tokenSvc := service.NewTokenService(tokenRepo, tokenCache, tokenLimiter)
+	oauthSvc := service.NewOAuthService(cfg)
+	authSvc := service.NewAuthService(userRepo, pasetoSvc)
 
 	rootHdlr := handler.NewRootHandler()
 	healthHdlr := handler.NewHealthHandler(db)
 	lastFMHdlr := handler.NewLastFMHandler(cfg, lastFMSvc)
 	contactHdlr := handler.NewContactHandler(cfg, contactSvc)
 	storageHdlr := handler.NewStorageHandler(cfg, storageSvc)
+	authHdlr := handler.NewAuthHandler(cfg, authSvc, oauthSvc)
 
 	// Root and Health routes
 	app.Get("/", rootHdlr.Handle)
@@ -100,12 +110,23 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	app.Get("/openapi.json", openapi.ServeJSON)
 	app.Get("/docs", openapi.ServeDocs)
 
-	// v1 routes (/v1/health, /v1/lastfm/track, /v1/lastfm/user, /v1/contact, /v1/storage)
+	// v1 routes (/v1/health, /v1/lastfm/track, /v1/lastfm/user, /v1/contact, /v1/storage, /v1/auth)
 	v1 := app.Group("/v1")
 	v1.Get("/health", healthHdlr.Handle)
 	v1.Get("/openapi.yaml", openapi.ServeYAML)
 	v1.Get("/openapi.json", openapi.ServeJSON)
 	v1.Get("/docs", openapi.ServeDocs)
+
+	// User Auth endpoints (Traditional & OIDC/OAuth2 with PASETO tokens)
+	authGroup := v1.Group("/auth")
+	authGroup.Post("/register", authHdlr.Register)
+	authGroup.Post("/login", authHdlr.Login)
+	authGroup.Get("/me", middleware.RequireUserAuth(pasetoSvc), authHdlr.GetMe)
+	authGroup.Patch("/profile", middleware.RequireUserAuth(pasetoSvc), authHdlr.UpdateProfile)
+	authGroup.Get("/google", authHdlr.GoogleLogin)
+	authGroup.Get("/google/callback", authHdlr.GoogleCallback)
+	authGroup.Get("/github", authHdlr.GitHubLogin)
+	authGroup.Get("/github/callback", authHdlr.GitHubCallback)
 
 	// LastFM endpoints with optional token auth and dynamic rate limiting
 	lastfm := v1.Group("/lastfm", middleware.OptionalToken(tokenSvc, tokenLimiter))
