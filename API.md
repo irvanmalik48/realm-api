@@ -170,6 +170,23 @@ Detailed service health, uptime, and database connectivity check.
 
 ### Authentication & Users
 
+#### `GET /v1/auth/check`
+Checks if a username or email address is available for registration or already in use.
+
+- **Query Parameters**:
+  - `username` (string, optional): Desired username to check.
+  - `email` (string, optional): Desired email address to check.
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "username_available": true,
+    "email_available": false,
+    "email_reason": "Email is already registered"
+  }
+  ```
+
+---
+
 #### `POST /v1/auth/register`
 Registers a new user account with traditional email, username, and password credentials, and issues a 7-day PASETO v2 token.
 
