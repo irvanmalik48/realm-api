@@ -240,7 +240,7 @@ CREATE TABLE IF NOT EXISTS api_tokens (
 | `ALLOWED_ORIGINS` | `https://irvanma.eu.org` | Comma-separated CORS allowed origins |
 | `DATABASE_URL` | `""` | PostgreSQL connection string |
 | `STORAGE_DIR` | `./data/storage` | Directory path for Zstd compressed file storage |
-| `MAX_UPLOAD_SIZE_MB` | `50` | Maximum allowed file upload size in megabytes |
+| `MAX_UPLOAD_SIZE_MB` | `10` | Maximum allowed file upload size in megabytes |
 | `POSTGRES_USER` | `postgres` | PostgreSQL user for Docker Compose |
 | `POSTGRES_PASSWORD` | `postgres` | PostgreSQL password for Docker Compose |
 | `POSTGRES_DB` | `realm` | PostgreSQL database name |
