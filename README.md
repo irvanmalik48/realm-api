@@ -7,13 +7,14 @@ High-performance, observable backend API service for Realm built with **Go**, **
 ## Features
 
 - **Blazing Fast**: Powered by [Fiber v2](https://github.com/gofiber/fiber/v2) and fasthttp.
+- **User Authentication & OIDC**: Traditional registration/login (Email/Username + bcrypt) and **Google OIDC** / **GitHub OAuth2** social login with tamper-proof **PASETO v2.local** symmetric bearer tokens.
 - **OpenTelemetry v1.45.0**: Native distributed tracing, W3C `TraceContext` / `Baggage` propagators, OTLP HTTP exporter, and `X-Trace-Id` correlation headers.
 - **OpenAPI 3.2.0 Compliant**: Interactive API documentation powered by [Scalar](https://github.com/scalar/scalar) served live at `/docs`, `/openapi.yaml`, and `/openapi.json`.
 - **Health Check & Uptime**: Real-time heartbeat endpoint (`/health` & `/v1/health`) checking database connectivity and server uptime.
 - **Secure API Tokens**: Cryptographically secure token authentication (`realm_tok_...`) generated via CLI (`cmd/token`), hashed with SHA-256 in PostgreSQL, with in-memory TTL caching.
 - **Per-Token Rate Limiting**: Dynamic 1-minute sliding window rate limiter with standard `X-RateLimit-*` response headers.
 - **Zstandard (`zstd`) File Storage**: High-compression disk storage with automatic Blurhash calculation, dimension extraction, and on-the-fly WebP conversion (`?format=webp`).
-- **PostgreSQL Persistence**: Contact submissions, file metadata, and API tokens stored via `pgxpool` with automatic schema migrations.
+- **PostgreSQL Persistence**: User accounts, contact submissions, file metadata, and API tokens stored via `pgxpool` with automatic schema migrations.
 - **LastFM Integration**: AudioScrobbler recent tracks and user statistics with caching headers.
 - **Multi-channel Alerts**: Optional instant notifications to Discord webhooks or Telegram bots upon new contact messages.
 - **Container Ready**: Multi-stage lightweight `Dockerfile` containing `/app/server` and `/app/token` binaries, and `docker-compose.yml` with non-root security.
@@ -57,7 +58,48 @@ Detailed service health, uptime, and database connectivity.
 
 ---
 
-### 2. Contact Form Submission
+### 2. User Authentication (PASETO & OIDC)
+
+#### User Registration
+```http
+POST /v1/auth/register
+Content-Type: application/json
+```
+```json
+{
+  "email": "jane@example.com",
+  "username": "janedoe",
+  "password": "SecurePassword123!",
+  "full_name": "Jane Doe",
+  "avatar_url": "https://example.com/avatar.png"
+}
+```
+
+#### User Login
+```http
+POST /v1/auth/login
+Content-Type: application/json
+```
+```json
+{
+  "identifier": "janedoe",
+  "password": "SecurePassword123!"
+}
+```
+
+#### Current User Profile
+```http
+GET /v1/auth/me
+Authorization: Bearer v2.local...
+```
+
+#### Social OIDC Logins
+- Google: `GET /v1/auth/google` (initiates consent) -> `/v1/auth/google/callback`
+- GitHub: `GET /v1/auth/github` (initiates consent) -> `/v1/auth/github/callback`
+
+---
+
+### 3. Contact Form Submission
 Submits a contact form message and persists it into PostgreSQL.
 
 ```http
@@ -85,7 +127,7 @@ X-Realm-Request: 1
 
 ---
 
-### 3. LastFM Integration
+### 4. LastFM Integration
 
 #### Get Recent Tracks
 ```http
@@ -99,7 +141,7 @@ GET /v1/lastfm/user?username={username}
 
 ---
 
-### 4. File Storage Subsystem (Zstd Compressed & WebP)
+### 5. File Storage Subsystem (Zstd Compressed & WebP)
 
 #### Upload File
 Uploads any file, compresses it on disk using **Zstandard (`zstd`)**, and automatically calculates its **Blurhash** and dimensions.
@@ -241,6 +283,14 @@ CREATE TABLE IF NOT EXISTS api_tokens (
 | `DATABASE_URL` | `""` | PostgreSQL connection string |
 | `STORAGE_DIR` | `./data/storage` | Directory path for Zstd compressed file storage |
 | `MAX_UPLOAD_SIZE_MB` | `10` | Maximum allowed file upload size in megabytes |
+| `PASETO_SYMMETRIC_KEY` | `""` | 32-byte hex/string key for PASETO token encryption |
+| `FRONTEND_URL` | `http://localhost:3000` | Frontend web application origin for OAuth redirects |
+| `GOOGLE_CLIENT_ID` | `""` | Google OAuth2 client ID |
+| `GOOGLE_CLIENT_SECRET` | `""` | Google OAuth2 client secret |
+| `GOOGLE_REDIRECT_URL` | `http://localhost:8080/v1/auth/google/callback` | Google OAuth2 redirect callback URL |
+| `GITHUB_CLIENT_ID` | `""` | GitHub OAuth2 client ID |
+| `GITHUB_CLIENT_SECRET` | `""` | GitHub OAuth2 client secret |
+| `GITHUB_REDIRECT_URL` | `http://localhost:8080/v1/auth/github/callback` | GitHub OAuth2 redirect callback URL |
 | `POSTGRES_USER` | `postgres` | PostgreSQL user for Docker Compose |
 | `POSTGRES_PASSWORD` | `postgres` | PostgreSQL password for Docker Compose |
 | `POSTGRES_DB` | `realm` | PostgreSQL database name |
