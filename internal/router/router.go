@@ -124,6 +124,8 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	authGroup.Post("/login", authHdlr.Login)
 	authGroup.Get("/me", middleware.RequireUserAuth(pasetoSvc), authHdlr.GetMe)
 	authGroup.Patch("/profile", middleware.RequireUserAuth(pasetoSvc), authHdlr.UpdateProfile)
+	authGroup.Post("/password", middleware.RequireUserAuth(pasetoSvc), authHdlr.SetPassword)
+	authGroup.Delete("/oauth/:provider", middleware.RequireUserAuth(pasetoSvc), authHdlr.UnlinkOAuth)
 	authGroup.Get("/google", authHdlr.GoogleLogin)
 	authGroup.Get("/google/callback", authHdlr.GoogleCallback)
 	authGroup.Get("/github", authHdlr.GitHubLogin)
