@@ -301,8 +301,46 @@ Updates profile information (Full Name and/or Avatar URL) for the currently auth
       "full_name": "Jane Smith",
       "avatar_url": "https://example.com/new-avatar.png",
       "provider": "local",
+      "has_password": true,
+      "connected_providers": ["google", "github"],
       "created_at": "2026-08-21T12:00:00Z"
     }
+  }
+  ```
+
+---
+
+#### `POST /v1/auth/password`
+Sets an initial password for OAuth-registered users or changes an existing password.
+
+- **Authentication**: Required (`Authorization: Bearer <paseto-token>`).
+- **Request Body**:
+  ```json
+  {
+    "current_password": "OldPassword123!",
+    "new_password": "NewSecurePassword123!"
+  }
+  ```
+  *(Note: `current_password` is omitted or optional if the user has no password set yet).*
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "status": "success",
+    "message": "Password updated successfully"
+  }
+  ```
+
+---
+
+#### `DELETE /v1/auth/oauth/:provider`
+Disconnects a connected OAuth social account (e.g. `google` or `github`).
+
+- **Authentication**: Required (`Authorization: Bearer <paseto-token>`).
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "status": "success",
+    "message": "google account unlinked successfully"
   }
   ```
 
