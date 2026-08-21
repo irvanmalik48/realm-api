@@ -22,6 +22,7 @@ var (
 	ErrInvalidUsername    = errors.New("username must be 3-30 characters (alphanumeric and underscores only)")
 	ErrPasswordTooShort   = errors.New("password must be at least 8 characters long")
 	ErrFullNameRequired   = errors.New("full name must be between 2 and 100 characters")
+	ErrUsernameTaken      = errors.New("username is already taken")
 	ErrCurrentPasswordReq = errors.New("current password is required to change password")
 	ErrCurrentPasswordBad = errors.New("incorrect current password")
 )
@@ -345,6 +346,20 @@ func (s *authService) UpdateProfile(ctx context.Context, userID uuid.UUID, input
 			return nil, ErrFullNameRequired
 		}
 		user.FullName = trimmed
+	}
+
+	if input.Username != nil && strings.TrimSpace(*input.Username) != "" {
+		cleanUsername := strings.ToLower(strings.TrimSpace(*input.Username))
+		if cleanUsername != user.Username {
+			if !usernameRegex.MatchString(cleanUsername) {
+				return nil, ErrInvalidUsername
+			}
+			existing, err := s.userRepo.GetByUsername(ctx, cleanUsername)
+			if err == nil && existing != nil && existing.ID != user.ID {
+				return nil, ErrUsernameTaken
+			}
+			user.Username = cleanUsername
+		}
 	}
 
 	if input.AvatarURL != nil {
