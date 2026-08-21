@@ -14,6 +14,7 @@ import (
 	"github.com/irvanmalik48/realm-api/internal/model"
 	"github.com/irvanmalik48/realm-api/internal/repository"
 	"github.com/irvanmalik48/realm-api/internal/service"
+	"strings"
 )
 
 func getUserIDFromLocals(c *fiber.Ctx) (uuid.UUID, bool) {
@@ -237,4 +238,53 @@ func (h *AuthHandler) CheckAvailability(c *fiber.Ctx) error {
 
 	return c.Status(http.StatusOK).JSON(resp)
 }
+
+func (h *AuthHandler) SetPassword(c *fiber.Ctx) error {
+	userID, ok := getUserIDFromLocals(c)
+	if !ok {
+		return ErrorResponse(c, "Unauthorized", http.StatusUnauthorized)
+	}
+
+	var input model.SetPasswordInput
+	if err := c.BodyParser(&input); err != nil {
+		return ErrorResponse(c, "Invalid request body. Expected JSON.", http.StatusBadRequest)
+	}
+
+	if err := h.authSvc.SetPassword(c.Context(), userID, input); err != nil {
+		if errors.Is(err, service.ErrPasswordTooShort) || errors.Is(err, service.ErrCurrentPasswordReq) || errors.Is(err, service.ErrCurrentPasswordBad) {
+			return ErrorResponse(c, err.Error(), http.StatusBadRequest)
+		}
+		return ErrorResponse(c, fmt.Sprintf("Failed to set password: %v", err), http.StatusInternalServerError)
+	}
+
+	return c.Status(http.StatusOK).JSON(fiber.Map{
+		"status":  "success",
+		"message": "Password updated successfully",
+	})
+}
+
+func (h *AuthHandler) UnlinkOAuth(c *fiber.Ctx) error {
+	userID, ok := getUserIDFromLocals(c)
+	if !ok {
+		return ErrorResponse(c, "Unauthorized", http.StatusUnauthorized)
+	}
+
+	provider := strings.ToLower(c.Params("provider"))
+	if provider != "google" && provider != "github" {
+		return ErrorResponse(c, "Unsupported OAuth provider. Allowed: google, github", http.StatusBadRequest)
+	}
+
+	if err := h.authSvc.UnlinkOAuthAccount(c.Context(), userID, provider); err != nil {
+		if errors.Is(err, repository.ErrCannotUnlinkLastAuth) {
+			return ErrorResponse(c, err.Error(), http.StatusBadRequest)
+		}
+		return ErrorResponse(c, fmt.Sprintf("Failed to unlink account: %v", err), http.StatusInternalServerError)
+	}
+
+	return c.Status(http.StatusOK).JSON(fiber.Map{
+		"status":  "success",
+		"message": fmt.Sprintf("%s account unlinked successfully", provider),
+	})
+}
+
 
