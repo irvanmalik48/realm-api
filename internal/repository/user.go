@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -13,8 +14,10 @@ import (
 )
 
 var (
-	ErrUserNotFound      = errors.New("user not found")
-	ErrUserAlreadyExists = errors.New("user with this email or username already exists")
+	ErrUserNotFound          = errors.New("user not found")
+	ErrUserAlreadyExists     = errors.New("user with this email or username already exists")
+	ErrOAuthAccountLinked    = errors.New("this social account is already linked to another user")
+	ErrCannotUnlinkLastAuth  = errors.New("cannot disconnect the only login method; set a password first")
 )
 
 type UserRepository interface {
@@ -25,6 +28,11 @@ type UserRepository interface {
 	GetByIdentifier(ctx context.Context, identifier string) (*model.User, error)
 	GetByProvider(ctx context.Context, provider, providerID string) (*model.User, error)
 	Update(ctx context.Context, user *model.User) error
+	UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error
+	GetOAuthAccounts(ctx context.Context, userID uuid.UUID) ([]model.OAuthAccount, error)
+	LinkOAuthAccount(ctx context.Context, account *model.OAuthAccount) error
+	UnlinkOAuthAccount(ctx context.Context, userID uuid.UUID, provider string) error
+	GetByOAuthAccount(ctx context.Context, provider, providerID string) (*model.User, error)
 }
 
 type userRepository struct {
@@ -58,6 +66,20 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 		}
 		return fmt.Errorf("failed to insert user: %w", err)
 	}
+
+	// If provider is OAuth (not local), also record in user_oauth_accounts
+	if user.Provider != "" && user.Provider != "local" && user.ProviderID != nil {
+		oauthAcct := &model.OAuthAccount{
+			ID:         uuid.New(),
+			UserID:     user.ID,
+			Provider:   user.Provider,
+			ProviderID: *user.ProviderID,
+			Email:      &user.Email,
+			CreatedAt:  user.CreatedAt,
+		}
+		_ = r.LinkOAuthAccount(ctx, oauthAcct)
+	}
+
 	return nil
 }
 
@@ -175,10 +197,16 @@ func (r *userRepository) GetByIdentifier(ctx context.Context, identifier string)
 }
 
 func (r *userRepository) GetByProvider(ctx context.Context, provider, providerID string) (*model.User, error) {
+	return r.GetByOAuthAccount(ctx, provider, providerID)
+}
+
+func (r *userRepository) GetByOAuthAccount(ctx context.Context, provider, providerID string) (*model.User, error) {
+	// First check user_oauth_accounts table
 	query := `
-		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, created_at, updated_at
-		FROM users
-		WHERE provider = $1 AND provider_id = $2
+		SELECT u.id, u.email, u.username, u.full_name, u.password_hash, u.avatar_url, u.provider, u.provider_id, u.created_at, u.updated_at
+		FROM users u
+		JOIN user_oauth_accounts oa ON u.id = oa.user_id
+		WHERE oa.provider = $1 AND oa.provider_id = $2
 		LIMIT 1
 	`
 	var u model.User
@@ -194,12 +222,36 @@ func (r *userRepository) GetByProvider(ctx context.Context, provider, providerID
 		&u.CreatedAt,
 		&u.UpdatedAt,
 	)
+	if err == nil {
+		return &u, nil
+	}
+
+	// Fallback to users table direct columns for backwards compatibility
+	fallbackQuery := `
+		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, created_at, updated_at
+		FROM users
+		WHERE provider = $1 AND provider_id = $2
+		LIMIT 1
+	`
+	err = r.db.Pool.QueryRow(ctx, fallbackQuery, provider, providerID).Scan(
+		&u.ID,
+		&u.Email,
+		&u.Username,
+		&u.FullName,
+		&u.PasswordHash,
+		&u.AvatarURL,
+		&u.Provider,
+		&u.ProviderID,
+		&u.CreatedAt,
+		&u.UpdatedAt,
+	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrUserNotFound
 		}
-		return nil, fmt.Errorf("failed to query user by provider: %w", err)
+		return nil, fmt.Errorf("failed to query user by oauth account: %w", err)
 	}
+
 	return &u, nil
 }
 
@@ -220,5 +272,109 @@ func (r *userRepository) Update(ctx context.Context, user *model.User) error {
 	if err != nil {
 		return fmt.Errorf("failed to update user: %w", err)
 	}
+	return nil
+}
+
+func (r *userRepository) UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error {
+	query := `
+		UPDATE users
+		SET password_hash = $1, updated_at = $2
+		WHERE id = $3
+	`
+	res, err := r.db.Pool.Exec(ctx, query, passwordHash, time.Now().UTC(), userID)
+	if err != nil {
+		return fmt.Errorf("failed to update user password: %w", err)
+	}
+	if res.RowsAffected() == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+func (r *userRepository) GetOAuthAccounts(ctx context.Context, userID uuid.UUID) ([]model.OAuthAccount, error) {
+	query := `
+		SELECT id, user_id, provider, provider_id, email, created_at
+		FROM user_oauth_accounts
+		WHERE user_id = $1
+		ORDER BY created_at ASC
+	`
+	rows, err := r.db.Pool.Query(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query oauth accounts: %w", err)
+	}
+	defer rows.Close()
+
+	var accounts []model.OAuthAccount
+	for rows.Next() {
+		var a model.OAuthAccount
+		if err := rows.Scan(&a.ID, &a.UserID, &a.Provider, &a.ProviderID, &a.Email, &a.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan oauth account: %w", err)
+		}
+		accounts = append(accounts, a)
+	}
+
+	return accounts, nil
+}
+
+func (r *userRepository) LinkOAuthAccount(ctx context.Context, account *model.OAuthAccount) error {
+	if account.ID == uuid.Nil {
+		account.ID = uuid.New()
+	}
+	if account.CreatedAt.IsZero() {
+		account.CreatedAt = time.Now().UTC()
+	}
+
+	query := `
+		INSERT INTO user_oauth_accounts (id, user_id, provider, provider_id, email, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (provider, provider_id) DO UPDATE
+		SET user_id = EXCLUDED.user_id, email = EXCLUDED.email
+	`
+	_, err := r.db.Pool.Exec(ctx, query,
+		account.ID,
+		account.UserID,
+		account.Provider,
+		account.ProviderID,
+		account.Email,
+		account.CreatedAt,
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "23505") {
+			return ErrOAuthAccountLinked
+		}
+		return fmt.Errorf("failed to link oauth account: %w", err)
+	}
+	return nil
+}
+
+func (r *userRepository) UnlinkOAuthAccount(ctx context.Context, userID uuid.UUID, provider string) error {
+	// First check that user still has another login method (password or another OAuth provider)
+	user, err := r.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	accounts, err := r.GetOAuthAccounts(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	hasPassword := user.PasswordHash != nil && *user.PasswordHash != ""
+	if !hasPassword && len(accounts) <= 1 {
+		return ErrCannotUnlinkLastAuth
+	}
+
+	query := `
+		DELETE FROM user_oauth_accounts
+		WHERE user_id = $1 AND provider = $2
+	`
+	res, err := r.db.Pool.Exec(ctx, query, userID, provider)
+	if err != nil {
+		return fmt.Errorf("failed to unlink oauth account: %w", err)
+	}
+	if res.RowsAffected() == 0 {
+		return errors.New("oauth account not found")
+	}
+
 	return nil
 }
