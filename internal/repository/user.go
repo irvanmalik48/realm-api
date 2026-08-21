@@ -75,6 +75,7 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 			Provider:   user.Provider,
 			ProviderID: *user.ProviderID,
 			Email:      &user.Email,
+			AvatarURL:  user.AvatarURL,
 			CreatedAt:  user.CreatedAt,
 		}
 		_ = r.LinkOAuthAccount(ctx, oauthAcct)
@@ -293,7 +294,7 @@ func (r *userRepository) UpdatePassword(ctx context.Context, userID uuid.UUID, p
 
 func (r *userRepository) GetOAuthAccounts(ctx context.Context, userID uuid.UUID) ([]model.OAuthAccount, error) {
 	query := `
-		SELECT id, user_id, provider, provider_id, email, created_at
+		SELECT id, user_id, provider, provider_id, email, avatar_url, created_at
 		FROM user_oauth_accounts
 		WHERE user_id = $1
 		ORDER BY created_at ASC
@@ -307,7 +308,7 @@ func (r *userRepository) GetOAuthAccounts(ctx context.Context, userID uuid.UUID)
 	var accounts []model.OAuthAccount
 	for rows.Next() {
 		var a model.OAuthAccount
-		if err := rows.Scan(&a.ID, &a.UserID, &a.Provider, &a.ProviderID, &a.Email, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.UserID, &a.Provider, &a.ProviderID, &a.Email, &a.AvatarURL, &a.CreatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan oauth account: %w", err)
 		}
 		accounts = append(accounts, a)
@@ -325,10 +326,10 @@ func (r *userRepository) LinkOAuthAccount(ctx context.Context, account *model.OA
 	}
 
 	query := `
-		INSERT INTO user_oauth_accounts (id, user_id, provider, provider_id, email, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO user_oauth_accounts (id, user_id, provider, provider_id, email, avatar_url, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (provider, provider_id) DO UPDATE
-		SET user_id = EXCLUDED.user_id, email = EXCLUDED.email
+		SET user_id = EXCLUDED.user_id, email = EXCLUDED.email, avatar_url = COALESCE(EXCLUDED.avatar_url, user_oauth_accounts.avatar_url)
 	`
 	_, err := r.db.Pool.Exec(ctx, query,
 		account.ID,
@@ -336,6 +337,7 @@ func (r *userRepository) LinkOAuthAccount(ctx context.Context, account *model.OA
 		account.Provider,
 		account.ProviderID,
 		account.Email,
+		account.AvatarURL,
 		account.CreatedAt,
 	)
 	if err != nil {
