@@ -113,8 +113,11 @@ func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 
 	userDTO, err := h.authSvc.UpdateProfile(c.Context(), userID, input)
 	if err != nil {
-		if errors.Is(err, service.ErrFullNameRequired) {
+		if errors.Is(err, service.ErrFullNameRequired) || errors.Is(err, service.ErrInvalidUsername) {
 			return ErrorResponse(c, err.Error(), http.StatusBadRequest)
+		}
+		if errors.Is(err, service.ErrUsernameTaken) {
+			return ErrorResponse(c, err.Error(), http.StatusConflict)
 		}
 		return ErrorResponse(c, fmt.Sprintf("Failed to update profile: %v", err), http.StatusInternalServerError)
 	}
