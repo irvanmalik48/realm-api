@@ -22,9 +22,15 @@ import (
 )
 
 func New(cfg *config.Config, db *database.DB) *fiber.App {
+	bodyLimit := cfg.MaxUploadSizeMB * 1024 * 1024
+	if bodyLimit <= 0 {
+		bodyLimit = 10 * 1024 * 1024
+	}
+
 	app := fiber.New(fiber.Config{
 		AppName:               "Realm API",
 		DisableStartupMessage: cfg.Environment == "production",
+		BodyLimit:             bodyLimit,
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
 			var e *fiber.Error
