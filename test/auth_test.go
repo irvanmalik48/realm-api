@@ -26,6 +26,7 @@ type mockUserRepo struct {
 	usersByID       map[uuid.UUID]*model.User
 	usersByEmail    map[string]*model.User
 	usersByUsername map[string]*model.User
+	oauthAccounts   map[uuid.UUID][]model.OAuthAccount
 }
 
 func newMockUserRepo() *mockUserRepo {
@@ -33,6 +34,7 @@ func newMockUserRepo() *mockUserRepo {
 		usersByID:       make(map[uuid.UUID]*model.User),
 		usersByEmail:    make(map[string]*model.User),
 		usersByUsername: make(map[string]*model.User),
+		oauthAccounts:   make(map[uuid.UUID][]model.OAuthAccount),
 	}
 }
 
@@ -50,6 +52,17 @@ func (m *mockUserRepo) Create(ctx context.Context, user *model.User) error {
 	m.usersByID[user.ID] = user
 	m.usersByEmail[email] = user
 	m.usersByUsername[username] = user
+
+	if user.Provider != "" && user.Provider != "local" && user.ProviderID != nil {
+		_ = m.LinkOAuthAccount(ctx, &model.OAuthAccount{
+			ID:         uuid.New(),
+			UserID:     user.ID,
+			Provider:   user.Provider,
+			ProviderID: *user.ProviderID,
+			Email:      &user.Email,
+			CreatedAt:  user.CreatedAt,
+		})
+	}
 	return nil
 }
 
@@ -89,6 +102,17 @@ func (m *mockUserRepo) GetByIdentifier(ctx context.Context, identifier string) (
 }
 
 func (m *mockUserRepo) GetByProvider(ctx context.Context, provider, providerID string) (*model.User, error) {
+	return m.GetByOAuthAccount(ctx, provider, providerID)
+}
+
+func (m *mockUserRepo) GetByOAuthAccount(ctx context.Context, provider, providerID string) (*model.User, error) {
+	for uid, accounts := range m.oauthAccounts {
+		for _, a := range accounts {
+			if a.Provider == provider && a.ProviderID == providerID {
+				return m.usersByID[uid], nil
+			}
+		}
+	}
 	for _, u := range m.usersByID {
 		if u.Provider == provider && u.ProviderID != nil && *u.ProviderID == providerID {
 			return u, nil
@@ -101,6 +125,50 @@ func (m *mockUserRepo) Update(ctx context.Context, user *model.User) error {
 	m.usersByID[user.ID] = user
 	m.usersByEmail[strings.ToLower(user.Email)] = user
 	m.usersByUsername[strings.ToLower(user.Username)] = user
+	return nil
+}
+
+func (m *mockUserRepo) UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error {
+	u, ok := m.usersByID[userID]
+	if !ok {
+		return repository.ErrUserNotFound
+	}
+	u.PasswordHash = &passwordHash
+	return nil
+}
+
+func (m *mockUserRepo) GetOAuthAccounts(ctx context.Context, userID uuid.UUID) ([]model.OAuthAccount, error) {
+	return m.oauthAccounts[userID], nil
+}
+
+func (m *mockUserRepo) LinkOAuthAccount(ctx context.Context, account *model.OAuthAccount) error {
+	for _, acct := range m.oauthAccounts[account.UserID] {
+		if acct.Provider == account.Provider {
+			return nil
+		}
+	}
+	m.oauthAccounts[account.UserID] = append(m.oauthAccounts[account.UserID], *account)
+	return nil
+}
+
+func (m *mockUserRepo) UnlinkOAuthAccount(ctx context.Context, userID uuid.UUID, provider string) error {
+	user, ok := m.usersByID[userID]
+	if !ok {
+		return repository.ErrUserNotFound
+	}
+	hasPassword := user.PasswordHash != nil && *user.PasswordHash != ""
+	accounts := m.oauthAccounts[userID]
+	if !hasPassword && len(accounts) <= 1 {
+		return repository.ErrCannotUnlinkLastAuth
+	}
+
+	var filtered []model.OAuthAccount
+	for _, a := range accounts {
+		if a.Provider != provider {
+			filtered = append(filtered, a)
+		}
+	}
+	m.oauthAccounts[userID] = filtered
 	return nil
 }
 
@@ -122,6 +190,8 @@ func setupAuthTestApp(t *testing.T) (*fiber.App, service.AuthService, auth.Paset
 	v1.Post("/login", hdlr.Login)
 	v1.Get("/me", middleware.RequireUserAuth(pasetoSvc), hdlr.GetMe)
 	v1.Patch("/profile", middleware.RequireUserAuth(pasetoSvc), hdlr.UpdateProfile)
+	v1.Post("/password", middleware.RequireUserAuth(pasetoSvc), hdlr.SetPassword)
+	v1.Delete("/oauth/:provider", middleware.RequireUserAuth(pasetoSvc), hdlr.UnlinkOAuth)
 
 	return app, authSvc, pasetoSvc
 }
@@ -391,4 +461,122 @@ func TestAuth_CheckAvailability(t *testing.T) {
 		t.Errorf("expected username 'ab' to be marked unavailable due to invalid format")
 	}
 }
+
+func TestAuth_SetPassword(t *testing.T) {
+	app, _, _ := setupAuthTestApp(t)
+
+	// 1. Register user
+	regBody, _ := json.Marshal(model.RegisterInput{
+		Email:    "oauthpass@example.com",
+		Username: "oauthpass",
+		Password: "InitialPassword123!",
+		FullName: "OAuth User",
+	})
+	regReq := httptest.NewRequest(http.MethodPost, "/v1/auth/register", bytes.NewReader(regBody))
+	regReq.Header.Set("Content-Type", "application/json")
+	regResp, _ := app.Test(regReq)
+	var regAuthResp model.AuthResponse
+	body, _ := io.ReadAll(regResp.Body)
+	_ = json.Unmarshal(body, &regAuthResp)
+
+	// 2. Change password with wrong current password -> 400
+	wrongPwd := "WrongCurrentPass123!"
+	pwdBody, _ := json.Marshal(model.SetPasswordInput{
+		CurrentPassword: &wrongPwd,
+		NewPassword:     "NewSecurePassword123!",
+	})
+	pwdReq := httptest.NewRequest(http.MethodPost, "/v1/auth/password", bytes.NewReader(pwdBody))
+	pwdReq.Header.Set("Content-Type", "application/json")
+	pwdReq.Header.Set("Authorization", "Bearer "+regAuthResp.Token)
+	pwdResp, _ := app.Test(pwdReq)
+	if pwdResp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected status 400 for incorrect current password, got %d", pwdResp.StatusCode)
+	}
+
+	// 3. Change password with correct current password -> 200
+	correctPwd := "InitialPassword123!"
+	pwdBody2, _ := json.Marshal(model.SetPasswordInput{
+		CurrentPassword: &correctPwd,
+		NewPassword:     "NewSecurePassword123!",
+	})
+	pwdReq2 := httptest.NewRequest(http.MethodPost, "/v1/auth/password", bytes.NewReader(pwdBody2))
+	pwdReq2.Header.Set("Content-Type", "application/json")
+	pwdReq2.Header.Set("Authorization", "Bearer "+regAuthResp.Token)
+	pwdResp2, _ := app.Test(pwdReq2)
+	if pwdResp2.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200 for valid password update, got %d", pwdResp2.StatusCode)
+	}
+}
+
+func TestAuth_OAuthLinkingAndUnlinking(t *testing.T) {
+	repo := newMockUserRepo()
+	pasetoSvc, _ := auth.NewPasetoService("707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f")
+	authSvc := service.NewAuthService(repo, pasetoSvc)
+	ctx := context.Background()
+
+	// 1. Create user via Google OAuth
+	googleUser := &service.OAuthUserInfo{
+		Provider:   "google",
+		ProviderID: "g-1111",
+		Email:      "multiauth@example.com",
+		Username:   "multiauth",
+		FullName:   "Multi Auth User",
+	}
+	resp, err := authSvc.HandleOAuthLogin(ctx, googleUser)
+	if err != nil {
+		t.Fatalf("oauth login failed: %v", err)
+	}
+	userID := resp.User.ID
+
+	// 2. Link GitHub account to the same user
+	githubUser := &service.OAuthUserInfo{
+		Provider:   "github",
+		ProviderID: "gh-2222",
+		Email:      "multiauth@example.com",
+		Username:   "multiauth",
+	}
+	err = authSvc.LinkOAuthAccount(ctx, userID, githubUser)
+	if err != nil {
+		t.Fatalf("failed to link github account: %v", err)
+	}
+
+	// 3. Verify user profile returns both connected providers
+	profile, err := authSvc.GetProfile(ctx, userID)
+	if err != nil {
+		t.Fatalf("failed to get profile: %v", err)
+	}
+	if len(profile.ConnectedProviders) < 2 {
+		t.Errorf("expected at least 2 connected providers, got %v", profile.ConnectedProviders)
+	}
+
+	// 4. Set local password on the OAuth user
+	err = authSvc.SetPassword(ctx, userID, model.SetPasswordInput{
+		NewPassword: "BrandNewPassword123!",
+	})
+	if err != nil {
+		t.Fatalf("failed to set password: %v", err)
+	}
+
+	// 5. Verify user can now log in using the newly set password
+	loginResp, err := authSvc.Login(ctx, model.LoginInput{
+		Identifier: "multiauth",
+		Password:   "BrandNewPassword123!",
+	})
+	if err != nil {
+		t.Fatalf("failed to login with newly set password: %v", err)
+	}
+	if loginResp.User.ID != userID {
+		t.Errorf("expected user ID %s, got %s", userID, loginResp.User.ID)
+	}
+	if !loginResp.User.HasPassword {
+		t.Errorf("expected HasPassword to be true")
+	}
+
+	// 6. Unlink Google account (allowed because user has password and GitHub)
+	err = authSvc.UnlinkOAuthAccount(ctx, userID, "google")
+	if err != nil {
+		t.Fatalf("failed to unlink google account: %v", err)
+	}
+}
+
 
