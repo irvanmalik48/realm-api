@@ -117,6 +117,7 @@ func setupAuthTestApp(t *testing.T) (*fiber.App, service.AuthService, auth.Paset
 
 	app := fiber.New()
 	v1 := app.Group("/v1/auth")
+	v1.Get("/check", hdlr.CheckAvailability)
 	v1.Post("/register", hdlr.Register)
 	v1.Post("/login", hdlr.Login)
 	v1.Get("/me", middleware.RequireUserAuth(pasetoSvc), hdlr.GetMe)
@@ -329,3 +330,65 @@ func TestAuth_OAuthFindOrCreate(t *testing.T) {
 		t.Errorf("expected identical user ID for subsequent oauth login, got %s vs %s", resp2.User.ID, resp1.User.ID)
 	}
 }
+
+func TestAuth_CheckAvailability(t *testing.T) {
+	app, _, _ := setupAuthTestApp(t)
+
+	// 1. Initial check on free username and email -> available: true
+	req := httptest.NewRequest(http.MethodGet, "/v1/auth/check?username=freshuser&email=fresh@example.com", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("check request failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var availResp model.CheckAvailabilityResponse
+	body, _ := io.ReadAll(resp.Body)
+	_ = json.Unmarshal(body, &availResp)
+	if availResp.UsernameAvailable == nil || !*availResp.UsernameAvailable {
+		t.Errorf("expected username freshuser to be available")
+	}
+	if availResp.EmailAvailable == nil || !*availResp.EmailAvailable {
+		t.Errorf("expected email fresh@example.com to be available")
+	}
+
+	// 2. Register freshuser
+	regBody, _ := json.Marshal(model.RegisterInput{
+		Email:    "fresh@example.com",
+		Username: "freshuser",
+		Password: "Password123!",
+		FullName: "Fresh User",
+	})
+	regReq := httptest.NewRequest(http.MethodPost, "/v1/auth/register", bytes.NewReader(regBody))
+	regReq.Header.Set("Content-Type", "application/json")
+	regResp, err := app.Test(regReq)
+	if err != nil || regResp.StatusCode != http.StatusCreated {
+		t.Fatalf("failed to register user: %v, code: %d", err, regResp.StatusCode)
+	}
+
+	// 3. Re-check now taken username and email -> available: false
+	req2 := httptest.NewRequest(http.MethodGet, "/v1/auth/check?username=freshuser&email=fresh@example.com", nil)
+	resp2, _ := app.Test(req2)
+	var availResp2 model.CheckAvailabilityResponse
+	body2, _ := io.ReadAll(resp2.Body)
+	_ = json.Unmarshal(body2, &availResp2)
+	if availResp2.UsernameAvailable == nil || *availResp2.UsernameAvailable {
+		t.Errorf("expected username freshuser to be unavailable after registration")
+	}
+	if availResp2.EmailAvailable == nil || *availResp2.EmailAvailable {
+		t.Errorf("expected email fresh@example.com to be unavailable after registration")
+	}
+
+	// 4. Invalid username format (e.g. too short)
+	req3 := httptest.NewRequest(http.MethodGet, "/v1/auth/check?username=ab", nil)
+	resp3, _ := app.Test(req3)
+	var availResp3 model.CheckAvailabilityResponse
+	body3, _ := io.ReadAll(resp3.Body)
+	_ = json.Unmarshal(body3, &availResp3)
+	if availResp3.UsernameAvailable == nil || *availResp3.UsernameAvailable {
+		t.Errorf("expected username 'ab' to be marked unavailable due to invalid format")
+	}
+}
+
