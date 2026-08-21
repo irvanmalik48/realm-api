@@ -19,29 +19,73 @@ type User struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
+type OAuthAccount struct {
+	ID         uuid.UUID `json:"id"`
+	UserID     uuid.UUID `json:"user_id"`
+	Provider   string    `json:"provider"`
+	ProviderID string    `json:"provider_id"`
+	Email      *string   `json:"email,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
 type UserDTO struct {
-	ID        uuid.UUID `json:"id"`
-	Email     string    `json:"email"`
-	Username  string    `json:"username"`
-	FullName  string    `json:"full_name"`
-	AvatarURL *string   `json:"avatar_url,omitempty"`
-	Provider  string    `json:"provider"`
-	CreatedAt time.Time `json:"created_at"`
+	ID                 uuid.UUID `json:"id"`
+	Email              string    `json:"email"`
+	Username           string    `json:"username"`
+	FullName           string    `json:"full_name"`
+	AvatarURL          *string   `json:"avatar_url,omitempty"`
+	Provider           string    `json:"provider"`
+	HasPassword        bool      `json:"has_password"`
+	ConnectedProviders []string  `json:"connected_providers"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 func (u *User) ToDTO() *UserDTO {
 	if u == nil {
 		return nil
 	}
-	return &UserDTO{
-		ID:        u.ID,
-		Email:     u.Email,
-		Username:  u.Username,
-		FullName:  u.FullName,
-		AvatarURL: u.AvatarURL,
-		Provider:  u.Provider,
-		CreatedAt: u.CreatedAt,
+	hasPassword := u.PasswordHash != nil && *u.PasswordHash != ""
+	providers := make([]string, 0)
+	if u.Provider != "" && u.Provider != "local" {
+		providers = append(providers, u.Provider)
 	}
+
+	return &UserDTO{
+		ID:                 u.ID,
+		Email:              u.Email,
+		Username:           u.Username,
+		FullName:           u.FullName,
+		AvatarURL:          u.AvatarURL,
+		Provider:           u.Provider,
+		HasPassword:        hasPassword,
+		ConnectedProviders: providers,
+		CreatedAt:          u.CreatedAt,
+	}
+}
+
+func (u *User) ToDTOWithProviders(connectedProviders []string) *UserDTO {
+	dto := u.ToDTO()
+	if dto == nil {
+		return nil
+	}
+
+	// Merge unique providers
+	seen := make(map[string]bool)
+	merged := make([]string, 0)
+	for _, p := range dto.ConnectedProviders {
+		if !seen[p] {
+			seen[p] = true
+			merged = append(merged, p)
+		}
+	}
+	for _, p := range connectedProviders {
+		if !seen[p] {
+			seen[p] = true
+			merged = append(merged, p)
+		}
+	}
+	dto.ConnectedProviders = merged
+	return dto
 }
 
 type RegisterInput struct {
@@ -55,6 +99,11 @@ type RegisterInput struct {
 type LoginInput struct {
 	Identifier string `json:"identifier"`
 	Password   string `json:"password"`
+}
+
+type SetPasswordInput struct {
+	CurrentPassword *string `json:"current_password,omitempty"`
+	NewPassword     string  `json:"new_password"`
 }
 
 type UpdateProfileInput struct {
@@ -89,4 +138,3 @@ type CheckAvailabilityResponse struct {
 	UsernameReason    string `json:"username_reason,omitempty"`
 	EmailReason       string `json:"email_reason,omitempty"`
 }
-
