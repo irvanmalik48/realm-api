@@ -142,8 +142,14 @@ func (m *mockUserRepo) GetOAuthAccounts(ctx context.Context, userID uuid.UUID) (
 }
 
 func (m *mockUserRepo) LinkOAuthAccount(ctx context.Context, account *model.OAuthAccount) error {
-	for _, acct := range m.oauthAccounts[account.UserID] {
+	for i, acct := range m.oauthAccounts[account.UserID] {
 		if acct.Provider == account.Provider {
+			if account.AvatarURL != nil {
+				m.oauthAccounts[account.UserID][i].AvatarURL = account.AvatarURL
+			}
+			if account.Email != nil {
+				m.oauthAccounts[account.UserID][i].Email = account.Email
+			}
 			return nil
 		}
 	}
@@ -548,8 +554,35 @@ func TestAuth_OAuthLinkingAndUnlinking(t *testing.T) {
 	if len(profile.ConnectedProviders) < 2 {
 		t.Errorf("expected at least 2 connected providers, got %v", profile.ConnectedProviders)
 	}
+	if len(profile.ConnectedAccounts) < 2 {
+		t.Errorf("expected at least 2 connected accounts, got %v", profile.ConnectedAccounts)
+	}
 
-	// 4. Set local password on the OAuth user
+	// 4. Test updating profile avatar to custom URL
+	customAvatar := "https://example.com/custom-avatar.png"
+	updatedProfile, err := authSvc.UpdateProfile(ctx, userID, model.UpdateProfileInput{
+		AvatarURL: &customAvatar,
+	})
+	if err != nil {
+		t.Fatalf("failed to update profile avatar: %v", err)
+	}
+	if updatedProfile.AvatarURL == nil || *updatedProfile.AvatarURL != customAvatar {
+		t.Errorf("expected avatar URL %s, got %v", customAvatar, updatedProfile.AvatarURL)
+	}
+
+	// 5. Test clearing profile avatar
+	emptyAvatar := ""
+	clearedProfile, err := authSvc.UpdateProfile(ctx, userID, model.UpdateProfileInput{
+		AvatarURL: &emptyAvatar,
+	})
+	if err != nil {
+		t.Fatalf("failed to clear profile avatar: %v", err)
+	}
+	if clearedProfile.AvatarURL != nil {
+		t.Errorf("expected avatar URL to be nil after clearing, got %v", clearedProfile.AvatarURL)
+	}
+
+	// 6. Set local password on the OAuth user
 	err = authSvc.SetPassword(ctx, userID, model.SetPasswordInput{
 		NewPassword: "BrandNewPassword123!",
 	})
@@ -557,7 +590,7 @@ func TestAuth_OAuthLinkingAndUnlinking(t *testing.T) {
 		t.Fatalf("failed to set password: %v", err)
 	}
 
-	// 5. Verify user can now log in using the newly set password
+	// 7. Verify user can now log in using the newly set password
 	loginResp, err := authSvc.Login(ctx, model.LoginInput{
 		Identifier: "multiauth",
 		Password:   "BrandNewPassword123!",
@@ -572,7 +605,7 @@ func TestAuth_OAuthLinkingAndUnlinking(t *testing.T) {
 		t.Errorf("expected HasPassword to be true")
 	}
 
-	// 6. Unlink Google account (allowed because user has password and GitHub)
+	// 8. Unlink Google account (allowed because user has password and GitHub)
 	err = authSvc.UnlinkOAuthAccount(ctx, userID, "google")
 	if err != nil {
 		t.Fatalf("failed to unlink google account: %v", err)
