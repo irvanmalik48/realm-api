@@ -115,6 +115,19 @@ func (db *DB) migrate(ctx context.Context) error {
 	CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 	CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 	CREATE INDEX IF NOT EXISTS idx_users_provider ON users(provider, provider_id);
+
+	CREATE TABLE IF NOT EXISTS user_oauth_accounts (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		provider VARCHAR(30) NOT NULL,
+		provider_id VARCHAR(255) NOT NULL,
+		email VARCHAR(255),
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		UNIQUE(provider, provider_id),
+		UNIQUE(user_id, provider)
+	);
+	CREATE INDEX IF NOT EXISTS idx_user_oauth_accounts_user_id ON user_oauth_accounts(user_id);
+	CREATE INDEX IF NOT EXISTS idx_user_oauth_accounts_provider ON user_oauth_accounts(provider, provider_id);
 	`
 
 	_, err := db.Pool.Exec(ctx, query)
