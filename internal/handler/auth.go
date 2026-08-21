@@ -221,3 +221,20 @@ func (h *AuthHandler) GitHubCallback(c *fiber.Ctx) error {
 	redirectURI := fmt.Sprintf("%s/api/auth/callback?token=%s", frontendURL, url.QueryEscape(authResp.Token))
 	return c.Redirect(redirectURI, http.StatusTemporaryRedirect)
 }
+
+func (h *AuthHandler) CheckAvailability(c *fiber.Ctx) error {
+	username := c.Query("username")
+	email := c.Query("email")
+
+	if username == "" && email == "" {
+		return ErrorResponse(c, "Please provide 'username' or 'email' query parameter", http.StatusBadRequest)
+	}
+
+	resp, err := h.authSvc.CheckAvailability(c.Context(), username, email)
+	if err != nil {
+		return ErrorResponse(c, fmt.Sprintf("Failed to check availability: %v", err), http.StatusInternalServerError)
+	}
+
+	return c.Status(http.StatusOK).JSON(resp)
+}
+
