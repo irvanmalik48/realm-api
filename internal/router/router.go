@@ -99,7 +99,7 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	lastFMHdlr := handler.NewLastFMHandler(cfg, lastFMSvc)
 	contactHdlr := handler.NewContactHandler(cfg, contactSvc)
 	storageHdlr := handler.NewStorageHandler(cfg, storageSvc)
-	authHdlr := handler.NewAuthHandler(cfg, authSvc, oauthSvc)
+	authHdlr := handler.NewAuthHandler(cfg, authSvc, oauthSvc, pasetoSvc)
 
 	// Root and Health routes
 	app.Get("/", rootHdlr.Handle)
