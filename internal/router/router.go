@@ -119,6 +119,7 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 
 	// User Auth endpoints (Traditional & OIDC/OAuth2 with PASETO tokens)
 	authGroup := v1.Group("/auth")
+	authGroup.Get("/check", authHdlr.CheckAvailability)
 	authGroup.Post("/register", authHdlr.Register)
 	authGroup.Post("/login", authHdlr.Login)
 	authGroup.Get("/me", middleware.RequireUserAuth(pasetoSvc), authHdlr.GetMe)
