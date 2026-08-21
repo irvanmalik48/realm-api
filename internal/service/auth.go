@@ -54,12 +54,20 @@ func NewAuthService(userRepo repository.UserRepository, pasetoSvc auth.PasetoSer
 	}
 }
 
-func (s *authService) getConnectedProviders(ctx context.Context, userID uuid.UUID) []string {
+func (s *authService) getConnectedAccounts(ctx context.Context, userID uuid.UUID) []model.OAuthAccount {
 	if s.userRepo == nil {
 		return nil
 	}
 	accts, err := s.userRepo.GetOAuthAccounts(ctx, userID)
 	if err != nil {
+		return nil
+	}
+	return accts
+}
+
+func (s *authService) getConnectedProviders(ctx context.Context, userID uuid.UUID) []string {
+	accts := s.getConnectedAccounts(ctx, userID)
+	if accts == nil {
 		return nil
 	}
 	providers := make([]string, 0, len(accts))
@@ -154,19 +162,24 @@ func (s *authService) Login(ctx context.Context, input model.LoginInput) (*model
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
-	connected := s.getConnectedProviders(ctx, user.ID)
+	accounts := s.getConnectedAccounts(ctx, user.ID)
 
 	return &model.AuthResponse{
 		Status:  "success",
 		Message: "Login successful",
 		Token:   token,
-		User:    user.ToDTOWithProviders(connected),
+		User:    user.ToDTOWithAccounts(accounts),
 	}, nil
 }
 
 func (s *authService) HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserInfo) (*model.AuthResponse, error) {
 	if s.userRepo == nil {
 		return nil, errors.New("database user repository unavailable")
+	}
+
+	var avatarPtr *string
+	if userInfo.AvatarURL != "" {
+		avatarPtr = &userInfo.AvatarURL
 	}
 
 	// 1. Try finding by OAuth account
@@ -179,16 +192,26 @@ func (s *authService) HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserI
 			_ = s.userRepo.Update(ctx, user)
 		}
 
+		// Also link/update avatar in oauth accounts table
+		_ = s.userRepo.LinkOAuthAccount(ctx, &model.OAuthAccount{
+			UserID:     user.ID,
+			Provider:   userInfo.Provider,
+			ProviderID: userInfo.ProviderID,
+			Email:      &userInfo.Email,
+			AvatarURL:  avatarPtr,
+			CreatedAt:  time.Now().UTC(),
+		})
+
 		token, err := s.pasetoSvc.GenerateToken(user, s.tokenTTL)
 		if err != nil {
 			return nil, err
 		}
-		connected := s.getConnectedProviders(ctx, user.ID)
+		accounts := s.getConnectedAccounts(ctx, user.ID)
 		return &model.AuthResponse{
 			Status:  "success",
 			Message: "OAuth login successful",
 			Token:   token,
-			User:    user.ToDTOWithProviders(connected),
+			User:    user.ToDTOWithAccounts(accounts),
 		}, nil
 	}
 
@@ -201,6 +224,7 @@ func (s *authService) HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserI
 			Provider:   userInfo.Provider,
 			ProviderID: userInfo.ProviderID,
 			Email:      &userInfo.Email,
+			AvatarURL:  avatarPtr,
 			CreatedAt:  time.Now().UTC(),
 		}
 		_ = s.userRepo.LinkOAuthAccount(ctx, oauthAcct)
@@ -215,12 +239,12 @@ func (s *authService) HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserI
 		if err != nil {
 			return nil, err
 		}
-		connected := s.getConnectedProviders(ctx, user.ID)
+		accounts := s.getConnectedAccounts(ctx, user.ID)
 		return &model.AuthResponse{
 			Status:  "success",
 			Message: "OAuth login successful",
 			Token:   token,
-			User:    user.ToDTOWithProviders(connected),
+			User:    user.ToDTOWithAccounts(accounts),
 		}, nil
 	}
 
@@ -258,7 +282,7 @@ func (s *authService) HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserI
 		Username:     cleanUsername,
 		FullName:     fullName,
 		PasswordHash: nil,
-		AvatarURL:    &userInfo.AvatarURL,
+		AvatarURL:    avatarPtr,
 		Provider:     userInfo.Provider,
 		ProviderID:   &userInfo.ProviderID,
 		CreatedAt:    now,
@@ -276,6 +300,7 @@ func (s *authService) HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserI
 		Provider:   userInfo.Provider,
 		ProviderID: userInfo.ProviderID,
 		Email:      &userInfo.Email,
+		AvatarURL:  avatarPtr,
 		CreatedAt:  now,
 	}
 	_ = s.userRepo.LinkOAuthAccount(ctx, oauthAcct)
@@ -285,13 +310,13 @@ func (s *authService) HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserI
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
-	connected := s.getConnectedProviders(ctx, newUser.ID)
+	accounts := s.getConnectedAccounts(ctx, newUser.ID)
 
 	return &model.AuthResponse{
 		Status:  "success",
 		Message: "OAuth registration successful",
 		Token:   token,
-		User:    newUser.ToDTOWithProviders(connected),
+		User:    newUser.ToDTOWithAccounts(accounts),
 	}, nil
 }
 
@@ -300,8 +325,8 @@ func (s *authService) GetProfile(ctx context.Context, userID uuid.UUID) (*model.
 	if err != nil {
 		return nil, err
 	}
-	connected := s.getConnectedProviders(ctx, userID)
-	return user.ToDTOWithProviders(connected), nil
+	accounts := s.getConnectedAccounts(ctx, userID)
+	return user.ToDTOWithAccounts(accounts), nil
 }
 
 func (s *authService) UpdateProfile(ctx context.Context, userID uuid.UUID, input model.UpdateProfileInput) (*model.UserDTO, error) {
@@ -323,7 +348,12 @@ func (s *authService) UpdateProfile(ctx context.Context, userID uuid.UUID, input
 	}
 
 	if input.AvatarURL != nil {
-		user.AvatarURL = input.AvatarURL
+		if strings.TrimSpace(*input.AvatarURL) == "" {
+			user.AvatarURL = nil
+		} else {
+			trimmedURL := strings.TrimSpace(*input.AvatarURL)
+			user.AvatarURL = &trimmedURL
+		}
 	}
 
 	user.UpdatedAt = time.Now().UTC()
@@ -331,8 +361,8 @@ func (s *authService) UpdateProfile(ctx context.Context, userID uuid.UUID, input
 		return nil, err
 	}
 
-	connected := s.getConnectedProviders(ctx, userID)
-	return user.ToDTOWithProviders(connected), nil
+	accounts := s.getConnectedAccounts(ctx, userID)
+	return user.ToDTOWithAccounts(accounts), nil
 }
 
 func (s *authService) SetPassword(ctx context.Context, userID uuid.UUID, input model.SetPasswordInput) error {
@@ -373,12 +403,18 @@ func (s *authService) LinkOAuthAccount(ctx context.Context, userID uuid.UUID, us
 		return errors.New("database repository unavailable")
 	}
 
+	var avatarPtr *string
+	if userInfo.AvatarURL != "" {
+		avatarPtr = &userInfo.AvatarURL
+	}
+
 	oauthAcct := &model.OAuthAccount{
 		ID:         uuid.New(),
 		UserID:     userID,
 		Provider:   userInfo.Provider,
 		ProviderID: userInfo.ProviderID,
 		Email:      &userInfo.Email,
+		AvatarURL:  avatarPtr,
 		CreatedAt:  time.Now().UTC(),
 	}
 
