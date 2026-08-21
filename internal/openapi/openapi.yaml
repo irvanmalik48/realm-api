@@ -220,6 +220,69 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /v1/auth/password:
+    post:
+      summary: Set or change account password
+      operationId: setAccountPassword
+      tags:
+        - Authentication
+      security:
+        - PasetoAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetPasswordInput'
+      responses:
+        '200':
+          description: Password updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccessResponse'
+        '400':
+          description: Invalid password or incorrect current password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/oauth/{provider}:
+    delete:
+      summary: Disconnect a connected OAuth social account
+      operationId: unlinkOAuthAccount
+      tags:
+        - Authentication
+      security:
+        - PasetoAuth: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [google, github]
+      responses:
+        '200':
+          description: Account disconnected successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccessResponse'
+        '400':
+          description: Cannot disconnect the only login method
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /v1/auth/google:
     get:
       summary: Initiate Google OIDC sign-in
@@ -1059,5 +1122,33 @@ components:
         email_reason:
           type: string
           example: Email is already registered
+
+    SetPasswordInput:
+      type: object
+      required:
+        - new_password
+      properties:
+        current_password:
+          type: string
+          format: password
+          description: Required only if user already has a password
+        new_password:
+          type: string
+          format: password
+          minLength: 8
+          example: NewSecurePass123!
+
+    GenericSuccessResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: Operation completed successfully
+
 
 
