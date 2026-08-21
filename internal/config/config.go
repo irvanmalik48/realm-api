@@ -23,6 +23,20 @@ type Config struct {
 	StorageDir      string
 	MaxUploadSizeMB int
 
+	// Authentication & PASETO Settings
+	PASETOSymmetricKey string
+	FrontendURL        string
+
+	// Google OIDC / OAuth2 Settings
+	GoogleClientID     string
+	GoogleClientSecret string
+	GoogleRedirectURL  string
+
+	// GitHub OAuth2 Settings
+	GitHubClientID     string
+	GitHubClientSecret string
+	GitHubRedirectURL  string
+
 	// Contact Form Integration Settings
 	DiscordWebhookURL    string
 	TelegramBotToken     string
@@ -86,6 +100,17 @@ func Load() *Config {
 
 		StorageDir:      storageDir,
 		MaxUploadSizeMB: maxUploadMB,
+
+		PASETOSymmetricKey: getEnv("PASETO_SYMMETRIC_KEY", "707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f"),
+		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:3000"),
+
+		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
+		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
+		GoogleRedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/v1/auth/google/callback"),
+
+		GitHubClientID:     getEnv("GITHUB_CLIENT_ID", ""),
+		GitHubClientSecret: getEnv("GITHUB_CLIENT_SECRET", ""),
+		GitHubRedirectURL:  getEnv("GITHUB_REDIRECT_URL", "http://localhost:8080/v1/auth/github/callback"),
 
 		DiscordWebhookURL:    getEnv("DISCORD_WEBHOOK_URL", ""),
 		TelegramBotToken:     getEnv("TELEGRAM_BOT_TOKEN", ""),
