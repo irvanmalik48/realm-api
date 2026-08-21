@@ -10,6 +10,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/irvanmalik48/realm-api/internal/auth"
 	"github.com/irvanmalik48/realm-api/internal/config"
 	"github.com/irvanmalik48/realm-api/internal/model"
 	"github.com/irvanmalik48/realm-api/internal/repository"
@@ -26,16 +27,18 @@ func getUserIDFromLocals(c *fiber.Ctx) (uuid.UUID, bool) {
 }
 
 type AuthHandler struct {
-	cfg      *config.Config
-	authSvc  service.AuthService
-	oauthSvc service.OAuthService
+	cfg       *config.Config
+	authSvc   service.AuthService
+	oauthSvc  service.OAuthService
+	pasetoSvc auth.PasetoService
 }
 
-func NewAuthHandler(cfg *config.Config, authSvc service.AuthService, oauthSvc service.OAuthService) *AuthHandler {
+func NewAuthHandler(cfg *config.Config, authSvc service.AuthService, oauthSvc service.OAuthService, pasetoSvc auth.PasetoService) *AuthHandler {
 	return &AuthHandler{
-		cfg:      cfg,
-		authSvc:  authSvc,
-		oauthSvc: oauthSvc,
+		cfg:       cfg,
+		authSvc:   authSvc,
+		oauthSvc:  oauthSvc,
+		pasetoSvc: pasetoSvc,
 	}
 }
 
@@ -71,7 +74,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		if errors.Is(err, service.ErrInvalidCredentials) {
 			return ErrorResponse(c, "Invalid email/username or password.", http.StatusUnauthorized)
 		}
-		return ErrorResponse(c, err.Error(), http.StatusBadRequest)
+		return ErrorResponse(c, err.Error(), http.StatusUnauthorized)
 	}
 
 	return c.Status(http.StatusOK).JSON(resp)
@@ -80,15 +83,15 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 func (h *AuthHandler) GetMe(c *fiber.Ctx) error {
 	userID, ok := getUserIDFromLocals(c)
 	if !ok {
-		return ErrorResponse(c, "Unauthorized: missing user context", http.StatusUnauthorized)
+		return ErrorResponse(c, "Unauthorized", http.StatusUnauthorized)
 	}
 
 	userDTO, err := h.authSvc.GetProfile(c.Context(), userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
-			return ErrorResponse(c, "User record not found", http.StatusNotFound)
+			return ErrorResponse(c, "User profile not found", http.StatusNotFound)
 		}
-		return ErrorResponse(c, fmt.Sprintf("Failed to retrieve profile: %v", err), http.StatusInternalServerError)
+		return ErrorResponse(c, fmt.Sprintf("Failed to fetch user: %v", err), http.StatusInternalServerError)
 	}
 
 	return c.Status(http.StatusOK).JSON(fiber.Map{
@@ -128,6 +131,41 @@ func (h *AuthHandler) GoogleLogin(c *fiber.Ctx) error {
 	_, _ = rand.Read(stateBytes)
 	state := hex.EncodeToString(stateBytes)
 
+	// Check if linking from an authenticated session
+	token := c.Query("token")
+	if token == "" {
+		token = c.Cookies("realm_auth_token")
+	}
+	if token == "" {
+		authHeader := c.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+	}
+
+	if token != "" && h.pasetoSvc != nil {
+		claims, err := h.pasetoSvc.VerifyToken(token)
+		if err == nil && claims.ID != "" {
+			c.Cookie(&fiber.Cookie{
+				Name:     "oauth_link_user_google",
+				Value:    claims.ID,
+				MaxAge:   300,
+				HTTPOnly: true,
+				Secure:   h.cfg.Environment == "production",
+				SameSite: "Lax",
+			})
+		}
+	} else {
+		c.Cookie(&fiber.Cookie{
+			Name:     "oauth_link_user_google",
+			Value:    "",
+			MaxAge:   -1,
+			HTTPOnly: true,
+			Secure:   h.cfg.Environment == "production",
+			SameSite: "Lax",
+		})
+	}
+
 	c.Cookie(&fiber.Cookie{
 		Name:     "oauth_state_google",
 		Value:    state,
@@ -149,6 +187,22 @@ func (h *AuthHandler) GoogleCallback(c *fiber.Ctx) error {
 	code := c.Query("code")
 	state := c.Query("state")
 	savedState := c.Cookies("oauth_state_google")
+	linkUserIDStr := c.Cookies("oauth_link_user_google")
+
+	// Clear link cookie
+	c.Cookie(&fiber.Cookie{
+		Name:     "oauth_link_user_google",
+		Value:    "",
+		MaxAge:   -1,
+		HTTPOnly: true,
+		Secure:   h.cfg.Environment == "production",
+		SameSite: "Lax",
+	})
+
+	frontendURL := h.cfg.FrontendURL
+	if frontendURL == "" {
+		frontendURL = "http://localhost:3000"
+	}
 
 	if code == "" || state == "" || savedState == "" || state != savedState {
 		return ErrorResponse(c, "Invalid OAuth state or authorization code", http.StatusBadRequest)
@@ -159,14 +213,20 @@ func (h *AuthHandler) GoogleCallback(c *fiber.Ctx) error {
 		return ErrorResponse(c, fmt.Sprintf("Google authentication failed: %v", err), http.StatusBadRequest)
 	}
 
+	// If linking to existing account
+	if linkUserIDStr != "" {
+		linkUserID, parseErr := uuid.Parse(linkUserIDStr)
+		if parseErr == nil {
+			if linkErr := h.authSvc.LinkOAuthAccount(c.Context(), linkUserID, userInfo); linkErr != nil {
+				return c.Redirect(fmt.Sprintf("%s/settings?error=%s", frontendURL, url.QueryEscape(linkErr.Error())), http.StatusTemporaryRedirect)
+			}
+			return c.Redirect(fmt.Sprintf("%s/settings?linked=google", frontendURL), http.StatusTemporaryRedirect)
+		}
+	}
+
 	authResp, err := h.authSvc.HandleOAuthLogin(c.Context(), userInfo)
 	if err != nil {
 		return ErrorResponse(c, fmt.Sprintf("Account creation/linking failed: %v", err), http.StatusInternalServerError)
-	}
-
-	frontendURL := h.cfg.FrontendURL
-	if frontendURL == "" {
-		frontendURL = "http://localhost:3000"
 	}
 
 	redirectURI := fmt.Sprintf("%s/api/auth/callback?token=%s", frontendURL, url.QueryEscape(authResp.Token))
@@ -177,6 +237,41 @@ func (h *AuthHandler) GitHubLogin(c *fiber.Ctx) error {
 	stateBytes := make([]byte, 16)
 	_, _ = rand.Read(stateBytes)
 	state := hex.EncodeToString(stateBytes)
+
+	// Check if linking from an authenticated session
+	token := c.Query("token")
+	if token == "" {
+		token = c.Cookies("realm_auth_token")
+	}
+	if token == "" {
+		authHeader := c.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+	}
+
+	if token != "" && h.pasetoSvc != nil {
+		claims, err := h.pasetoSvc.VerifyToken(token)
+		if err == nil && claims.ID != "" {
+			c.Cookie(&fiber.Cookie{
+				Name:     "oauth_link_user_github",
+				Value:    claims.ID,
+				MaxAge:   300,
+				HTTPOnly: true,
+				Secure:   h.cfg.Environment == "production",
+				SameSite: "Lax",
+			})
+		}
+	} else {
+		c.Cookie(&fiber.Cookie{
+			Name:     "oauth_link_user_github",
+			Value:    "",
+			MaxAge:   -1,
+			HTTPOnly: true,
+			Secure:   h.cfg.Environment == "production",
+			SameSite: "Lax",
+		})
+	}
 
 	c.Cookie(&fiber.Cookie{
 		Name:     "oauth_state_github",
@@ -199,6 +294,22 @@ func (h *AuthHandler) GitHubCallback(c *fiber.Ctx) error {
 	code := c.Query("code")
 	state := c.Query("state")
 	savedState := c.Cookies("oauth_state_github")
+	linkUserIDStr := c.Cookies("oauth_link_user_github")
+
+	// Clear link cookie
+	c.Cookie(&fiber.Cookie{
+		Name:     "oauth_link_user_github",
+		Value:    "",
+		MaxAge:   -1,
+		HTTPOnly: true,
+		Secure:   h.cfg.Environment == "production",
+		SameSite: "Lax",
+	})
+
+	frontendURL := h.cfg.FrontendURL
+	if frontendURL == "" {
+		frontendURL = "http://localhost:3000"
+	}
 
 	if code == "" || state == "" || savedState == "" || state != savedState {
 		return ErrorResponse(c, "Invalid OAuth state or authorization code", http.StatusBadRequest)
@@ -209,14 +320,20 @@ func (h *AuthHandler) GitHubCallback(c *fiber.Ctx) error {
 		return ErrorResponse(c, fmt.Sprintf("GitHub authentication failed: %v", err), http.StatusBadRequest)
 	}
 
+	// If linking to existing account
+	if linkUserIDStr != "" {
+		linkUserID, parseErr := uuid.Parse(linkUserIDStr)
+		if parseErr == nil {
+			if linkErr := h.authSvc.LinkOAuthAccount(c.Context(), linkUserID, userInfo); linkErr != nil {
+				return c.Redirect(fmt.Sprintf("%s/settings?error=%s", frontendURL, url.QueryEscape(linkErr.Error())), http.StatusTemporaryRedirect)
+			}
+			return c.Redirect(fmt.Sprintf("%s/settings?linked=github", frontendURL), http.StatusTemporaryRedirect)
+		}
+	}
+
 	authResp, err := h.authSvc.HandleOAuthLogin(c.Context(), userInfo)
 	if err != nil {
 		return ErrorResponse(c, fmt.Sprintf("Account creation/linking failed: %v", err), http.StatusInternalServerError)
-	}
-
-	frontendURL := h.cfg.FrontendURL
-	if frontendURL == "" {
-		frontendURL = "http://localhost:3000"
 	}
 
 	redirectURI := fmt.Sprintf("%s/api/auth/callback?token=%s", frontendURL, url.QueryEscape(authResp.Token))
