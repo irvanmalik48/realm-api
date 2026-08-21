@@ -8,20 +8,22 @@ OpenAPI 3.2.0 compliant specification and route documentation for Realm API.
 
 - [Overview](#overview)
 - [Base URLs](#base-urls)
-- [Authentication](#authentication)
+- [Authentication & Token Management](#authentication--token-management)
+- [User Authentication & OIDC (PASETO)](#user-authentication--oidc-paseto)
 - [Error Format](#error-format)
 - [Endpoints](#endpoints)
-  - [Root](#root)
+  - [Health & Status](#health--status)
+  - [Authentication & Users](#authentication--users)
   - [LastFM](#lastfm)
   - [Contact](#contact)
   - [Storage](#storage)
-- [OpenAPI 3.2.0 Specification](#openapi-320-specification)
+- [Live OpenAPI 3.2.0 Specification & Documentation](#live-openapi-320-specification--documentation)
 
 ---
 
 ## Overview
 
-Realm API is a RESTful backend service built with Go and Fiber v2. It provides endpoints for LastFM profile and scrobble data, contact form submission with PostgreSQL persistence and notifications, and Zstandard-compressed file storage with automatic Blurhash calculation and on-the-fly WebP conversion.
+Realm API is a RESTful backend service built with Go and Fiber v2. It provides endpoints for User Authentication (traditional and Google/GitHub OIDC with PASETO tokens), LastFM profile and scrobble data, contact form submission with PostgreSQL persistence and notifications, and Zstandard-compressed file storage with automatic Blurhash calculation and on-the-fly WebP conversion.
 
 ---
 
@@ -34,15 +36,48 @@ Realm API is a RESTful backend service built with Go and Fiber v2. It provides e
 
 ## Authentication & Token Management
 
-Realm API supports cryptographically secure API tokens (`realm_tok_...`) generated exclusively via the administrative CLI tool (`cmd/token`).
+### 1. Administrative API Tokens
+Realm API supports cryptographically secure administrative API tokens (`realm_tok_...`) generated exclusively via the administrative CLI tool (`cmd/token`) for programmatic access and machine-to-machine integrations.
 
-### Authentication Headers
+#### Administrative Authentication Headers
 
 | Scheme | Header | Description |
 |---|---|---|
 | **Bearer Token** | `Authorization: Bearer realm_tok_<secret>` | Standard Bearer token authentication |
 | **API Token** | `X-API-Token: realm_tok_<secret>` | Alternative token header |
 | **API Key Header** | `X-API-Key: realm_tok_<secret>` | Alternative token header |
+
+---
+
+## User Authentication & OIDC (PASETO)
+
+User sessions utilize **PASETO v2.local** (Platform-Agnostic Security Tokens with ChaCha20-Poly1305 symmetric encryption). Tokens are issued upon successful registration, login, or OAuth callback, and are valid for 7 days.
+
+### User Authentication Headers
+
+| Scheme | Header | Description |
+|---|---|---|
+| **Bearer Token** | `Authorization: Bearer v2.local.<payload>` | Standard PASETO bearer token |
+| **Auth Header** | `X-Auth-Token: v2.local.<payload>` | Custom auth header |
+| **Cookie** | `Cookie: realm_auth_token=v2.local...` | Secure httpOnly cookie |
+
+### Token Claims Structure
+
+```json
+{
+  "id": "uuid-v4",
+  "email": "user@example.com",
+  "username": "johndoe",
+  "full_name": "John Doe",
+  "avatar_url": "https://...",
+  "provider": "local",
+  "iss": "realm-api",
+  "sub": "uuid-v4",
+  "aud": "realm-frontend",
+  "iat": "2026-08-21T12:00:00Z",
+  "exp": "2026-08-28T12:00:00Z"
+}
+```
 
 ### Generating & Managing Tokens (CLI)
 
@@ -130,6 +165,139 @@ Detailed service health, uptime, and database connectivity check.
     "database": "connected"
   }
   ```
+
+---
+
+### Authentication & Users
+
+#### `POST /v1/auth/register`
+Registers a new user account with traditional email, username, and password credentials, and issues a 7-day PASETO v2 token.
+
+- **Request Body**:
+  ```json
+  {
+    "email": "jane@example.com",
+    "username": "janedoe",
+    "password": "SecurePassword123!",
+    "full_name": "Jane Doe",
+    "avatar_url": "https://example.com/avatar.png"
+  }
+  ```
+- **Validation Rules**:
+  - `email`: string, required, valid email format, unique.
+  - `username`: string, required, 3–30 alphanumeric/underscore characters, unique.
+  - `password`: string, required, minimum 8 characters (hashed via bcrypt).
+  - `full_name`: string, required, 2–100 characters.
+  - `avatar_url`: string, optional URL.
+- **Response (`201 Created`)**:
+  ```json
+  {
+    "status": "success",
+    "message": "Registration successful",
+    "token": "v2.local.k7x...",
+    "user": {
+      "id": "7fa84e72-d7b1-4bb2-b6be-4b95d0ef923b",
+      "email": "jane@example.com",
+      "username": "janedoe",
+      "full_name": "Jane Doe",
+      "avatar_url": "https://example.com/avatar.png",
+      "provider": "local",
+      "created_at": "2026-08-21T12:00:00Z"
+    }
+  }
+  ```
+
+---
+
+#### `POST /v1/auth/login`
+Authenticates a user with their username or email address and password.
+
+- **Request Body**:
+  ```json
+  {
+    "identifier": "janedoe",
+    "password": "SecurePassword123!"
+  }
+  ```
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "status": "success",
+    "message": "Login successful",
+    "token": "v2.local.k7x...",
+    "user": {
+      "id": "7fa84e72-d7b1-4bb2-b6be-4b95d0ef923b",
+      "email": "jane@example.com",
+      "username": "janedoe",
+      "full_name": "Jane Doe",
+      "avatar_url": "https://example.com/avatar.png",
+      "provider": "local",
+      "created_at": "2026-08-21T12:00:00Z"
+    }
+  }
+  ```
+
+---
+
+#### `GET /v1/auth/me`
+Retrieves the profile of the currently authenticated user.
+
+- **Authentication**: Required (`Authorization: Bearer <paseto-token>` or `X-Auth-Token` or `realm_auth_token` cookie).
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "status": "success",
+    "user": {
+      "id": "7fa84e72-d7b1-4bb2-b6be-4b95d0ef923b",
+      "email": "jane@example.com",
+      "username": "janedoe",
+      "full_name": "Jane Doe",
+      "avatar_url": "https://example.com/avatar.png",
+      "provider": "local",
+      "created_at": "2026-08-21T12:00:00Z"
+    }
+  }
+  ```
+
+---
+
+#### `PATCH /v1/auth/profile`
+Updates profile information (Full Name and/or Avatar URL) for the currently authenticated user.
+
+- **Authentication**: Required.
+- **Request Body**:
+  ```json
+  {
+    "full_name": "Jane Smith",
+    "avatar_url": "https://example.com/new-avatar.png"
+  }
+  ```
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "status": "success",
+    "message": "Profile updated successfully",
+    "user": {
+      "id": "7fa84e72-d7b1-4bb2-b6be-4b95d0ef923b",
+      "email": "jane@example.com",
+      "username": "janedoe",
+      "full_name": "Jane Smith",
+      "avatar_url": "https://example.com/new-avatar.png",
+      "provider": "local",
+      "created_at": "2026-08-21T12:00:00Z"
+    }
+  }
+  ```
+
+---
+
+#### `GET /v1/auth/google` & `GET /v1/auth/google/callback`
+Initiates Google OIDC flow and handles authorization callback, automatically finding or provisioning user accounts and returning a PASETO session token to the frontend.
+
+---
+
+#### `GET /v1/auth/github` & `GET /v1/auth/github/callback`
+Initiates GitHub OAuth2 flow and handles authorization callback, automatically finding or provisioning user accounts and returning a PASETO session token to the frontend.
 
 ---
 
