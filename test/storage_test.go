@@ -92,6 +92,7 @@ func setupStorageTestApp(t *testing.T, withAuth bool) (*fiber.App, string, servi
 	tokenCache := auth.NewTokenCache(1 * time.Minute)
 	tokenLimiter := auth.NewTokenRateLimiter()
 	tokenSvc := service.NewTokenService(tokenRepo, tokenCache, tokenLimiter)
+	pasetoSvc, _ := auth.NewPasetoService("707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f")
 
 	var validToken string
 	if withAuth {
@@ -110,12 +111,50 @@ func setupStorageTestApp(t *testing.T, withAuth bool) (*fiber.App, string, servi
 		BodyLimit: cfg.MaxUploadSizeMB * 1024 * 1024,
 	})
 	v1 := app.Group("/v1/storage")
-	v1.Post("/upload", middleware.RequireToken(tokenSvc, tokenLimiter, "storage:write"), hdlr.Upload)
+	v1.Post("/upload", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "storage:write"), hdlr.Upload)
 	v1.Get("/:id", hdlr.GetFile)
 	v1.Get("/:id/info", hdlr.GetFileInfo)
-	v1.Delete("/:id", middleware.RequireToken(tokenSvc, tokenLimiter, "storage:write"), hdlr.DeleteFile)
+	v1.Delete("/:id", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "storage:write"), hdlr.DeleteFile)
 
 	return app, tempDir, svc, validToken
+}
+
+func TestStorage_UserAuthProtection(t *testing.T) {
+	app, tempDir, _, _ := setupStorageTestApp(t, true)
+	defer os.RemoveAll(tempDir)
+
+	pasetoSvc, _ := auth.NewPasetoService("707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f")
+	userToken, err := pasetoSvc.GenerateToken(&model.User{
+		ID:       uuid.New(),
+		Email:    "testuser@example.com",
+		Username: "testuser",
+		FullName: "Test User",
+		Provider: "local",
+	}, 1*time.Hour)
+	if err != nil {
+		t.Fatalf("failed to generate paseto token: %v", err)
+	}
+
+	// Authorized upload with PASETO user auth token
+	pngBytes := createTestPNG()
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, _ := writer.CreateFormFile("file", "user-auth-test.png")
+	_, _ = part.Write(pngBytes)
+	_ = writer.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/storage/upload", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+userToken)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("user auth upload error: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Errorf("expected 201 for valid PASETO user token, got %d", resp.StatusCode)
+	}
 }
 
 func TestStorage_UploadAndServe(t *testing.T) {
