@@ -20,6 +20,7 @@ docker-build:
 	docker compose build
 
 docker-up:
+	mkdir -p ./data/storage
 	docker compose up -d
 
 docker-down:
