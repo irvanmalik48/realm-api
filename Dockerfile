@@ -26,8 +26,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 # Final runtime stage
 FROM alpine:3.21
 
-# Install certificates for HTTPS requests to external APIs (LastFM)
-RUN apk add --no-cache ca-certificates tzdata && \
+# Install certificates for HTTPS requests, tzdata, and su-exec for privilege dropping
+RUN apk add --no-cache ca-certificates tzdata su-exec && \
     addgroup -g 1000 -S appgroup && \
     adduser -u 1000 -S appuser -G appgroup && \
     mkdir -p /data/storage /app && \
@@ -35,15 +35,16 @@ RUN apk add --no-cache ca-certificates tzdata && \
 
 WORKDIR /app
 
-# Copy compiled binaries from builder stage
+# Copy compiled binaries and entrypoint script
 COPY --from=builder /bin/server /app/server
 COPY --from=builder /bin/token /app/token
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 
-# Use non-privileged user for security
-USER appuser:appgroup
+RUN chmod +x /app/docker-entrypoint.sh
 
 # Expose default HTTP port
 EXPOSE 8080
 
-# Run server
-ENTRYPOINT ["/app/server"]
+# Run entrypoint script which fixes volume permissions and drops privileges to appuser
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["/app/server"]
