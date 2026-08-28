@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/gofiber/fiber/v2"
@@ -64,6 +65,7 @@ func (h *ReactionHandler) GetReactions(c *fiber.Ctx) error {
 		if errors.Is(err, service.ErrEmptySlug) {
 			return ErrorResponse(c, err.Error(), http.StatusBadRequest)
 		}
+		log.Printf("[Reactions] GetReactions error for slug %q: %v\n", slug, err)
 		return ErrorResponse(c, "Failed to retrieve reactions", http.StatusInternalServerError)
 	}
 
@@ -100,6 +102,7 @@ func (h *ReactionHandler) ToggleReaction(c *fiber.Ctx) error {
 		if errors.Is(err, service.ErrInvalidReaction) || errors.Is(err, service.ErrEmptySlug) {
 			return ErrorResponse(c, err.Error(), http.StatusBadRequest)
 		}
+		log.Printf("[Reactions] ToggleReaction error for slug %q (user %s, reaction %q): %v\n", slug, userID, req.Reaction, err)
 		return ErrorResponse(c, "Failed to update reaction", http.StatusInternalServerError)
 	}
 
