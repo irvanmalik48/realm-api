@@ -136,9 +136,15 @@ func (db *DB) migrate(ctx context.Context) error {
 		post_slug VARCHAR(200) NOT NULL,
 		reaction_type VARCHAR(50) NOT NULL,
 		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-		UNIQUE(post_slug, user_id)
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 	);
+	ALTER TABLE post_reactions DROP COLUMN IF EXISTS client_identifier;
+	DELETE FROM post_reactions WHERE user_id IS NULL;
+	ALTER TABLE post_reactions ALTER COLUMN user_id SET NOT NULL;
+	DELETE FROM post_reactions a USING post_reactions b 
+	WHERE a.created_at < b.created_at AND a.post_slug = b.post_slug AND a.user_id = b.user_id;
+	ALTER TABLE post_reactions DROP CONSTRAINT IF EXISTS post_reactions_post_slug_reaction_type_client_identifier_key;
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_post_reactions_post_slug_user_id ON post_reactions(post_slug, user_id);
 	CREATE INDEX IF NOT EXISTS idx_post_reactions_slug ON post_reactions(post_slug);
 	CREATE INDEX IF NOT EXISTS idx_post_reactions_user ON post_reactions(post_slug, user_id);
 	`
