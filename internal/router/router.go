@@ -136,9 +136,9 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	authGroup.Get("/github/callback", authHdlr.GitHubCallback)
 
 	// Post Reaction endpoints
-	reactionsGroup := v1.Group("/posts/:slug/reactions", middleware.OptionalUserAuth(pasetoSvc))
-	reactionsGroup.Get("/", reactionHdlr.GetReactions)
-	reactionsGroup.Post("/", reactionHdlr.ToggleReaction)
+	reactionsGroup := v1.Group("/posts/:slug/reactions")
+	reactionsGroup.Get("/", middleware.OptionalUserAuth(pasetoSvc), reactionHdlr.GetReactions)
+	reactionsGroup.Post("/", middleware.RequireUserAuth(pasetoSvc), reactionHdlr.ToggleReaction)
 
 	// LastFM endpoints with optional token auth and dynamic rate limiting
 	lastfm := v1.Group("/lastfm", middleware.OptionalToken(tokenSvc, tokenLimiter))
