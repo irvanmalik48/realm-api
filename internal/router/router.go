@@ -66,12 +66,14 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	var storageRepo repository.StorageRepository
 	var tokenRepo repository.TokenRepository
 	var userRepo repository.UserRepository
+	var reactionRepo repository.ReactionRepository
 
 	if db != nil {
 		contactRepo = repository.NewContactRepository(db)
 		storageRepo = repository.NewStorageRepository(db)
 		tokenRepo = repository.NewTokenRepository(db)
 		userRepo = repository.NewUserRepository(db)
+		reactionRepo = repository.NewReactionRepository(db)
 	}
 
 	storageEngine, err := storage.NewZstdEngine(cfg.StorageDir)
@@ -93,6 +95,7 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	tokenSvc := service.NewTokenService(tokenRepo, tokenCache, tokenLimiter)
 	oauthSvc := service.NewOAuthService(cfg)
 	authSvc := service.NewAuthService(userRepo, pasetoSvc)
+	reactionSvc := service.NewReactionService(reactionRepo)
 
 	rootHdlr := handler.NewRootHandler()
 	healthHdlr := handler.NewHealthHandler(db)
@@ -100,6 +103,7 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	contactHdlr := handler.NewContactHandler(cfg, contactSvc)
 	storageHdlr := handler.NewStorageHandler(cfg, storageSvc)
 	authHdlr := handler.NewAuthHandler(cfg, authSvc, oauthSvc, pasetoSvc)
+	reactionHdlr := handler.NewReactionHandler(cfg, reactionSvc)
 
 	// Root and Health routes
 	app.Get("/", rootHdlr.Handle)
@@ -110,7 +114,7 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	app.Get("/openapi.json", openapi.ServeJSON)
 	app.Get("/docs", openapi.ServeDocs)
 
-	// v1 routes (/v1/health, /v1/lastfm/track, /v1/lastfm/user, /v1/contact, /v1/storage, /v1/auth)
+	// v1 routes (/v1/health, /v1/lastfm/track, /v1/lastfm/user, /v1/contact, /v1/storage, /v1/auth, /v1/posts)
 	v1 := app.Group("/v1")
 	v1.Get("/health", healthHdlr.Handle)
 	v1.Get("/openapi.yaml", openapi.ServeYAML)
@@ -130,6 +134,11 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	authGroup.Get("/google/callback", authHdlr.GoogleCallback)
 	authGroup.Get("/github", authHdlr.GitHubLogin)
 	authGroup.Get("/github/callback", authHdlr.GitHubCallback)
+
+	// Post Reaction endpoints
+	reactionsGroup := v1.Group("/posts/:slug/reactions", middleware.OptionalUserAuth(pasetoSvc))
+	reactionsGroup.Get("/", reactionHdlr.GetReactions)
+	reactionsGroup.Post("/", reactionHdlr.ToggleReaction)
 
 	// LastFM endpoints with optional token auth and dynamic rate limiting
 	lastfm := v1.Group("/lastfm", middleware.OptionalToken(tokenSvc, tokenLimiter))
