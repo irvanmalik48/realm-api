@@ -147,6 +147,20 @@ func (db *DB) migrate(ctx context.Context) error {
 	CREATE UNIQUE INDEX IF NOT EXISTS idx_post_reactions_post_slug_user_id ON post_reactions(post_slug, user_id);
 	CREATE INDEX IF NOT EXISTS idx_post_reactions_slug ON post_reactions(post_slug);
 	CREATE INDEX IF NOT EXISTS idx_post_reactions_user ON post_reactions(post_slug, user_id);
+
+	CREATE TABLE IF NOT EXISTS post_comments (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		post_slug VARCHAR(200) NOT NULL,
+		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		parent_id UUID REFERENCES post_comments(id) ON DELETE CASCADE,
+		content TEXT NOT NULL,
+		is_edited BOOLEAN NOT NULL DEFAULT false,
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_post_comments_slug ON post_comments(post_slug, created_at ASC);
+	CREATE INDEX IF NOT EXISTS idx_post_comments_parent ON post_comments(parent_id);
+	CREATE INDEX IF NOT EXISTS idx_post_comments_user ON post_comments(user_id);
 	`
 
 	_, err := db.Pool.Exec(ctx, query)
