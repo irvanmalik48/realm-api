@@ -130,6 +130,19 @@ func (db *DB) migrate(ctx context.Context) error {
 	ALTER TABLE user_oauth_accounts ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 	CREATE INDEX IF NOT EXISTS idx_user_oauth_accounts_user_id ON user_oauth_accounts(user_id);
 	CREATE INDEX IF NOT EXISTS idx_user_oauth_accounts_provider ON user_oauth_accounts(provider, provider_id);
+
+	CREATE TABLE IF NOT EXISTS post_reactions (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		post_slug VARCHAR(200) NOT NULL,
+		reaction_type VARCHAR(50) NOT NULL,
+		user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+		client_identifier VARCHAR(100) NOT NULL,
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		UNIQUE(post_slug, reaction_type, client_identifier)
+	);
+	CREATE INDEX IF NOT EXISTS idx_post_reactions_slug ON post_reactions(post_slug);
+	CREATE INDEX IF NOT EXISTS idx_post_reactions_client ON post_reactions(post_slug, client_identifier);
+	CREATE INDEX IF NOT EXISTS idx_post_reactions_user ON post_reactions(post_slug, user_id);
 	`
 
 	_, err := db.Pool.Exec(ctx, query)
