@@ -52,9 +52,14 @@ func (h *ReactionHandler) GetReactions(c *fiber.Ctx) error {
 		return ErrorResponse(c, "Post slug is required", http.StatusBadRequest)
 	}
 
-	clientIdentifier := getClientIdentifier(c)
+	var userIDPtr *uuid.UUID
+	if val := c.Locals("user_id"); val != nil {
+		if uid, ok := val.(uuid.UUID); ok && uid != uuid.Nil {
+			userIDPtr = &uid
+		}
+	}
 
-	res, err := h.svc.GetReactions(c.Context(), slug, clientIdentifier)
+	res, err := h.svc.GetReactions(c.Context(), slug, userIDPtr)
 	if err != nil {
 		if errors.Is(err, service.ErrEmptySlug) {
 			return ErrorResponse(c, err.Error(), http.StatusBadRequest)
@@ -71,6 +76,16 @@ func (h *ReactionHandler) ToggleReaction(c *fiber.Ctx) error {
 		return ErrorResponse(c, "Post slug is required", http.StatusBadRequest)
 	}
 
+	val := c.Locals("user_id")
+	if val == nil {
+		return ErrorResponse(c, "Unauthorized: login required to react", http.StatusUnauthorized)
+	}
+
+	userID, ok := val.(uuid.UUID)
+	if !ok || userID == uuid.Nil {
+		return ErrorResponse(c, "Unauthorized: invalid user session", http.StatusUnauthorized)
+	}
+
 	var req model.ToggleReactionRequest
 	if err := c.BodyParser(&req); err != nil {
 		return ErrorResponse(c, "Invalid request payload", http.StatusBadRequest)
@@ -80,16 +95,7 @@ func (h *ReactionHandler) ToggleReaction(c *fiber.Ctx) error {
 		return ErrorResponse(c, "Reaction type is required", http.StatusBadRequest)
 	}
 
-	clientIdentifier := getClientIdentifier(c)
-
-	var userIDPtr *uuid.UUID
-	if val := c.Locals("user_id"); val != nil {
-		if uid, ok := val.(uuid.UUID); ok && uid != uuid.Nil {
-			userIDPtr = &uid
-		}
-	}
-
-	res, err := h.svc.ToggleReaction(c.Context(), slug, req.Reaction, userIDPtr, clientIdentifier)
+	res, err := h.svc.ToggleReaction(c.Context(), slug, req.Reaction, userID)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidReaction) || errors.Is(err, service.ErrEmptySlug) {
 			return ErrorResponse(c, err.Error(), http.StatusBadRequest)
