@@ -67,6 +67,7 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	var tokenRepo repository.TokenRepository
 	var userRepo repository.UserRepository
 	var reactionRepo repository.ReactionRepository
+	var commentRepo repository.CommentRepository
 
 	if db != nil {
 		contactRepo = repository.NewContactRepository(db)
@@ -74,6 +75,7 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 		tokenRepo = repository.NewTokenRepository(db)
 		userRepo = repository.NewUserRepository(db)
 		reactionRepo = repository.NewReactionRepository(db)
+		commentRepo = repository.NewCommentRepository(db)
 	}
 
 	storageEngine, err := storage.NewZstdEngine(cfg.StorageDir)
@@ -96,6 +98,7 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	oauthSvc := service.NewOAuthService(cfg)
 	authSvc := service.NewAuthService(userRepo, pasetoSvc)
 	reactionSvc := service.NewReactionService(reactionRepo)
+	commentSvc := service.NewCommentService(commentRepo)
 
 	rootHdlr := handler.NewRootHandler()
 	healthHdlr := handler.NewHealthHandler(db)
@@ -104,6 +107,7 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	storageHdlr := handler.NewStorageHandler(cfg, storageSvc)
 	authHdlr := handler.NewAuthHandler(cfg, authSvc, oauthSvc, pasetoSvc)
 	reactionHdlr := handler.NewReactionHandler(cfg, reactionSvc)
+	commentHdlr := handler.NewCommentHandler(cfg, commentSvc)
 
 	// Root and Health routes
 	app.Get("/", rootHdlr.Handle)
@@ -139,6 +143,13 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	reactionsGroup := v1.Group("/posts/:slug/reactions")
 	reactionsGroup.Get("/", middleware.OptionalUserAuth(pasetoSvc), reactionHdlr.GetReactions)
 	reactionsGroup.Post("/", middleware.RequireUserAuth(pasetoSvc), reactionHdlr.ToggleReaction)
+
+	// Post Comment endpoints
+	commentsGroup := v1.Group("/posts/:slug/comments")
+	commentsGroup.Get("/", middleware.OptionalUserAuth(pasetoSvc), commentHdlr.GetComments)
+	commentsGroup.Post("/", middleware.RequireUserAuth(pasetoSvc), commentHdlr.CreateComment)
+	commentsGroup.Patch("/:id", middleware.RequireUserAuth(pasetoSvc), commentHdlr.UpdateComment)
+	commentsGroup.Delete("/:id", middleware.RequireUserAuth(pasetoSvc), commentHdlr.DeleteComment)
 
 	// LastFM endpoints with optional token auth and dynamic rate limiting
 	lastfm := v1.Group("/lastfm", middleware.OptionalToken(tokenSvc, tokenLimiter))
