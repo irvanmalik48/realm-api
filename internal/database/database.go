@@ -135,13 +135,11 @@ func (db *DB) migrate(ctx context.Context) error {
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 		post_slug VARCHAR(200) NOT NULL,
 		reaction_type VARCHAR(50) NOT NULL,
-		user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-		client_identifier VARCHAR(100) NOT NULL,
+		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-		UNIQUE(post_slug, reaction_type, client_identifier)
+		UNIQUE(post_slug, user_id)
 	);
 	CREATE INDEX IF NOT EXISTS idx_post_reactions_slug ON post_reactions(post_slug);
-	CREATE INDEX IF NOT EXISTS idx_post_reactions_client ON post_reactions(post_slug, client_identifier);
 	CREATE INDEX IF NOT EXISTS idx_post_reactions_user ON post_reactions(post_slug, user_id);
 	`
 
