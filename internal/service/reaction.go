@@ -16,8 +16,8 @@ var (
 )
 
 type ReactionService interface {
-	GetReactions(ctx context.Context, slug string, clientIdentifier string) (*model.PostReactionsResponse, error)
-	ToggleReaction(ctx context.Context, slug string, reactionType string, userID *uuid.UUID, clientIdentifier string) (*model.ToggleReactionResponse, error)
+	GetReactions(ctx context.Context, slug string, userID *uuid.UUID) (*model.PostReactionsResponse, error)
+	ToggleReaction(ctx context.Context, slug string, reactionType string, userID uuid.UUID) (*model.ToggleReactionResponse, error)
 }
 
 type reactionService struct {
@@ -28,7 +28,7 @@ func NewReactionService(repo repository.ReactionRepository) ReactionService {
 	return &reactionService{repo: repo}
 }
 
-func (s *reactionService) GetReactions(ctx context.Context, slug string, clientIdentifier string) (*model.PostReactionsResponse, error) {
+func (s *reactionService) GetReactions(ctx context.Context, slug string, userID *uuid.UUID) (*model.PostReactionsResponse, error) {
 	slug = strings.TrimSpace(slug)
 	if slug == "" {
 		return nil, ErrEmptySlug
@@ -40,14 +40,15 @@ func (s *reactionService) GetReactions(ctx context.Context, slug string, clientI
 			Slug:          slug,
 			TotalCount:    0,
 			Reactions:     make(map[string]int),
+			UserReaction:  nil,
 			UserReactions: make([]string, 0),
 		}, nil
 	}
 
-	return s.repo.GetReactionsBySlug(ctx, slug, clientIdentifier)
+	return s.repo.GetReactionsBySlug(ctx, slug, userID)
 }
 
-func (s *reactionService) ToggleReaction(ctx context.Context, slug string, reactionType string, userID *uuid.UUID, clientIdentifier string) (*model.ToggleReactionResponse, error) {
+func (s *reactionService) ToggleReaction(ctx context.Context, slug string, reactionType string, userID uuid.UUID) (*model.ToggleReactionResponse, error) {
 	slug = strings.TrimSpace(slug)
 	if slug == "" {
 		return nil, ErrEmptySlug
@@ -62,5 +63,5 @@ func (s *reactionService) ToggleReaction(ctx context.Context, slug string, react
 		return nil, errors.New("database not available")
 	}
 
-	return s.repo.ToggleReaction(ctx, slug, reactionType, userID, clientIdentifier)
+	return s.repo.ToggleReaction(ctx, slug, reactionType, userID)
 }
