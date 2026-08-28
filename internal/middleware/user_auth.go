@@ -57,6 +57,22 @@ func RequireUserAuth(pasetoSvc auth.PasetoService) fiber.Handler {
 	}
 }
 
+// OptionalUserAuth extracts user claims if present, but does not block request if missing or invalid
+func OptionalUserAuth(pasetoSvc auth.PasetoService) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		rawToken := ExtractUserRawToken(c)
+		if rawToken != "" && pasetoSvc != nil {
+			if claims, err := pasetoSvc.VerifyToken(rawToken); err == nil {
+				if userID, err := uuid.Parse(claims.ID); err == nil {
+					c.Locals("user_claims", claims)
+					c.Locals("user_id", userID)
+				}
+			}
+		}
+		return c.Next()
+	}
+}
+
 // GetAuthenticatedUser helper retrieves claims from fiber context
 func GetAuthenticatedUser(c *fiber.Ctx) *model.UserClaims {
 	val := c.Locals("user_claims")
@@ -74,3 +90,4 @@ func GetAuthenticatedUserID(c *fiber.Ctx) (uuid.UUID, bool) {
 	}
 	return uuid.Nil, false
 }
+
