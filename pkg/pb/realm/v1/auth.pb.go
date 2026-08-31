@@ -90,18 +90,20 @@ func (x *OAuthAccount) GetCreatedAt() string {
 }
 
 type User struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Email             string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
-	Username          string                 `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
-	FullName          string                 `protobuf:"bytes,4,opt,name=full_name,json=fullName,proto3" json:"full_name,omitempty"`
-	AvatarUrl         *string                `protobuf:"bytes,5,opt,name=avatar_url,json=avatarUrl,proto3,oneof" json:"avatar_url,omitempty"`
-	Provider          string                 `protobuf:"bytes,6,opt,name=provider,proto3" json:"provider,omitempty"`
-	CreatedAt         string                 `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt         string                 `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	ConnectedAccounts []*OAuthAccount        `protobuf:"bytes,9,rep,name=connected_accounts,json=connectedAccounts,proto3" json:"connected_accounts,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Id                 string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Email              string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	Username           string                 `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
+	FullName           string                 `protobuf:"bytes,4,opt,name=full_name,json=fullName,proto3" json:"full_name,omitempty"`
+	AvatarUrl          *string                `protobuf:"bytes,5,opt,name=avatar_url,json=avatarUrl,proto3,oneof" json:"avatar_url,omitempty"`
+	Provider           string                 `protobuf:"bytes,6,opt,name=provider,proto3" json:"provider,omitempty"`
+	CreatedAt          string                 `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt          string                 `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	ConnectedAccounts  []*OAuthAccount        `protobuf:"bytes,9,rep,name=connected_accounts,json=connectedAccounts,proto3" json:"connected_accounts,omitempty"`
+	HasPassword        bool                   `protobuf:"varint,10,opt,name=has_password,json=hasPassword,proto3" json:"has_password,omitempty"`
+	ConnectedProviders []string               `protobuf:"bytes,11,rep,name=connected_providers,json=connectedProviders,proto3" json:"connected_providers,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *User) Reset() {
@@ -193,6 +195,20 @@ func (x *User) GetUpdatedAt() string {
 func (x *User) GetConnectedAccounts() []*OAuthAccount {
 	if x != nil {
 		return x.ConnectedAccounts
+	}
+	return nil
+}
+
+func (x *User) GetHasPassword() bool {
+	if x != nil {
+		return x.HasPassword
+	}
+	return false
+}
+
+func (x *User) GetConnectedProviders() []string {
+	if x != nil {
+		return x.ConnectedProviders
 	}
 	return nil
 }
@@ -882,7 +898,7 @@ const file_proto_realm_v1_auth_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x04 \x01(\tR\tcreatedAtB\b\n" +
 	"\x06_emailB\r\n" +
-	"\v_avatar_url\"\xb9\x02\n" +
+	"\v_avatar_url\"\x8d\x03\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
@@ -895,7 +911,10 @@ const file_proto_realm_v1_auth_proto_rawDesc = "" +
 	"created_at\x18\a \x01(\tR\tcreatedAt\x12\x1d\n" +
 	"\n" +
 	"updated_at\x18\b \x01(\tR\tupdatedAt\x12E\n" +
-	"\x12connected_accounts\x18\t \x03(\v2\x16.realm.v1.OAuthAccountR\x11connectedAccountsB\r\n" +
+	"\x12connected_accounts\x18\t \x03(\v2\x16.realm.v1.OAuthAccountR\x11connectedAccounts\x12!\n" +
+	"\fhas_password\x18\n" +
+	" \x01(\bR\vhasPassword\x12/\n" +
+	"\x13connected_providers\x18\v \x03(\tR\x12connectedProvidersB\r\n" +
 	"\v_avatar_url\"\xaf\x01\n" +
 	"\x0fRegisterRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1a\n" +
