@@ -74,8 +74,8 @@ func TestGRPCHealthService(t *testing.T) {
 	if resp.GetService() != "realm-api" {
 		t.Errorf("Expected service 'realm-api', got %q", resp.GetService())
 	}
-	if resp.GetDatabase() != "disconnected" { // in-memory test without DB
-		t.Errorf("Expected database 'disconnected', got %q", resp.GetDatabase())
+	if resp.GetDatabase() != "not_configured" { // in-memory test without DB
+		t.Errorf("Expected database 'not_configured', got %q", resp.GetDatabase())
 	}
 }
 
