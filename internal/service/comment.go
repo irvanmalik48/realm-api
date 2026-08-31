@@ -70,7 +70,7 @@ func (s *commentService) CreateComment(ctx context.Context, slug string, userID 
 	}
 
 	if s.repo == nil {
-		return nil, errors.New("database not available")
+		return nil, ErrDatabaseUnavailable
 	}
 
 	// If parentID provided, ensure parent comment exists and matches post slug
@@ -105,7 +105,7 @@ func (s *commentService) UpdateComment(ctx context.Context, commentID, userID uu
 	}
 
 	if s.repo == nil {
-		return nil, errors.New("database not available")
+		return nil, ErrDatabaseUnavailable
 	}
 
 	return s.repo.UpdateComment(ctx, commentID, userID, content)
