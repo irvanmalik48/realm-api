@@ -60,7 +60,7 @@ func (s *reactionService) ToggleReaction(ctx context.Context, slug string, react
 	}
 
 	if s.repo == nil {
-		return nil, errors.New("database not available")
+		return nil, ErrDatabaseUnavailable
 	}
 
 	return s.repo.ToggleReaction(ctx, slug, reactionType, userID)
