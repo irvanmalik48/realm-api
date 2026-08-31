@@ -10,6 +10,7 @@ import (
 
 type Config struct {
 	Port                   string
+	GRPCPort               string
 	Environment            string
 	AllowedOrigins         string
 	LastFMAPIKey           string
@@ -53,6 +54,7 @@ func Load() *Config {
 	_ = godotenv.Load()
 
 	port := getEnv("PORT", "8080")
+	grpcPort := getEnv("GRPC_PORT", "50051")
 	env := getEnv("ENVIRONMENT", "development")
 	allowedOrigins := getEnv("ALLOWED_ORIGINS", "https://irvanma.eu.org")
 	lastfmKey := getEnv("LASTFM_API_KEY", "")
@@ -90,6 +92,7 @@ func Load() *Config {
 
 	return &Config{
 		Port:                   port,
+		GRPCPort:               grpcPort,
 		Environment:            env,
 		AllowedOrigins:         allowedOrigins,
 		LastFMAPIKey:           lastfmKey,
