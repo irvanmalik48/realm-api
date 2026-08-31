@@ -1,23 +1,24 @@
 # Realm API
 
-High-performance, observable backend API service for Realm built with **Go**, **Fiber v2**, and **PostgreSQL**.
+High-performance, observable backend service for Realm built with **Go**, **gRPC**, **Fiber v2**, and **PostgreSQL**.
 
 ---
 
 ## Features
 
-- **Blazing Fast**: Powered by [Fiber v2](https://github.com/gofiber/fiber/v2) and fasthttp.
+- **Blazing Fast gRPC Backend**: Native high-performance gRPC services on port `:50051` with Protobuf schemas (`proto/realm/v1/*.proto`) powering internal services, Server Actions, and BFF proxies.
+- **HTTP/REST Hybrid Gateway**: Powered by [Fiber v2](https://github.com/gofiber/fiber/v2) on port `:8080` for browser media streaming (WebP/Blurhash) and OAuth2 consent redirects.
 - **User Authentication & OIDC**: Traditional registration/login (Email/Username + bcrypt) and **Google OIDC** / **GitHub OAuth2** social login with tamper-proof **PASETO v2.local** symmetric bearer tokens.
-- **OpenTelemetry v1.45.0**: Native distributed tracing, W3C `TraceContext` / `Baggage` propagators, OTLP HTTP exporter, and `X-Trace-Id` correlation headers.
+- **OpenTelemetry v1.46.0**: Native distributed tracing with `otelgrpc` interceptor and HTTP trace correlation headers.
 - **OpenAPI 3.2.0 Compliant**: Interactive API documentation powered by [Scalar](https://github.com/scalar/scalar) served live at `/docs`, `/openapi.yaml`, and `/openapi.json`.
-- **Health Check & Uptime**: Real-time heartbeat endpoint (`/health` & `/v1/health`) checking database connectivity and server uptime.
+- **Health Check & Uptime**: Real-time heartbeat endpoint via gRPC (`HealthService.GetHealth`) and HTTP (`/health` & `/v1/health`).
 - **Secure API Tokens**: Cryptographically secure token authentication (`realm_tok_...`) generated via CLI (`cmd/token`), hashed with SHA-256 in PostgreSQL, with in-memory TTL caching.
-- **Per-Token Rate Limiting**: Dynamic 1-minute sliding window rate limiter with standard `X-RateLimit-*` response headers.
-- **Zstandard (`zstd`) File Storage**: High-compression disk storage with automatic Blurhash calculation, dimension extraction, and on-the-fly WebP conversion (`?format=webp`).
+- **Per-Token Rate Limiting**: Dynamic 1-minute sliding window rate limiter with gRPC interceptors and standard `X-RateLimit-*` response headers.
+- **Zstandard (`zstd`) File Storage**: High-compression disk storage with automatic Blurhash calculation, dimension extraction, gRPC streaming, and on-the-fly WebP conversion (`?format=webp`).
 - **PostgreSQL Persistence**: User accounts, contact submissions, file metadata, and API tokens stored via `pgxpool` with automatic schema migrations.
 - **LastFM Integration**: AudioScrobbler recent tracks and user statistics with caching headers.
 - **Multi-channel Alerts**: Optional instant notifications to Discord webhooks or Telegram bots upon new contact messages.
-- **Container Ready**: Multi-stage lightweight `Dockerfile` containing `/app/server` and `/app/token` binaries, and `docker-compose.yml` with non-root security.
+- **Container Ready**: Multi-stage lightweight `Dockerfile` exposing ports `8080` and `50051`, containing `/app/server` and `/app/token` binaries.
 
 ---
 
