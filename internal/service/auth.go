@@ -79,6 +79,10 @@ func (s *authService) getConnectedProviders(ctx context.Context, userID uuid.UUI
 }
 
 func (s *authService) Register(ctx context.Context, input model.RegisterInput) (*model.AuthResponse, error) {
+	if s.userRepo == nil {
+		return nil, errors.New("database repository unavailable")
+	}
+
 	email := strings.TrimSpace(input.Email)
 	username := strings.TrimSpace(input.Username)
 	fullName := strings.TrimSpace(input.FullName)
@@ -137,6 +141,10 @@ func (s *authService) Register(ctx context.Context, input model.RegisterInput) (
 }
 
 func (s *authService) Login(ctx context.Context, input model.LoginInput) (*model.AuthResponse, error) {
+	if s.userRepo == nil {
+		return nil, errors.New("database repository unavailable")
+	}
+
 	identifier := strings.TrimSpace(input.Identifier)
 	if identifier == "" || input.Password == "" {
 		return nil, ErrInvalidCredentials
@@ -322,6 +330,9 @@ func (s *authService) HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserI
 }
 
 func (s *authService) GetProfile(ctx context.Context, userID uuid.UUID) (*model.UserDTO, error) {
+	if s.userRepo == nil {
+		return nil, errors.New("database repository unavailable")
+	}
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -446,6 +457,31 @@ func (s *authService) UnlinkOAuthAccount(ctx context.Context, userID uuid.UUID, 
 
 func (s *authService) CheckAvailability(ctx context.Context, username, email string) (*model.CheckAvailabilityResponse, error) {
 	resp := &model.CheckAvailabilityResponse{}
+
+	if s.userRepo == nil {
+		avail := true
+		if username != "" {
+			trimmedUsername := strings.TrimSpace(username)
+			if !usernameRegex.MatchString(trimmedUsername) {
+				avail = false
+				resp.UsernameAvailable = &avail
+				resp.UsernameReason = "Username must be 3-30 characters (alphanumeric and underscores only)"
+			} else {
+				resp.UsernameAvailable = &avail
+			}
+		}
+		if email != "" {
+			trimmedEmail := strings.TrimSpace(email)
+			if _, err := mail.ParseAddress(trimmedEmail); err != nil || !strings.Contains(trimmedEmail, "@") {
+				avail = false
+				resp.EmailAvailable = &avail
+				resp.EmailReason = "Invalid email format"
+			} else {
+				resp.EmailAvailable = &avail
+			}
+		}
+		return resp, nil
+	}
 
 	if username != "" {
 		trimmedUsername := strings.TrimSpace(username)
