@@ -1,4 +1,9 @@
-.PHONY: dev build test tidy clean docker-build docker-up docker-down
+.PHONY: dev build test tidy clean proto docker-build docker-up docker-down
+
+proto:
+	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
+	protoc --proto_path=. --go_out=. --go_opt=module=github.com/irvanmalik48/realm-api --go-grpc_out=. --go-grpc_opt=module=github.com/irvanmalik48/realm-api proto/realm/v1/*.proto
+
 
 dev:
 	go run ./cmd/server
