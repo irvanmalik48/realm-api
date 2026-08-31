@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/irvanmalik48/realm-api/internal/config"
 	"github.com/irvanmalik48/realm-api/internal/database"
+	internalGRPC "github.com/irvanmalik48/realm-api/internal/grpc"
 	"github.com/irvanmalik48/realm-api/internal/router"
 	"github.com/irvanmalik48/realm-api/internal/telemetry"
 )
@@ -46,7 +48,24 @@ func main() {
 		}
 	}
 
+	// 1. Initialize & Start gRPC Server
+	grpcServer := internalGRPC.NewServer(cfg, db)
+	grpcAddr := fmt.Sprintf(":%s", cfg.GRPCPort)
+	grpcListener, err := net.Listen("tcp", grpcAddr)
+	if err != nil {
+		log.Fatalf("Failed to listen on gRPC port %s: %v\n", cfg.GRPCPort, err)
+	}
+
+	go func() {
+		log.Printf("Realm gRPC Server starting on %s (%s mode)\n", grpcAddr, cfg.Environment)
+		if err := grpcServer.Serve(grpcListener); err != nil {
+			log.Printf("gRPC server exited: %v\n", err)
+		}
+	}()
+
+	// 2. Initialize & Start HTTP Gateway / API
 	app := router.New(cfg, db)
+	httpAddr := fmt.Sprintf(":%s", cfg.Port)
 
 	// Channel for idle connections / graceful shutdown
 	idleConnsClosed := make(chan struct{})
@@ -56,9 +75,10 @@ func main() {
 		signal.Notify(sigint, os.Interrupt, syscall.SIGTERM)
 		<-sigint
 
-		log.Println("Received shutdown signal, gracefully shutting down server...")
+		log.Println("Received shutdown signal, gracefully shutting down servers...")
+		grpcServer.GracefulStop()
 		if err := app.Shutdown(); err != nil {
-			log.Printf("Server shutdown error: %v\n", err)
+			log.Printf("HTTP server shutdown error: %v\n", err)
 		}
 		if db != nil {
 			db.Close()
@@ -66,12 +86,12 @@ func main() {
 		close(idleConnsClosed)
 	}()
 
-	addr := fmt.Sprintf(":%s", cfg.Port)
-	log.Printf("Realm API starting on %s (%s mode)\n", addr, cfg.Environment)
-	if err := app.Listen(addr); err != nil {
-		log.Printf("Server exited with error: %v\n", err)
+	log.Printf("Realm HTTP API starting on %s (%s mode)\n", httpAddr, cfg.Environment)
+	if err := app.Listen(httpAddr); err != nil {
+		log.Printf("HTTP server exited: %v\n", err)
 	}
 
 	<-idleConnsClosed
-	log.Println("Server stopped.")
+	log.Println("Servers stopped.")
 }
+
