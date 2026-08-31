@@ -3,6 +3,7 @@ package interceptors
 import (
 	"context"
 	"errors"
+	"log"
 
 	"github.com/irvanmalik48/realm-api/internal/auth"
 	"github.com/irvanmalik48/realm-api/internal/repository"
@@ -70,28 +71,40 @@ func MapError(err error) error {
 	}
 }
 
-// ErrorUnaryInterceptor intercepts unary RPC calls and maps internal errors.
+// ErrorUnaryInterceptor intercepts unary RPC calls, recovers from panics, and maps internal errors.
 func ErrorUnaryInterceptor() grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
 		req interface{},
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
-	) (interface{}, error) {
-		resp, err := handler(ctx, req)
+	) (resp interface{}, err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[gRPC Panic] %s: %v\n", info.FullMethod, r)
+				err = status.Errorf(codes.Internal, "Internal server error: %v", r)
+			}
+		}()
+		resp, err = handler(ctx, req)
 		return resp, MapError(err)
 	}
 }
 
-// ErrorStreamInterceptor intercepts stream RPC calls and maps internal errors.
+// ErrorStreamInterceptor intercepts stream RPC calls, recovers from panics, and maps internal errors.
 func ErrorStreamInterceptor() grpc.StreamServerInterceptor {
 	return func(
 		srv interface{},
 		ss grpc.ServerStream,
 		info *grpc.StreamServerInfo,
 		handler grpc.StreamHandler,
-	) error {
-		err := handler(srv, ss)
+	) (err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[gRPC Stream Panic] %s: %v\n", info.FullMethod, r)
+				err = status.Errorf(codes.Internal, "Internal server error: %v", r)
+			}
+		}()
+		err = handler(srv, ss)
 		return MapError(err)
 	}
 }
