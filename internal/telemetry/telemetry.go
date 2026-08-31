@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.30.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -38,7 +38,7 @@ func InitTracer(ctx context.Context, serviceName, environment string) (func(cont
 			semconv.SchemaURL,
 			semconv.ServiceName(serviceName),
 			semconv.ServiceVersion("1.0.0"),
-			semconv.DeploymentEnvironmentName(environment),
+			semconv.DeploymentEnvironmentNameKey.String(environment),
 		),
 	)
 	if err != nil {
