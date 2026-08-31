@@ -42,8 +42,8 @@ COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 
 RUN chmod +x /app/docker-entrypoint.sh
 
-# Expose default HTTP port
-EXPOSE 8080
+# Expose HTTP port and gRPC port
+EXPOSE 8080 50051
 
 # Run entrypoint script which fixes volume permissions and drops privileges to appuser
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
