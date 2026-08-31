@@ -53,6 +53,13 @@ func (db *DB) Close() {
 	}
 }
 
+func (db *DB) Ping(ctx context.Context) error {
+	if db.Pool == nil {
+		return fmt.Errorf("database pool is nil")
+	}
+	return db.Pool.Ping(ctx)
+}
+
 func (db *DB) migrate(ctx context.Context) error {
 	query := `
 	CREATE TABLE IF NOT EXISTS contact_submissions (
