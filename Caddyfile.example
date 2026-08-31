@@ -1,3 +1,9 @@
 api.irvanma.eu.org {
+    # Route gRPC requests to gRPC server on :50051 using HTTP/2 cleartext (h2c)
+    @grpc header Content-Type application/grpc*
+    reverse_proxy @grpc h2c://realm-api:50051
+
+    # Route standard REST HTTP requests to Fiber server on :8080
     reverse_proxy realm-api:8080
 }
+
