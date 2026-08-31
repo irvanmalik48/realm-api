@@ -25,6 +25,7 @@ var (
 	ErrUsernameTaken      = errors.New("username is already taken")
 	ErrCurrentPasswordReq = errors.New("current password is required to change password")
 	ErrCurrentPasswordBad = errors.New("incorrect current password")
+	ErrDatabaseUnavailable = errors.New("database repository unavailable")
 )
 
 var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]{3,30}$`)
@@ -80,7 +81,7 @@ func (s *authService) getConnectedProviders(ctx context.Context, userID uuid.UUI
 
 func (s *authService) Register(ctx context.Context, input model.RegisterInput) (*model.AuthResponse, error) {
 	if s.userRepo == nil {
-		return nil, errors.New("database repository unavailable")
+		return nil, ErrDatabaseUnavailable
 	}
 
 	email := strings.TrimSpace(input.Email)
@@ -142,7 +143,7 @@ func (s *authService) Register(ctx context.Context, input model.RegisterInput) (
 
 func (s *authService) Login(ctx context.Context, input model.LoginInput) (*model.AuthResponse, error) {
 	if s.userRepo == nil {
-		return nil, errors.New("database repository unavailable")
+		return nil, ErrDatabaseUnavailable
 	}
 
 	identifier := strings.TrimSpace(input.Identifier)
@@ -331,7 +332,7 @@ func (s *authService) HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserI
 
 func (s *authService) GetProfile(ctx context.Context, userID uuid.UUID) (*model.UserDTO, error) {
 	if s.userRepo == nil {
-		return nil, errors.New("database repository unavailable")
+		return nil, ErrDatabaseUnavailable
 	}
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -343,7 +344,7 @@ func (s *authService) GetProfile(ctx context.Context, userID uuid.UUID) (*model.
 
 func (s *authService) UpdateProfile(ctx context.Context, userID uuid.UUID, input model.UpdateProfileInput) (*model.UserDTO, error) {
 	if s.userRepo == nil {
-		return nil, errors.New("database repository unavailable")
+		return nil, ErrDatabaseUnavailable
 	}
 
 	user, err := s.userRepo.GetByID(ctx, userID)
@@ -393,7 +394,7 @@ func (s *authService) UpdateProfile(ctx context.Context, userID uuid.UUID, input
 
 func (s *authService) SetPassword(ctx context.Context, userID uuid.UUID, input model.SetPasswordInput) error {
 	if s.userRepo == nil {
-		return errors.New("database repository unavailable")
+		return ErrDatabaseUnavailable
 	}
 
 	if len(input.NewPassword) < 8 {
@@ -426,7 +427,7 @@ func (s *authService) SetPassword(ctx context.Context, userID uuid.UUID, input m
 
 func (s *authService) LinkOAuthAccount(ctx context.Context, userID uuid.UUID, userInfo *OAuthUserInfo) error {
 	if s.userRepo == nil {
-		return errors.New("database repository unavailable")
+		return ErrDatabaseUnavailable
 	}
 
 	var avatarPtr *string
@@ -449,7 +450,7 @@ func (s *authService) LinkOAuthAccount(ctx context.Context, userID uuid.UUID, us
 
 func (s *authService) UnlinkOAuthAccount(ctx context.Context, userID uuid.UUID, provider string) error {
 	if s.userRepo == nil {
-		return errors.New("database repository unavailable")
+		return ErrDatabaseUnavailable
 	}
 
 	return s.userRepo.UnlinkOAuthAccount(ctx, userID, provider)
