@@ -20,17 +20,24 @@ func NewHealthServer(db *database.DB) *HealthServer {
 }
 
 func (s *HealthServer) GetHealth(ctx context.Context, req *realmv1.HealthRequest) (*realmv1.HealthResponse, error) {
-	dbStatus := "disconnected"
-	if s.db != nil {
-		if err := s.db.Ping(ctx); err == nil {
-			dbStatus = "connected"
+	dbStatus := "connected"
+	overallStatus := "healthy"
+
+	if s.db != nil && s.db.Pool != nil {
+		pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		if err := s.db.Pool.Ping(pingCtx); err != nil {
+			dbStatus = "disconnected"
+			overallStatus = "degraded"
 		}
+	} else {
+		dbStatus = "not_configured"
 	}
 
 	uptime := int64(time.Since(startTime).Seconds())
 
 	return &realmv1.HealthResponse{
-		Status:        "healthy",
+		Status:        overallStatus,
 		Service:       "realm-api",
 		Version:       "1.0.0",
 		UptimeSeconds: uptime,
