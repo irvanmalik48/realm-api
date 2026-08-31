@@ -35,15 +35,17 @@ func mapUserDTOToProto(dto *model.UserDTO) *realmv1.User {
 	}
 
 	return &realmv1.User{
-		Id:                dto.ID.String(),
-		Email:             dto.Email,
-		Username:          dto.Username,
-		FullName:          dto.FullName,
-		AvatarUrl:         dto.AvatarURL,
-		Provider:          dto.Provider,
-		CreatedAt:         dto.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:         dto.CreatedAt.Format(time.RFC3339),
-		ConnectedAccounts: accounts,
+		Id:                 dto.ID.String(),
+		Email:              dto.Email,
+		Username:           dto.Username,
+		FullName:           dto.FullName,
+		AvatarUrl:          dto.AvatarURL,
+		Provider:           dto.Provider,
+		CreatedAt:          dto.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:          dto.CreatedAt.Format(time.RFC3339),
+		ConnectedAccounts:  accounts,
+		HasPassword:        dto.HasPassword,
+		ConnectedProviders: dto.ConnectedProviders,
 	}
 }
 
