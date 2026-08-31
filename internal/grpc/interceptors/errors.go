@@ -66,6 +66,10 @@ func MapError(err error) error {
 		errors.Is(err, service.ErrUnauthorizedCommentAction):
 		return status.Error(codes.PermissionDenied, err.Error())
 
+	// Database Unavailable
+	case errors.Is(err, service.ErrDatabaseUnavailable):
+		return status.Error(codes.Unavailable, err.Error())
+
 	default:
 		return status.Error(codes.Internal, err.Error())
 	}
