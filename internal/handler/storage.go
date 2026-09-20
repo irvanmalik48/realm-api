@@ -110,9 +110,15 @@ func (h *StorageHandler) GetFile(c *fiber.Ctx) error {
 	c.Set("Content-Type", record.ContentType)
 	c.Set("ETag", etag)
 	c.Set("Cache-Control", "public, max-age=31536000, immutable")
+	c.Set("X-Content-Type-Options", "nosniff")
 
-	// Disposition
-	isDownload := c.Query("download") == "true" || c.Query("download") == "1"
+	isSafeImage := storage.IsImageMime(record.ContentType)
+	if !isSafeImage {
+		c.Set("Content-Security-Policy", "default-src 'none'; sandbox")
+	}
+
+	// Disposition: force attachment for non-image files or if explicit download requested
+	isDownload := c.Query("download") == "true" || c.Query("download") == "1" || !isSafeImage
 	dispositionType := "inline"
 	if isDownload {
 		dispositionType = "attachment"
