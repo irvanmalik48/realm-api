@@ -90,6 +90,17 @@ func Load() *Config {
 		smtpPort = 587
 	}
 
+const DefaultDevPASETOKey = "707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f"
+
+	pasetoKey := getEnv("PASETO_SYMMETRIC_KEY", "")
+	if env == "production" {
+		if pasetoKey == "" || pasetoKey == DefaultDevPASETOKey {
+			panic("FATAL: PASETO_SYMMETRIC_KEY must be explicitly set to a secure 32-byte hex secret in production environment")
+		}
+	} else if pasetoKey == "" {
+		pasetoKey = DefaultDevPASETOKey
+	}
+
 	return &Config{
 		Port:                   port,
 		GRPCPort:               grpcPort,
@@ -104,7 +115,7 @@ func Load() *Config {
 		StorageDir:      storageDir,
 		MaxUploadSizeMB: maxUploadMB,
 
-		PASETOSymmetricKey: getEnv("PASETO_SYMMETRIC_KEY", "707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f"),
+		PASETOSymmetricKey: pasetoKey,
 		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:3000"),
 
 		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
