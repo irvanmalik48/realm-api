@@ -56,9 +56,20 @@ func (s *storageService) Upload(ctx context.Context, filename string, reader io.
 		return nil, fmt.Errorf("failed to read file header: %w", err)
 	}
 
-	contentType := http.DetectContentType(sniffBuffer[:n])
+	detectedType := http.DetectContentType(sniffBuffer[:n])
+	contentType := detectedType
 	if explicitContentType != "" && explicitContentType != "application/octet-stream" {
-		contentType = explicitContentType
+		if storage.IsImageMime(explicitContentType) {
+			contentType = explicitContentType
+		}
+	}
+	// Neutralize dangerous types (HTML, JavaScript, SVG with embedded scripts)
+	lowerType := strings.ToLower(contentType)
+	if strings.Contains(lowerType, "html") ||
+		strings.Contains(lowerType, "javascript") ||
+		strings.Contains(lowerType, "script") ||
+		strings.Contains(lowerType, "svg") {
+		contentType = "application/octet-stream"
 	}
 
 	// Reconstruct the full reader with size limit check
