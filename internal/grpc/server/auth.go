@@ -42,7 +42,7 @@ func mapUserDTOToProto(dto *model.UserDTO) *realmv1.User {
 		AvatarUrl:          dto.AvatarURL,
 		Provider:           dto.Provider,
 		CreatedAt:          dto.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:          dto.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:          dto.UpdatedAt.Format(time.RFC3339),
 		ConnectedAccounts:  accounts,
 		HasPassword:        dto.HasPassword,
 		ConnectedProviders: dto.ConnectedProviders,
