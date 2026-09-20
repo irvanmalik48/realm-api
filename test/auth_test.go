@@ -376,8 +376,9 @@ func TestAuth_OAuthFindOrCreate(t *testing.T) {
 		ProviderID: "109876543210987654321",
 		Email:      "oauthuser@gmail.com",
 		Username:   "oauthuser",
-		FullName:   "Google User",
-		AvatarURL:  "https://lh3.googleusercontent.com/a/photo",
+		FullName:      "Google User",
+		AvatarURL:     "https://lh3.googleusercontent.com/a/photo",
+		EmailVerified: true,
 	}
 
 	// 1. First OAuth login creates user
@@ -526,7 +527,8 @@ func TestAuth_OAuthLinkingAndUnlinking(t *testing.T) {
 		ProviderID: "g-1111",
 		Email:      "multiauth@example.com",
 		Username:   "multiauth",
-		FullName:   "Multi Auth User",
+		FullName:      "Multi Auth User",
+		EmailVerified: true,
 	}
 	resp, err := authSvc.HandleOAuthLogin(ctx, googleUser)
 	if err != nil {
@@ -536,10 +538,11 @@ func TestAuth_OAuthLinkingAndUnlinking(t *testing.T) {
 
 	// 2. Link GitHub account to the same user
 	githubUser := &service.OAuthUserInfo{
-		Provider:   "github",
-		ProviderID: "gh-2222",
-		Email:      "multiauth@example.com",
-		Username:   "multiauth",
+		Provider:      "github",
+		ProviderID:    "gh-2222",
+		Email:         "multiauth@example.com",
+		Username:      "multiauth",
+		EmailVerified: true,
 	}
 	err = authSvc.LinkOAuthAccount(ctx, userID, githubUser)
 	if err != nil {
