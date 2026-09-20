@@ -2,6 +2,7 @@ package auth
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -33,13 +34,14 @@ func NewPasetoService(symmetricKeyHex string) (PasetoService, error) {
 	if symmetricKeyHex != "" {
 		key, err = hex.DecodeString(symmetricKeyHex)
 		if err != nil || len(key) != 32 {
-			// If not valid 32-byte hex, treat as raw string or pad/truncate
 			if len(symmetricKeyHex) == 32 {
 				key = []byte(symmetricKeyHex)
 			} else {
-				// Fallback: derive 32 bytes or generate random key
-				key = make([]byte, 32)
-				copy(key, []byte(symmetricKeyHex))
+				// Deterministically derive 32-byte key via SHA-256
+				h := sha256.Sum256([]byte(symmetricKeyHex))
+				derived := make([]byte, 32)
+				copy(derived, h[:])
+				key = derived
 			}
 		}
 	} else {
