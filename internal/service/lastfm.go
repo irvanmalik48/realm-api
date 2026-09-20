@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/irvanmalik48/realm-api/internal/model"
@@ -34,11 +35,18 @@ type LastFMService interface {
 	GetUserInfo(ctx context.Context, username string) (*model.LastFMUserResponseBody, error)
 }
 
+type lastFMCacheItem struct {
+	data      interface{}
+	expiresAt time.Time
+}
+
 type lastFMService struct {
 	apiKey     string
 	apiSecret  string
 	baseURL    string
 	httpClient *http.Client
+	cacheMu    sync.RWMutex
+	cache      map[string]lastFMCacheItem
 }
 
 func NewLastFMService(apiKey, apiSecret string) LastFMService {
@@ -49,6 +57,7 @@ func NewLastFMService(apiKey, apiSecret string) LastFMService {
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
+		cache: make(map[string]lastFMCacheItem),
 	}
 }
 
@@ -56,6 +65,16 @@ func (s *lastFMService) GetRecentTracks(ctx context.Context, username string, li
 	if s.apiKey == "" {
 		return nil, ErrMissingAPIKey
 	}
+
+	cacheKey := fmt.Sprintf("tracks:%s:%d", username, limit)
+	s.cacheMu.RLock()
+	item, ok := s.cache[cacheKey]
+	if ok && time.Now().Before(item.expiresAt) {
+		res := item.data.(*model.LastFMTrackResponseBody)
+		s.cacheMu.RUnlock()
+		return res, nil
+	}
+	s.cacheMu.RUnlock()
 
 	endpoint, err := url.Parse(s.baseURL)
 	if err != nil {
@@ -94,6 +113,13 @@ func (s *lastFMService) GetRecentTracks(ctx context.Context, username string, li
 		return nil, err
 	}
 
+	s.cacheMu.Lock()
+	s.cache[cacheKey] = lastFMCacheItem{
+		data:      &result,
+		expiresAt: time.Now().Add(30 * time.Second),
+	}
+	s.cacheMu.Unlock()
+
 	return &result, nil
 }
 
@@ -101,6 +127,16 @@ func (s *lastFMService) GetUserInfo(ctx context.Context, username string) (*mode
 	if s.apiKey == "" {
 		return nil, ErrMissingAPIKey
 	}
+
+	cacheKey := fmt.Sprintf("user:%s", username)
+	s.cacheMu.RLock()
+	item, ok := s.cache[cacheKey]
+	if ok && time.Now().Before(item.expiresAt) {
+		res := item.data.(*model.LastFMUserResponseBody)
+		s.cacheMu.RUnlock()
+		return res, nil
+	}
+	s.cacheMu.RUnlock()
 
 	endpoint, err := url.Parse(s.baseURL)
 	if err != nil {
@@ -137,6 +173,13 @@ func (s *lastFMService) GetUserInfo(ctx context.Context, username string) (*mode
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
+
+	s.cacheMu.Lock()
+	s.cache[cacheKey] = lastFMCacheItem{
+		data:      &result,
+		expiresAt: time.Now().Add(10 * time.Minute),
+	}
+	s.cacheMu.Unlock()
 
 	return &result, nil
 }
