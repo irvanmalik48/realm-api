@@ -21,12 +21,17 @@ var (
 	ErrInvalidEmail       = errors.New("invalid email address format")
 	ErrInvalidUsername    = errors.New("username must be 3-30 characters (alphanumeric and underscores only)")
 	ErrPasswordTooShort   = errors.New("password must be at least 8 characters long")
+	ErrPasswordTooLong    = errors.New("password must not exceed 72 characters")
 	ErrFullNameRequired   = errors.New("full name must be between 2 and 100 characters")
 	ErrUsernameTaken      = errors.New("username is already taken")
 	ErrCurrentPasswordReq = errors.New("current password is required to change password")
 	ErrCurrentPasswordBad = errors.New("incorrect current password")
 	ErrDatabaseUnavailable = errors.New("database repository unavailable")
+	ErrUnverifiedOAuthEmail = errors.New("unverified email from OAuth provider cannot be used for authentication")
 )
+
+// Precomputed valid bcrypt hash used to prevent timing attacks when a user is not found
+var dummyBcryptHash = []byte("$2a$10$wN9P321dKqM3gR13c8p2OeR5K3UqK9uRkR7c5c2Hqf7oW3h7aF3Ce")
 
 var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]{3,30}$`)
 
@@ -98,6 +103,9 @@ func (s *authService) Register(ctx context.Context, input model.RegisterInput) (
 	if len(input.Password) < 8 {
 		return nil, ErrPasswordTooShort
 	}
+	if len(input.Password) > 72 {
+		return nil, ErrPasswordTooLong
+	}
 	if len(fullName) < 2 || len(fullName) > 100 {
 		return nil, ErrFullNameRequired
 	}
@@ -154,13 +162,15 @@ func (s *authService) Login(ctx context.Context, input model.LoginInput) (*model
 	user, err := s.userRepo.GetByIdentifier(ctx, identifier)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
+			_ = bcrypt.CompareHashAndPassword(dummyBcryptHash, []byte(input.Password))
 			return nil, ErrInvalidCredentials
 		}
 		return nil, err
 	}
 
 	if user.PasswordHash == nil || *user.PasswordHash == "" {
-		return nil, errors.New("account was created with social login. Please sign in with Google or GitHub")
+		_ = bcrypt.CompareHashAndPassword(dummyBcryptHash, []byte(input.Password))
+		return nil, ErrInvalidCredentials
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(input.Password)); err != nil {
@@ -185,6 +195,10 @@ func (s *authService) Login(ctx context.Context, input model.LoginInput) (*model
 func (s *authService) HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserInfo) (*model.AuthResponse, error) {
 	if s.userRepo == nil {
 		return nil, errors.New("database user repository unavailable")
+	}
+
+	if !userInfo.EmailVerified {
+		return nil, ErrUnverifiedOAuthEmail
 	}
 
 	var avatarPtr *string
@@ -399,6 +413,9 @@ func (s *authService) SetPassword(ctx context.Context, userID uuid.UUID, input m
 
 	if len(input.NewPassword) < 8 {
 		return ErrPasswordTooShort
+	}
+	if len(input.NewPassword) > 72 {
+		return ErrPasswordTooLong
 	}
 
 	user, err := s.userRepo.GetByID(ctx, userID)
