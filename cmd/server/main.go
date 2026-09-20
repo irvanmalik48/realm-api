@@ -10,10 +10,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/irvanmalik48/realm-api/internal/auth"
 	"github.com/irvanmalik48/realm-api/internal/config"
 	"github.com/irvanmalik48/realm-api/internal/database"
 	internalGRPC "github.com/irvanmalik48/realm-api/internal/grpc"
 	"github.com/irvanmalik48/realm-api/internal/router"
+	"github.com/irvanmalik48/realm-api/internal/storage"
 	"github.com/irvanmalik48/realm-api/internal/telemetry"
 )
 
@@ -48,8 +50,20 @@ func main() {
 		}
 	}
 
+	// Initialize shared storage and rate limiting / auth cache
+	storageEngine, err := storage.NewZstdEngine(cfg.StorageDir)
+	if err != nil {
+		log.Fatalf("Failed to initialize storage engine: %v\n", err)
+	}
+	tokenCache := auth.NewTokenCache(5 * time.Minute)
+	tokenLimiter := auth.NewTokenRateLimiter()
+
 	// 1. Initialize & Start gRPC Server
-	grpcServer := internalGRPC.NewServer(cfg, db)
+	grpcServer := internalGRPC.NewServer(cfg, db, &internalGRPC.ServerDeps{
+		TokenCache:    tokenCache,
+		TokenLimiter:  tokenLimiter,
+		StorageEngine: storageEngine,
+	})
 	grpcAddr := fmt.Sprintf(":%s", cfg.GRPCPort)
 	grpcListener, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
@@ -64,7 +78,11 @@ func main() {
 	}()
 
 	// 2. Initialize & Start HTTP Gateway / API
-	app := router.New(cfg, db)
+	app := router.New(cfg, db, &router.ServerDeps{
+		TokenCache:    tokenCache,
+		TokenLimiter:  tokenLimiter,
+		StorageEngine: storageEngine,
+	})
 	httpAddr := fmt.Sprintf(":%s", cfg.Port)
 
 	// Channel for idle connections / graceful shutdown
@@ -80,6 +98,8 @@ func main() {
 		if err := app.Shutdown(); err != nil {
 			log.Printf("HTTP server shutdown error: %v\n", err)
 		}
+		tokenCache.Close()
+		tokenLimiter.Close()
 		if db != nil {
 			db.Close()
 		}
