@@ -1,85 +1,139 @@
 package auth
 
 import (
+	"hash/fnv"
+	"math"
 	"sync"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
-type tokenBucket struct {
-	timestamps []time.Time
+const (
+	numShards        = 32
+	maxKeysPerShard  = 2048 // Total capacity across shards: 65,536 keys
+	idleEvictTimeout = 3 * time.Minute
+)
+
+type limiterEntry struct {
+	limiter  *rate.Limiter
+	limitRPM int
+	lastSeen time.Time
+}
+
+type limiterShard struct {
+	mu      sync.RWMutex
+	entries map[string]*limiterEntry
 }
 
 type TokenRateLimiter struct {
-	mu      sync.Mutex
-	buckets map[string]*tokenBucket
-	stopCh  chan struct{}
+	shards [numShards]*limiterShard
+	stopCh chan struct{}
 }
 
 func NewTokenRateLimiter() *TokenRateLimiter {
-	limiter := &TokenRateLimiter{
-		buckets: make(map[string]*tokenBucket),
-		stopCh:  make(chan struct{}),
+	trl := &TokenRateLimiter{
+		stopCh: make(chan struct{}),
+	}
+	for i := 0; i < numShards; i++ {
+		trl.shards[i] = &limiterShard{
+			entries: make(map[string]*limiterEntry),
+		}
 	}
 
-	go limiter.cleanupLoop(2 * time.Minute)
+	go trl.cleanupLoop(1 * time.Minute)
 
-	return limiter
+	return trl
 }
 
-// Allow checks whether a request is allowed for a given identifier (e.g. token ID or IP)
-// within a 1-minute sliding window.
+func (l *TokenRateLimiter) getShard(key string) *limiterShard {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(key))
+	idx := h.Sum32() % numShards
+	return l.shards[idx]
+}
+
+// Allow checks whether a request is allowed for a given identifier within a 1-minute window
 func (l *TokenRateLimiter) Allow(id string, limitRPM int) (allowed bool, remaining int, resetEpoch int64) {
 	if limitRPM <= 0 {
 		return true, 999999, time.Now().Add(time.Minute).Unix()
 	}
 
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	now := time.Now()
-	windowStart := now.Add(-1 * time.Minute)
+	shard := l.getShard(id)
 
-	bucket, exists := l.buckets[id]
-	if !exists {
-		bucket = &tokenBucket{timestamps: make([]time.Time, 0, limitRPM)}
-		l.buckets[id] = bucket
-	}
+	shard.mu.RLock()
+	entry, exists := shard.entries[id]
+	if exists && entry.limitRPM == limitRPM {
+		tokens := int(math.Floor(entry.limiter.Tokens()))
+		allowed = entry.limiter.Allow()
+		entry.lastSeen = now
+		shard.mu.RUnlock()
 
-	// Filter timestamps within the current sliding minute
-	validIdx := 0
-	for i, t := range bucket.timestamps {
-		if t.After(windowStart) {
-			validIdx = i
-			break
+		if allowed {
+			rem := tokens - 1
+			if rem < 0 {
+				rem = 0
+			}
+			return true, rem, now.Add(time.Minute).Unix()
 		}
-		if i == len(bucket.timestamps)-1 {
-			validIdx = len(bucket.timestamps)
+		return false, 0, now.Add(time.Minute).Unix()
+	}
+	shard.mu.RUnlock()
+
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	// Recheck after acquiring write lock
+	entry, exists = shard.entries[id]
+	if !exists || entry.limitRPM != limitRPM {
+		// Enforce capacity bound per shard to prevent unbounded memory growth
+		if len(shard.entries) >= maxKeysPerShard {
+			threshold := now.Add(-idleEvictTimeout)
+			for k, v := range shard.entries {
+				if v.lastSeen.Before(threshold) {
+					delete(shard.entries, k)
+				}
+			}
+			// If still full, evict the current oldest entry
+			if len(shard.entries) >= maxKeysPerShard {
+				for k := range shard.entries {
+					delete(shard.entries, k)
+					break
+				}
+			}
 		}
-	}
-	bucket.timestamps = bucket.timestamps[validIdx:]
 
-	currentCount := len(bucket.timestamps)
-	resetTime := now.Add(time.Minute)
-	if currentCount > 0 {
-		resetTime = bucket.timestamps[0].Add(time.Minute)
-	}
-	resetEpoch = resetTime.Unix()
-
-	if currentCount >= limitRPM {
-		return false, 0, resetEpoch
+		limitPerSec := rate.Limit(float64(limitRPM) / 60.0)
+		entry = &limiterEntry{
+			limiter:  rate.NewLimiter(limitPerSec, limitRPM),
+			limitRPM: limitRPM,
+			lastSeen: now,
+		}
+		shard.entries[id] = entry
 	}
 
-	bucket.timestamps = append(bucket.timestamps, now)
-	remaining = limitRPM - len(bucket.timestamps)
-	if remaining < 0 {
-		remaining = 0
-	}
+	entry.lastSeen = now
+	tokens := int(math.Floor(entry.limiter.Tokens()))
+	allowed = entry.limiter.Allow()
 
-	return true, remaining, resetEpoch
+	if allowed {
+		rem := tokens - 1
+		if rem < 0 {
+			rem = 0
+		}
+		return true, rem, now.Add(time.Minute).Unix()
+	}
+	return false, 0, now.Add(time.Minute).Unix()
 }
 
 func (l *TokenRateLimiter) Close() {
-	close(l.stopCh)
+	select {
+	case <-l.stopCh:
+		// Already closed
+	default:
+		close(l.stopCh)
+	}
 }
 
 func (l *TokenRateLimiter) cleanupLoop(interval time.Duration) {
@@ -97,13 +151,16 @@ func (l *TokenRateLimiter) cleanupLoop(interval time.Duration) {
 }
 
 func (l *TokenRateLimiter) cleanup() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	now := time.Now()
+	threshold := now.Add(-idleEvictTimeout)
 
-	threshold := time.Now().Add(-5 * time.Minute)
-	for id, bucket := range l.buckets {
-		if len(bucket.timestamps) == 0 || bucket.timestamps[len(bucket.timestamps)-1].Before(threshold) {
-			delete(l.buckets, id)
+	for _, shard := range l.shards {
+		shard.mu.Lock()
+		for id, entry := range shard.entries {
+			if entry.lastSeen.Before(threshold) {
+				delete(shard.entries, id)
+			}
 		}
+		shard.mu.Unlock()
 	}
 }
