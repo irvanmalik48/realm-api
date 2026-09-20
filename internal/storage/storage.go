@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
@@ -16,6 +17,20 @@ import (
 var (
 	ErrFileNotFound = errors.New("storage file not found")
 )
+
+var zstdWriterPool = sync.Pool{
+	New: func() interface{} {
+		w, _ := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault), zstd.WithEncoderConcurrency(1))
+		return w
+	},
+}
+
+var zstdReaderPool = sync.Pool{
+	New: func() interface{} {
+		r, _ := zstd.NewReader(nil, zstd.WithDecoderConcurrency(1))
+		return r
+	},
+}
 
 type Engine interface {
 	Save(reader io.Reader, id uuid.UUID) (originalSize int64, compressedSize int64, sha256Hex string, err error)
@@ -64,18 +79,17 @@ func (e *zstdEngine) Save(reader io.Reader, id uuid.UUID) (int64, int64, string,
 	hash := sha256.New()
 	countingReader := &countingReader{reader: reader, hash: hash}
 
-	zstdWriter, err := zstd.NewWriter(outFile, zstd.WithEncoderLevel(zstd.SpeedDefault))
-	if err != nil {
-		return 0, 0, "", fmt.Errorf("failed to create zstd writer: %w", err)
-	}
+	zw := zstdWriterPool.Get().(*zstd.Encoder)
+	defer zstdWriterPool.Put(zw)
+	zw.Reset(outFile)
 
-	if _, err := io.Copy(zstdWriter, countingReader); err != nil {
-		_ = zstdWriter.Close()
+	if _, err := io.Copy(zw, countingReader); err != nil {
+		_ = zw.Close()
 		_ = os.Remove(targetPath)
 		return 0, 0, "", fmt.Errorf("failed to compress and write file: %w", err)
 	}
 
-	if err := zstdWriter.Close(); err != nil {
+	if err := zw.Close(); err != nil {
 		_ = os.Remove(targetPath)
 		return 0, 0, "", fmt.Errorf("failed to finalize zstd compression: %w", err)
 	}
@@ -100,14 +114,15 @@ func (e *zstdEngine) Open(id uuid.UUID) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	zstdReader, err := zstd.NewReader(file)
-	if err != nil {
+	zr := zstdReaderPool.Get().(*zstd.Decoder)
+	if err := zr.Reset(file); err != nil {
+		zstdReaderPool.Put(zr)
 		_ = file.Close()
 		return nil, fmt.Errorf("failed to open zstd stream: %w", err)
 	}
 
 	return &zstdReadCloser{
-		reader: zstdReader,
+		reader: zr,
 		file:   file,
 	}, nil
 }
@@ -121,18 +136,17 @@ func (e *zstdEngine) SaveWebP(id uuid.UUID, reader io.Reader) error {
 	}
 	defer outFile.Close()
 
-	zstdWriter, err := zstd.NewWriter(outFile, zstd.WithEncoderLevel(zstd.SpeedDefault))
-	if err != nil {
-		return fmt.Errorf("failed to create zstd writer for webp: %w", err)
-	}
+	zw := zstdWriterPool.Get().(*zstd.Encoder)
+	defer zstdWriterPool.Put(zw)
+	zw.Reset(outFile)
 
-	if _, err := io.Copy(zstdWriter, reader); err != nil {
-		_ = zstdWriter.Close()
+	if _, err := io.Copy(zw, reader); err != nil {
+		_ = zw.Close()
 		_ = os.Remove(targetPath)
 		return fmt.Errorf("failed to compress and write webp file: %w", err)
 	}
 
-	if err := zstdWriter.Close(); err != nil {
+	if err := zw.Close(); err != nil {
 		_ = os.Remove(targetPath)
 		return fmt.Errorf("failed to finalize webp zstd compression: %w", err)
 	}
@@ -151,14 +165,15 @@ func (e *zstdEngine) OpenWebP(id uuid.UUID) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	zstdReader, err := zstd.NewReader(file)
-	if err != nil {
+	zr := zstdReaderPool.Get().(*zstd.Decoder)
+	if err := zr.Reset(file); err != nil {
+		zstdReaderPool.Put(zr)
 		_ = file.Close()
 		return nil, fmt.Errorf("failed to open webp zstd stream: %w", err)
 	}
 
 	return &zstdReadCloser{
-		reader: zstdReader,
+		reader: zr,
 		file:   file,
 	}, nil
 }
@@ -202,6 +217,7 @@ func (z *zstdReadCloser) Read(p []byte) (n int, err error) {
 }
 
 func (z *zstdReadCloser) Close() error {
-	z.reader.Close()
-	return z.file.Close()
+	fileErr := z.file.Close()
+	zstdReaderPool.Put(z.reader)
+	return fileErr
 }
