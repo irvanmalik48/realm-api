@@ -8,6 +8,10 @@ import (
 	"github.com/irvanmalik48/realm-api/internal/model"
 )
 
+const (
+	maxTokenCacheSize = 10000
+)
+
 type cachedToken struct {
 	token     *model.APIToken
 	expiresAt time.Time
@@ -56,6 +60,22 @@ func (tc *TokenCache) Set(tokenHash string, token *model.APIToken) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
+	// Enforce capacity limit to prevent unbounded memory growth
+	if len(tc.items) >= maxTokenCacheSize {
+		now := time.Now()
+		for k, v := range tc.items {
+			if now.After(v.expiresAt) {
+				delete(tc.items, k)
+			}
+		}
+		if len(tc.items) >= maxTokenCacheSize {
+			for k := range tc.items {
+				delete(tc.items, k)
+				break
+			}
+		}
+	}
+
 	tc.items[tokenHash] = cachedToken{
 		token:     token,
 		expiresAt: time.Now().Add(tc.ttl),
@@ -81,7 +101,12 @@ func (tc *TokenCache) InvalidateByID(id uuid.UUID) {
 }
 
 func (tc *TokenCache) Close() {
-	close(tc.stopCh)
+	select {
+	case <-tc.stopCh:
+		// Already closed
+	default:
+		close(tc.stopCh)
+	}
 }
 
 func (tc *TokenCache) cleanupLoop(interval time.Duration) {
