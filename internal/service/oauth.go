@@ -23,12 +23,13 @@ var (
 )
 
 type OAuthUserInfo struct {
-	Provider   string
-	ProviderID string
-	Email      string
-	Username   string
-	FullName   string
-	AvatarURL  string
+	Provider      string
+	ProviderID    string
+	Email         string
+	EmailVerified bool
+	Username      string
+	FullName      string
+	AvatarURL     string
 }
 
 type OAuthService interface {
@@ -133,6 +134,9 @@ func (s *oauthService) HandleGoogleCallback(ctx context.Context, code string) (*
 	if gUser.Email == "" {
 		return nil, ErrOAuthEmailNotFound
 	}
+	if !gUser.EmailVerified {
+		return nil, errors.New("google account email is not verified")
+	}
 
 	// Derive default username from email prefix
 	username := strings.Split(gUser.Email, "@")[0]
@@ -147,12 +151,13 @@ func (s *oauthService) HandleGoogleCallback(ctx context.Context, code string) (*
 	}
 
 	return &OAuthUserInfo{
-		Provider:   "google",
-		ProviderID: gUser.Sub,
-		Email:      gUser.Email,
-		Username:   username,
-		FullName:   fullName,
-		AvatarURL:  gUser.Picture,
+		Provider:      "google",
+		ProviderID:    gUser.Sub,
+		Email:         gUser.Email,
+		EmailVerified: true,
+		Username:      username,
+		FullName:      fullName,
+		AvatarURL:     gUser.Picture,
 	}, nil
 }
 
@@ -190,32 +195,35 @@ func (s *oauthService) HandleGitHubCallback(ctx context.Context, code string) (*
 	}
 
 	email := ghUser.Email
-	if email == "" {
-		// Fetch primary verified email from /user/emails
-		emailsResp, err := client.Get("https://api.github.com/user/emails")
-		if err == nil && emailsResp.StatusCode == http.StatusOK {
-			defer emailsResp.Body.Close()
-			var emails []struct {
-				Email    string `json:"email"`
-				Primary  bool   `json:"primary"`
-				Verified bool   `json:"verified"`
-			}
-			bodyBytes, _ := io.ReadAll(emailsResp.Body)
-			if err := json.Unmarshal(bodyBytes, &emails); err == nil {
-				for _, e := range emails {
-					if e.Primary && e.Verified {
+	emailVerified := false
+
+	// Fetch verified email from /user/emails
+	emailsResp, err := client.Get("https://api.github.com/user/emails")
+	if err == nil && emailsResp.StatusCode == http.StatusOK {
+		defer emailsResp.Body.Close()
+		var emails []struct {
+			Email    string `json:"email"`
+			Primary  bool   `json:"primary"`
+			Verified bool   `json:"verified"`
+		}
+		bodyBytes, _ := io.ReadAll(emailsResp.Body)
+		if err := json.Unmarshal(bodyBytes, &emails); err == nil {
+			for _, e := range emails {
+				if e.Verified {
+					if e.Primary {
 						email = e.Email
+						emailVerified = true
 						break
+					} else if email == "" || !emailVerified {
+						email = e.Email
+						emailVerified = true
 					}
-				}
-				if email == "" && len(emails) > 0 {
-					email = emails[0].Email
 				}
 			}
 		}
 	}
 
-	if email == "" {
+	if email == "" || !emailVerified {
 		return nil, ErrOAuthEmailNotFound
 	}
 
@@ -225,11 +233,12 @@ func (s *oauthService) HandleGitHubCallback(ctx context.Context, code string) (*
 	}
 
 	return &OAuthUserInfo{
-		Provider:   "github",
-		ProviderID: strconv.FormatInt(ghUser.ID, 10),
-		Email:      email,
-		Username:   ghUser.Login,
-		FullName:   fullName,
-		AvatarURL:  ghUser.AvatarURL,
+		Provider:      "github",
+		ProviderID:    strconv.FormatInt(ghUser.ID, 10),
+		Email:         email,
+		EmailVerified: true,
+		Username:      ghUser.Login,
+		FullName:      fullName,
+		AvatarURL:     ghUser.AvatarURL,
 	}, nil
 }
