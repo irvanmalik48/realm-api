@@ -17,8 +17,14 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
+type ServerDeps struct {
+	TokenCache    *auth.TokenCache
+	TokenLimiter  *auth.TokenRateLimiter
+	StorageEngine storage.Engine
+}
+
 // NewServer creates and configures a new gRPC server with all services and interceptors registered.
-func NewServer(cfg *config.Config, db *database.DB) *grpc.Server {
+func NewServer(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *grpc.Server {
 	// Initialize repositories
 	var contactRepo repository.ContactRepository
 	var storageRepo repository.StorageRepository
@@ -36,13 +42,30 @@ func NewServer(cfg *config.Config, db *database.DB) *grpc.Server {
 		commentRepo = repository.NewCommentRepository(db)
 	}
 
-	storageEngine, err := storage.NewZstdEngine(cfg.StorageDir)
-	if err != nil {
-		panic(err)
+	var storageEngine storage.Engine
+	var tokenCache *auth.TokenCache
+	var tokenLimiter *auth.TokenRateLimiter
+
+	if len(deps) > 0 && deps[0] != nil {
+		storageEngine = deps[0].StorageEngine
+		tokenCache = deps[0].TokenCache
+		tokenLimiter = deps[0].TokenLimiter
 	}
 
-	tokenCache := auth.NewTokenCache(5 * time.Minute)
-	tokenLimiter := auth.NewTokenRateLimiter()
+	if storageEngine == nil {
+		var err error
+		storageEngine, err = storage.NewZstdEngine(cfg.StorageDir)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	if tokenCache == nil {
+		tokenCache = auth.NewTokenCache(5 * time.Minute)
+	}
+	if tokenLimiter == nil {
+		tokenLimiter = auth.NewTokenRateLimiter()
+	}
 
 	pasetoSvc, err := auth.NewPasetoService(cfg.PASETOSymmetricKey)
 	if err != nil {
