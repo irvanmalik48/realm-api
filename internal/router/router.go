@@ -21,7 +21,13 @@ import (
 	"github.com/irvanmalik48/realm-api/internal/storage"
 )
 
-func New(cfg *config.Config, db *database.DB) *fiber.App {
+type ServerDeps struct {
+	TokenCache    *auth.TokenCache
+	TokenLimiter  *auth.TokenRateLimiter
+	StorageEngine storage.Engine
+}
+
+func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	bodyLimit := cfg.MaxUploadSizeMB * 1024 * 1024
 	if bodyLimit <= 0 {
 		bodyLimit = 10 * 1024 * 1024
@@ -57,7 +63,7 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	}
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: allowedOrigins,
-		AllowMethods: "GET,POST,DELETE,OPTIONS",
+		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Realm-Request, X-Requested-With, X-API-Key, X-API-Token",
 	}))
 
@@ -78,13 +84,39 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 		commentRepo = repository.NewCommentRepository(db)
 	}
 
-	storageEngine, err := storage.NewZstdEngine(cfg.StorageDir)
-	if err != nil {
-		panic(err)
+	var storageEngine storage.Engine
+	var tokenCache *auth.TokenCache
+	var tokenLimiter *auth.TokenRateLimiter
+
+	if len(deps) > 0 && deps[0] != nil {
+		storageEngine = deps[0].StorageEngine
+		tokenCache = deps[0].TokenCache
+		tokenLimiter = deps[0].TokenLimiter
 	}
 
-	tokenCache := auth.NewTokenCache(5 * time.Minute)
-	tokenLimiter := auth.NewTokenRateLimiter()
+	if storageEngine == nil {
+		var err error
+		storageEngine, err = storage.NewZstdEngine(cfg.StorageDir)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	if tokenCache == nil {
+		tokenCache = auth.NewTokenCache(5 * time.Minute)
+		app.Hooks().OnShutdown(func() error {
+			tokenCache.Close()
+			return nil
+		})
+	}
+
+	if tokenLimiter == nil {
+		tokenLimiter = auth.NewTokenRateLimiter()
+		app.Hooks().OnShutdown(func() error {
+			tokenLimiter.Close()
+			return nil
+		})
+	}
 
 	pasetoSvc, err := auth.NewPasetoService(cfg.PASETOSymmetricKey)
 	if err != nil {
@@ -125,11 +157,41 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	v1.Get("/openapi.json", openapi.ServeJSON)
 	v1.Get("/docs", openapi.ServeDocs)
 
+	// Rate limiters for sensitive endpoints
+	checkLimiter := limiter.New(limiter.Config{
+		Max:        30,
+		Expiration: 1 * time.Minute,
+		LimitReached: func(c *fiber.Ctx) error {
+			return handler.ErrorResponse(c, "Too many requests. Please try again later.", http.StatusTooManyRequests)
+		},
+	})
+	authLimiter := limiter.New(limiter.Config{
+		Max:        15,
+		Expiration: 1 * time.Minute,
+		LimitReached: func(c *fiber.Ctx) error {
+			return handler.ErrorResponse(c, "Too many authentication attempts. Please try again later.", http.StatusTooManyRequests)
+		},
+	})
+	commentLimiter := limiter.New(limiter.Config{
+		Max:        10,
+		Expiration: 1 * time.Minute,
+		LimitReached: func(c *fiber.Ctx) error {
+			return handler.ErrorResponse(c, "Too many comments submitted. Please slow down.", http.StatusTooManyRequests)
+		},
+	})
+	reactionLimiter := limiter.New(limiter.Config{
+		Max:        60,
+		Expiration: 1 * time.Minute,
+		LimitReached: func(c *fiber.Ctx) error {
+			return handler.ErrorResponse(c, "Too many reaction requests. Please slow down.", http.StatusTooManyRequests)
+		},
+	})
+
 	// User Auth endpoints (Traditional & OIDC/OAuth2 with PASETO tokens)
 	authGroup := v1.Group("/auth")
-	authGroup.Get("/check", authHdlr.CheckAvailability)
-	authGroup.Post("/register", authHdlr.Register)
-	authGroup.Post("/login", authHdlr.Login)
+	authGroup.Get("/check", checkLimiter, authHdlr.CheckAvailability)
+	authGroup.Post("/register", authLimiter, authHdlr.Register)
+	authGroup.Post("/login", authLimiter, authHdlr.Login)
 	authGroup.Get("/me", middleware.RequireUserAuth(pasetoSvc), authHdlr.GetMe)
 	authGroup.Patch("/profile", middleware.RequireUserAuth(pasetoSvc), authHdlr.UpdateProfile)
 	authGroup.Post("/password", middleware.RequireUserAuth(pasetoSvc), authHdlr.SetPassword)
@@ -142,12 +204,12 @@ func New(cfg *config.Config, db *database.DB) *fiber.App {
 	// Post Reaction endpoints
 	reactionsGroup := v1.Group("/posts/:slug/reactions")
 	reactionsGroup.Get("/", middleware.OptionalUserAuth(pasetoSvc), reactionHdlr.GetReactions)
-	reactionsGroup.Post("/", middleware.RequireUserAuth(pasetoSvc), reactionHdlr.ToggleReaction)
+	reactionsGroup.Post("/", middleware.RequireUserAuth(pasetoSvc), reactionLimiter, reactionHdlr.ToggleReaction)
 
 	// Post Comment endpoints
 	commentsGroup := v1.Group("/posts/:slug/comments")
 	commentsGroup.Get("/", middleware.OptionalUserAuth(pasetoSvc), commentHdlr.GetComments)
-	commentsGroup.Post("/", middleware.RequireUserAuth(pasetoSvc), commentHdlr.CreateComment)
+	commentsGroup.Post("/", middleware.RequireUserAuth(pasetoSvc), commentLimiter, commentHdlr.CreateComment)
 	commentsGroup.Patch("/:id", middleware.RequireUserAuth(pasetoSvc), commentHdlr.UpdateComment)
 	commentsGroup.Delete("/:id", middleware.RequireUserAuth(pasetoSvc), commentHdlr.DeleteComment)
 
