@@ -79,28 +79,35 @@ func (r *reactionRepository) GetReactionsBySlug(ctx context.Context, slug string
 }
 
 func (r *reactionRepository) ToggleReaction(ctx context.Context, slug string, reactionType string, userID uuid.UUID) (*model.ToggleReactionResponse, error) {
-	// Check existing reaction for this user on this post
+	tx, err := r.db.Pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Check existing reaction for this user on this post with row lock
 	var existingID uuid.UUID
 	var existingReaction string
 	checkQuery := `
 		SELECT id, reaction_type FROM post_reactions 
 		WHERE post_slug = $1 AND user_id = $2
+		FOR UPDATE
 	`
-	err := r.db.Pool.QueryRow(ctx, checkQuery, slug, userID).Scan(&existingID, &existingReaction)
+	err = tx.QueryRow(ctx, checkQuery, slug, userID).Scan(&existingID, &existingReaction)
 
 	active := false
 	if err == nil {
 		if existingReaction == reactionType {
 			// User clicked the same active reaction -> remove it (toggle off)
 			delQuery := `DELETE FROM post_reactions WHERE id = $1`
-			if _, err := r.db.Pool.Exec(ctx, delQuery, existingID); err != nil {
+			if _, err := tx.Exec(ctx, delQuery, existingID); err != nil {
 				return nil, fmt.Errorf("failed to delete reaction: %w", err)
 			}
 			active = false
 		} else {
 			// User clicked a different reaction -> update to new reaction (switch reaction)
 			updQuery := `UPDATE post_reactions SET reaction_type = $1, created_at = NOW() WHERE id = $2`
-			if _, err := r.db.Pool.Exec(ctx, updQuery, reactionType, existingID); err != nil {
+			if _, err := tx.Exec(ctx, updQuery, reactionType, existingID); err != nil {
 				return nil, fmt.Errorf("failed to update reaction: %w", err)
 			}
 			active = true
@@ -112,10 +119,14 @@ func (r *reactionRepository) ToggleReaction(ctx context.Context, slug string, re
 			VALUES ($1, $2, $3)
 			ON CONFLICT (post_slug, user_id) DO UPDATE SET reaction_type = EXCLUDED.reaction_type, created_at = NOW()
 		`
-		if _, err := r.db.Pool.Exec(ctx, insQuery, slug, reactionType, userID); err != nil {
+		if _, err := tx.Exec(ctx, insQuery, slug, reactionType, userID); err != nil {
 			return nil, fmt.Errorf("failed to insert reaction: %w", err)
 		}
 		active = true
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit reaction transaction: %w", err)
 	}
 
 	// Fetch updated summary
