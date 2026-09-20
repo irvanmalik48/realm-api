@@ -46,6 +46,7 @@ type UserDTO struct {
 	ConnectedProviders []string          `json:"connected_providers"`
 	ConnectedAccounts  []OAuthAccountDTO `json:"connected_accounts"`
 	CreatedAt          time.Time         `json:"created_at"`
+	UpdatedAt          time.Time         `json:"updated_at"`
 }
 
 func (u *User) ToDTO() *UserDTO {
@@ -76,6 +77,7 @@ func (u *User) ToDTO() *UserDTO {
 		ConnectedProviders: providers,
 		ConnectedAccounts:  accounts,
 		CreatedAt:          u.CreatedAt,
+		UpdatedAt:          u.UpdatedAt,
 	}
 }
 
