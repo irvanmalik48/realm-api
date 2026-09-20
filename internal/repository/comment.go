@@ -114,22 +114,23 @@ func (r *commentRepository) GetCommentsBySlug(ctx context.Context, slug string, 
 
 func (r *commentRepository) CreateComment(ctx context.Context, comment *model.PostComment) (*model.CommentDTO, error) {
 	query := `
-		INSERT INTO post_comments (post_slug, user_id, parent_id, content)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, is_edited, created_at, updated_at
+		WITH new_comment AS (
+			INSERT INTO post_comments (post_slug, user_id, parent_id, content)
+			VALUES ($1, $2, $3, $4)
+			RETURNING id, post_slug, user_id, parent_id, content, is_edited, created_at, updated_at
+		)
+		SELECT 
+			c.id, c.is_edited, c.created_at, c.updated_at,
+			u.username, u.full_name, u.avatar_url
+		FROM new_comment c
+		JOIN users u ON c.user_id = u.id
 	`
-	err := r.db.Pool.QueryRow(ctx, query, comment.PostSlug, comment.UserID, comment.ParentID, comment.Content).
-		Scan(&comment.ID, &comment.IsEdited, &comment.CreatedAt, &comment.UpdatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to insert comment: %w", err)
-	}
-
-	// Fetch author details
 	var uName, uFullName string
 	var uAvatarURL *string
-	userQuery := `SELECT username, full_name, avatar_url FROM users WHERE id = $1`
-	if err := r.db.Pool.QueryRow(ctx, userQuery, comment.UserID).Scan(&uName, &uFullName, &uAvatarURL); err != nil {
-		return nil, fmt.Errorf("failed to query author info: %w", err)
+	err := r.db.Pool.QueryRow(ctx, query, comment.PostSlug, comment.UserID, comment.ParentID, comment.Content).
+		Scan(&comment.ID, &comment.IsEdited, &comment.CreatedAt, &comment.UpdatedAt, &uName, &uFullName, &uAvatarURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to insert comment: %w", err)
 	}
 
 	return &model.CommentDTO{
@@ -153,27 +154,29 @@ func (r *commentRepository) CreateComment(ctx context.Context, comment *model.Po
 
 func (r *commentRepository) UpdateComment(ctx context.Context, commentID, userID uuid.UUID, content string) (*model.CommentDTO, error) {
 	query := `
-		UPDATE post_comments 
-		SET content = $1, is_edited = true, updated_at = NOW()
-		WHERE id = $2 AND user_id = $3
-		RETURNING post_slug, parent_id, is_edited, created_at, updated_at
+		WITH upd_comment AS (
+			UPDATE post_comments 
+			SET content = $1, is_edited = true, updated_at = NOW()
+			WHERE id = $2 AND user_id = $3
+			RETURNING id, post_slug, user_id, parent_id, is_edited, created_at, updated_at
+		)
+		SELECT 
+			c.post_slug, c.parent_id, c.is_edited, c.created_at, c.updated_at,
+			u.username, u.full_name, u.avatar_url
+		FROM upd_comment c
+		JOIN users u ON c.user_id = u.id
 	`
 	var postSlug string
 	var parentID *uuid.UUID
 	var isEdited bool
 	var createdAt, updatedAt time.Time
-
-	err := r.db.Pool.QueryRow(ctx, query, content, commentID, userID).
-		Scan(&postSlug, &parentID, &isEdited, &createdAt, &updatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update comment: %w", err)
-	}
-
 	var uName, uFullName string
 	var uAvatarURL *string
-	userQuery := `SELECT username, full_name, avatar_url FROM users WHERE id = $1`
-	if err := r.db.Pool.QueryRow(ctx, userQuery, userID).Scan(&uName, &uFullName, &uAvatarURL); err != nil {
-		return nil, fmt.Errorf("failed to query author info: %w", err)
+
+	err := r.db.Pool.QueryRow(ctx, query, content, commentID, userID).
+		Scan(&postSlug, &parentID, &isEdited, &createdAt, &updatedAt, &uName, &uFullName, &uAvatarURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update comment: %w", err)
 	}
 
 	return &model.CommentDTO{
