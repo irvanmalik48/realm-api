@@ -71,7 +71,8 @@ func MapError(err error) error {
 		return status.Error(codes.Unavailable, err.Error())
 
 	default:
-		return status.Error(codes.Internal, err.Error())
+		log.Printf("[gRPC Internal Error] %v\n", err)
+		return status.Error(codes.Internal, "An internal server error occurred")
 	}
 }
 
@@ -86,7 +87,7 @@ func ErrorUnaryInterceptor() grpc.UnaryServerInterceptor {
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("[gRPC Panic] %s: %v\n", info.FullMethod, r)
-				err = status.Errorf(codes.Internal, "Internal server error: %v", r)
+				err = status.Error(codes.Internal, "An internal server error occurred")
 			}
 		}()
 		resp, err = handler(ctx, req)
@@ -105,7 +106,7 @@ func ErrorStreamInterceptor() grpc.StreamServerInterceptor {
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("[gRPC Stream Panic] %s: %v\n", info.FullMethod, r)
-				err = status.Errorf(codes.Internal, "Internal server error: %v", r)
+				err = status.Error(codes.Internal, "An internal server error occurred")
 			}
 		}()
 		err = handler(srv, ss)
