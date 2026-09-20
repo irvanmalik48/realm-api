@@ -169,14 +169,15 @@ func (r *userRepository) GetByUsername(ctx context.Context, username string) (*m
 }
 
 func (r *userRepository) GetByIdentifier(ctx context.Context, identifier string) (*model.User, error) {
+	norm := strings.ToLower(strings.TrimSpace(identifier))
 	query := `
 		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, created_at, updated_at
 		FROM users
-		WHERE LOWER(email) = LOWER($1) OR LOWER(username) = LOWER($1)
+		WHERE email = $1 OR username = $1
 		LIMIT 1
 	`
 	var u model.User
-	err := r.db.Pool.QueryRow(ctx, query, strings.TrimSpace(identifier)).Scan(
+	err := r.db.Pool.QueryRow(ctx, query, norm).Scan(
 		&u.ID,
 		&u.Email,
 		&u.Username,
@@ -325,13 +326,22 @@ func (r *userRepository) LinkOAuthAccount(ctx context.Context, account *model.OA
 		account.CreatedAt = time.Now().UTC()
 	}
 
+	// Verify the provider account is not already linked to a different user
+	var existingUserID uuid.UUID
+	checkQuery := `SELECT user_id FROM user_oauth_accounts WHERE provider = $1 AND provider_id = $2`
+	err := r.db.Pool.QueryRow(ctx, checkQuery, account.Provider, account.ProviderID).Scan(&existingUserID)
+	if err == nil && existingUserID != account.UserID {
+		return ErrOAuthAccountLinked
+	}
+
 	query := `
 		INSERT INTO user_oauth_accounts (id, user_id, provider, provider_id, email, avatar_url, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (provider, provider_id) DO UPDATE
-		SET user_id = EXCLUDED.user_id, email = EXCLUDED.email, avatar_url = COALESCE(EXCLUDED.avatar_url, user_oauth_accounts.avatar_url)
+		SET email = EXCLUDED.email, avatar_url = COALESCE(EXCLUDED.avatar_url, user_oauth_accounts.avatar_url)
+		WHERE user_oauth_accounts.user_id = EXCLUDED.user_id
 	`
-	_, err := r.db.Pool.Exec(ctx, query,
+	_, err = r.db.Pool.Exec(ctx, query,
 		account.ID,
 		account.UserID,
 		account.Provider,
