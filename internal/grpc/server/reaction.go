@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"math"
 
 	"github.com/google/uuid"
 	"github.com/irvanmalik48/realm-api/internal/grpc/interceptors"
@@ -38,12 +39,19 @@ func (s *ReactionServer) GetReactions(ctx context.Context, req *realmv1.GetReact
 
 	reactionsMap := make(map[string]int32)
 	for k, v := range resp.Reactions {
-		reactionsMap[k] = int32(v)
+		if v >= 0 && v <= math.MaxInt32 {
+			reactionsMap[k] = int32(v)
+		}
+	}
+
+	var totalCount int32
+	if resp.TotalCount >= 0 && resp.TotalCount <= math.MaxInt32 {
+		totalCount = int32(resp.TotalCount)
 	}
 
 	return &realmv1.ReactionsResponse{
 		Slug:          resp.Slug,
-		TotalCount:    int32(resp.TotalCount),
+		TotalCount:    totalCount,
 		Reactions:     reactionsMap,
 		UserReaction:  resp.UserReaction,
 		UserReactions: resp.UserReactions,
@@ -73,14 +81,21 @@ func (s *ReactionServer) ToggleReaction(ctx context.Context, req *realmv1.Toggle
 
 	reactionsMap := make(map[string]int32)
 	for k, v := range resp.Reactions {
-		reactionsMap[k] = int32(v)
+		if v >= 0 && v <= math.MaxInt32 {
+			reactionsMap[k] = int32(v)
+		}
+	}
+
+	var totalCount int32
+	if resp.TotalCount >= 0 && resp.TotalCount <= math.MaxInt32 {
+		totalCount = int32(resp.TotalCount)
 	}
 
 	return &realmv1.ToggleReactionResponse{
 		Slug:          resp.Slug,
 		Reaction:      resp.Reaction,
 		Active:        resp.Active,
-		TotalCount:    int32(resp.TotalCount),
+		TotalCount:    totalCount,
 		Reactions:     reactionsMap,
 		UserReaction:  resp.UserReaction,
 		UserReactions: resp.UserReactions,
