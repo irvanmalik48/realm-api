@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/grafana/pyroscope-go"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
@@ -88,4 +89,37 @@ func InitTracer(ctx context.Context, serviceName, environment string) (func(cont
 	tracer = otel.Tracer("realm-api")
 
 	return tp.Shutdown, nil
+}
+
+// InitProfiler starts continuous in-production profiling via Pyroscope if configured.
+func InitProfiler(serviceName, environment string) (*pyroscope.Profiler, error) {
+	serverAddress := os.Getenv("PYROSCOPE_SERVER_ADDRESS")
+	if serverAddress == "" {
+		return nil, nil
+	}
+
+	if serviceName == "" {
+		serviceName = "realm-api"
+	}
+
+	return pyroscope.Start(pyroscope.Config{
+		ApplicationName: serviceName,
+		ServerAddress:   serverAddress,
+		AuthToken:       os.Getenv("PYROSCOPE_AUTH_TOKEN"),
+		Tags: map[string]string{
+			"env": environment,
+		},
+		ProfileTypes: []pyroscope.ProfileType{
+			pyroscope.ProfileCPU,
+			pyroscope.ProfileAllocObjects,
+			pyroscope.ProfileAllocSpace,
+			pyroscope.ProfileInuseObjects,
+			pyroscope.ProfileInuseSpace,
+			pyroscope.ProfileGoroutines,
+			pyroscope.ProfileMutexCount,
+			pyroscope.ProfileMutexDuration,
+			pyroscope.ProfileBlockCount,
+			pyroscope.ProfileBlockDuration,
+		},
+	})
 }
