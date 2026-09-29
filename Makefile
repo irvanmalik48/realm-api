@@ -1,8 +1,12 @@
-.PHONY: dev build test sec vuln audit check tidy clean proto docker-build docker-up docker-down
+.PHONY: dev build test sec vuln audit check tidy clean proto lint-proto docker-build docker-up docker-down
 
 proto:
 	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
-	protoc --proto_path=. --go_out=. --go_opt=module=github.com/irvanmalik48/realm-api --go-grpc_out=. --go-grpc_opt=module=github.com/irvanmalik48/realm-api proto/realm/v1/*.proto
+	buf generate
+
+lint-proto:
+	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
+	buf lint
 
 dev:
 	go run ./cmd/server
