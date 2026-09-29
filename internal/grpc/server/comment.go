@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -78,9 +79,14 @@ func (s *CommentServer) GetComments(ctx context.Context, req *realmv1.GetComment
 		comments = append(comments, mapCommentDTOToProto(&c))
 	}
 
+	var totalCount int32
+	if resp.TotalCount >= 0 && resp.TotalCount <= math.MaxInt32 {
+		totalCount = int32(resp.TotalCount)
+	}
+
 	return &realmv1.GetCommentsResponse{
 		Slug:       resp.Slug,
-		TotalCount: int32(resp.TotalCount),
+		TotalCount: totalCount,
 		Comments:   comments,
 	}, nil
 }
