@@ -176,11 +176,11 @@ func (s *tokenService) Verify(ctx context.Context, rawToken string) (*model.APIT
 			s.cache.Set(tokenHash, token)
 		}
 		if s.repo != nil {
-			go func(id uuid.UUID) {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			go func(bgCtx context.Context, id uuid.UUID) {
+				updateCtx, cancel := context.WithTimeout(bgCtx, 5*time.Second)
 				defer cancel()
-				_ = s.repo.UpdateLastUsed(ctx, id)
-			}(token.ID)
+				_ = s.repo.UpdateLastUsed(updateCtx, id)
+			}(context.WithoutCancel(ctx), token.ID)
 		}
 	}
 
