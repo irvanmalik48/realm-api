@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,11 +36,11 @@ func mapFileDTOToProto(dto *model.FileDTO) *realmv1.FileMetadata {
 	}
 
 	var w, h *int32
-	if dto.Width != nil {
+	if dto.Width != nil && *dto.Width >= 0 && *dto.Width <= math.MaxInt32 {
 		widthVal := int32(*dto.Width)
 		w = &widthVal
 	}
-	if dto.Height != nil {
+	if dto.Height != nil && *dto.Height >= 0 && *dto.Height <= math.MaxInt32 {
 		heightVal := int32(*dto.Height)
 		h = &heightVal
 	}
