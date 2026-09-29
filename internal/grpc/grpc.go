@@ -14,6 +14,8 @@ import (
 	realmv1 "github.com/irvanmalik48/realm-api/pkg/pb/realm/v1"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 )
 
@@ -107,6 +109,18 @@ func NewServer(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *grpc.S
 	realmv1.RegisterStorageServiceServer(server, grpcServer.NewStorageServer(cfg, storageSvc))
 	realmv1.RegisterReactionServiceServer(server, grpcServer.NewReactionServer(reactionSvc))
 	realmv1.RegisterCommentServiceServer(server, grpcServer.NewCommentServer(commentSvc))
+
+	// Register standard gRPC Health Checking Protocol (grpc.health.v1)
+	standardHealthServer := health.NewServer()
+	healthpb.RegisterHealthServer(server, standardHealthServer)
+	standardHealthServer.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	standardHealthServer.SetServingStatus("realm.v1.HealthService", healthpb.HealthCheckResponse_SERVING)
+	standardHealthServer.SetServingStatus("realm.v1.AuthService", healthpb.HealthCheckResponse_SERVING)
+	standardHealthServer.SetServingStatus("realm.v1.ContactService", healthpb.HealthCheckResponse_SERVING)
+	standardHealthServer.SetServingStatus("realm.v1.LastFMService", healthpb.HealthCheckResponse_SERVING)
+	standardHealthServer.SetServingStatus("realm.v1.StorageService", healthpb.HealthCheckResponse_SERVING)
+	standardHealthServer.SetServingStatus("realm.v1.ReactionService", healthpb.HealthCheckResponse_SERVING)
+	standardHealthServer.SetServingStatus("realm.v1.CommentService", healthpb.HealthCheckResponse_SERVING)
 
 	// Enable gRPC Server Reflection for debugging and developer tooling
 	reflection.Register(server)
