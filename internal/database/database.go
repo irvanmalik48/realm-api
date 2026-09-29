@@ -3,9 +3,10 @@ package database
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
+	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -19,6 +20,7 @@ func Connect(ctx context.Context, databaseURL string) (*DB, error) {
 		return nil, fmt.Errorf("unable to parse database config: %w", err)
 	}
 
+	config.ConnConfig.Tracer = otelpgx.NewTracer()
 	config.MaxConns = 25
 	config.MinConns = 2
 	config.MaxConnLifetime = 1 * time.Hour
@@ -43,7 +45,7 @@ func Connect(ctx context.Context, databaseURL string) (*DB, error) {
 		return nil, fmt.Errorf("failed to run database migration: %w", err)
 	}
 
-	log.Println("Database connection pool established successfully.")
+	slog.Info("Database connection pool established successfully")
 	return db, nil
 }
 
