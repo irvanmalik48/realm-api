@@ -1,24 +1,30 @@
 # Realm API
 
-High-performance, observable backend service for Realm built with **Go**, **gRPC**, **Fiber v2**, and **PostgreSQL**.
+High-performance, observable, and technologically hardened backend service for Realm built with **Go**, **gRPC**, **Fiber v2**, and **PostgreSQL**.
 
 ---
 
-## Features
+## Technological Marvel & Overkill Features
 
-- **Blazing Fast gRPC Backend**: Native high-performance gRPC services on port `:50051` with Protobuf schemas (`proto/realm/v1/*.proto`) powering internal services, Server Actions, and BFF proxies.
+- **Blazing Fast gRPC Backend**: Native high-performance gRPC services on port `:50051` with Protobuf schemas powering internal microservices, Server Actions, and BFF proxies.
+- **Protobuf Governance & Buf Tooling**: Governed with **Buf v2** (`buf.yaml` and `buf.gen.yaml`), enforcing strict schema linting, breaking change detection, and type-safe code generation.
+- **Standard gRPC Health Checking**: Fully compliant with `grpc.health.v1` (`google.golang.org/grpc/health`) serving statuses for every subsystem alongside existing reflection and HTTP `/health`.
+- **Trace-Correlated Structured Logging**: Standard `log/slog` structured logger with custom OpenTelemetry context handler that automatically extracts `trace_id` and `span_id` into every log record.
+- **Continuous Profiling (Pyroscope)**: Native Grafana Pyroscope profiler capturing CPU, heap allocations, goroutines, and block profiles (configured via `PYROSCOPE_SERVER_ADDRESS`).
+- **Database Observability (`otelpgx`)**: PostgreSQL connection pool instrumented with `exaring/otelpgx` for automated SQL span tracing and latency diagnostics.
+- **Circuit Breaking & Fault Tolerance**: Sony `gobreaker` circuit breaker wrapping external upstreams (LastFM) with automated stale-cache fallbacks during upstream degradation or outages.
+- **Linux Kernel Landlock Sandboxing**: Process-level filesystem sandboxing via `shoenig/go-landlock` restricting file access strictly to allowed certificates, assets, and `/tmp`.
+- **High-Throughput Socket Tuning**: Socket reuse via `SO_REUSEPORT` enabled on the gRPC listener for high-concurrency throughput and multi-process scaling.
 - **HTTP/REST Hybrid Gateway**: Powered by [Fiber v2](https://github.com/gofiber/fiber/v2) on port `:8080` for browser media streaming (WebP/Blurhash) and OAuth2 consent redirects.
-- **User Authentication & OIDC**: Traditional registration/login (Email/Username + bcrypt) and **Google OIDC** / **GitHub OAuth2** social login with tamper-proof **PASETO v2.local** symmetric bearer tokens.
-- **OpenTelemetry v1.46.0**: Native distributed tracing with `otelgrpc` interceptor and HTTP trace correlation headers.
-- **OpenAPI 3.2.0 Compliant**: Interactive API documentation powered by [Scalar](https://github.com/scalar/scalar) served live at `/docs`, `/openapi.yaml`, and `/openapi.json`.
-- **Health Check & Uptime**: Real-time heartbeat endpoint via gRPC (`HealthService.GetHealth`) and HTTP (`/health` & `/v1/health`).
+- **User Authentication & PASETO**: Traditional credentials (Email/Username + bcrypt) and **Google OIDC** / **GitHub OAuth2** social login with tamper-proof **PASETO v2.local** symmetric bearer tokens.
+- **OpenTelemetry Distributed Tracing**: Native distributed tracing with `otelgrpc` interceptors and HTTP trace correlation headers.
+- **Interactive OpenAPI 3.2.0 Docs**: Interactive documentation powered by [Scalar](https://github.com/scalar/scalar) served live at `/docs`, `/openapi.yaml`, and `/openapi.json`.
 - **Secure API Tokens**: Cryptographically secure token authentication (`realm_tok_...`) generated via CLI (`cmd/token`), hashed with SHA-256 in PostgreSQL, with in-memory TTL caching.
-- **Per-Token Rate Limiting**: Dynamic 1-minute sliding window rate limiter with gRPC interceptors and standard `X-RateLimit-*` response headers.
+- **Sliding-Window Rate Limiting**: Token-bucket sliding window rate limiter with gRPC interceptors and standard `X-RateLimit-*` response headers.
 - **Zstandard (`zstd`) File Storage**: High-compression disk storage with automatic Blurhash calculation, dimension extraction, gRPC streaming, and on-the-fly WebP conversion (`?format=webp`).
 - **PostgreSQL Persistence**: User accounts, contact submissions, file metadata, and API tokens stored via `pgxpool` with automatic schema migrations.
-- **LastFM Integration**: AudioScrobbler recent tracks and user statistics with caching headers.
-- **Multi-channel Alerts**: Optional instant notifications to Discord webhooks or Telegram bots upon new contact messages.
-- **Container Ready**: Multi-stage lightweight `Dockerfile` exposing ports `8080` and `50051`, containing `/app/server` and `/app/token` binaries.
+- **Multi-channel Alerts**: Optional instant notifications to Discord webhooks, Telegram bots, or SMTP upon new contact messages.
+- **Production-Hardened Containers**: Multi-stage lightweight `Dockerfile` with Alpine 3.21, `tini` init process, container health checking, and Docker log rotation.
 
 ---
 
@@ -55,6 +61,12 @@ Detailed service health, uptime, and database connectivity.
   "timestamp": "2026-08-20T13:18:31Z",
   "database": "connected"
 }
+```
+
+#### gRPC Health Check (`grpc.health.v1`)
+Standard health probing via any standard gRPC health client (e.g. `grpc-health-probe`):
+```bash
+grpc-health-probe -addr=localhost:50051 -service=realm.v1.AuthService
 ```
 
 ---
@@ -118,17 +130,10 @@ X-Realm-Request: 1
 }
 ```
 
-#### Validation Rules
-| Field | Type | Required | Constraints |
-|---|---|---|---|
-| `name` | string | **Yes** | Min 2, max 100 characters |
-| `email` | string | **Yes** | Valid email format, max 254 characters |
-| `subject` | string | **Yes** | Min 3, max 200 characters |
-| `message` | string | **Yes** | Min 10, max 5000 characters |
-
 ---
 
 ### 4. LastFM Integration
+Wrapped with a **Sony gobreaker** circuit breaker and stale-while-revalidate caching.
 
 #### Get Recent Tracks
 ```http
@@ -184,17 +189,6 @@ GET /v1/storage/{id}
 GET /v1/storage/{id}?format=webp
 ```
 
-#### Get File Info / Metadata
-```http
-GET /v1/storage/{id}/info
-```
-
-#### Delete File
-```http
-DELETE /v1/storage/{id}
-Authorization: Bearer realm_tok_...
-```
-
 ---
 
 ## Administrative API Token CLI (`cmd/token`)
@@ -227,64 +221,18 @@ sudo docker compose exec api /app/token list
 
 ---
 
-## Database Schema
-
-Migrations run automatically on server startup:
-
-```sql
-CREATE TABLE IF NOT EXISTS contact_submissions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(100) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    subject VARCHAR(200) NOT NULL,
-    message TEXT NOT NULL,
-    ip_address VARCHAR(45),
-    user_agent TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS files (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    filename VARCHAR(255) NOT NULL,
-    content_type VARCHAR(100) NOT NULL,
-    original_size BIGINT NOT NULL,
-    compressed_size BIGINT NOT NULL,
-    compression_algorithm VARCHAR(20) NOT NULL DEFAULT 'zstd',
-    sha256 VARCHAR(64) NOT NULL,
-    blurhash VARCHAR(100),
-    width INT,
-    height INT,
-    is_public BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS api_tokens (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(100) NOT NULL,
-    token_prefix VARCHAR(50) NOT NULL,
-    token_hash VARCHAR(64) NOT NULL UNIQUE,
-    scopes TEXT[] NOT NULL DEFAULT '{"*"}',
-    rate_limit_rpm INT NOT NULL DEFAULT 60,
-    last_used_at TIMESTAMP WITH TIME ZONE,
-    expires_at TIMESTAMP WITH TIME ZONE,
-    is_revoked BOOLEAN NOT NULL DEFAULT false,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-```
-
----
-
 ## Environment Variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `PORT` | `8080` | Server listening port |
+| `PORT` | `8080` | HTTP gateway port |
+| `GRPC_PORT` | `50051` | High-performance gRPC port |
 | `ENVIRONMENT` | `development` | Environment (`development`, `production`, `test`) |
 | `ALLOWED_ORIGINS` | `https://irvanma.eu.org` | Comma-separated CORS allowed origins |
 | `DATABASE_URL` | `""` | PostgreSQL connection string |
 | `STORAGE_DIR` | `./data/storage` | Directory path for Zstd compressed file storage |
 | `MAX_UPLOAD_SIZE_MB` | `10` | Maximum allowed file upload size in megabytes |
-| `PASETO_SYMMETRIC_KEY` | `""` | 32-byte hex/string key for PASETO token encryption |
+| `PASETO_SYMMETRIC_KEY` | `""` | 32-byte hex key for PASETO token encryption *(required in production)* |
 | `FRONTEND_URL` | `http://localhost:3000` | Frontend web application origin for OAuth redirects |
 | `GOOGLE_CLIENT_ID` | `""` | Google OAuth2 client ID |
 | `GOOGLE_CLIENT_SECRET` | `""` | Google OAuth2 client secret |
@@ -298,55 +246,53 @@ CREATE TABLE IF NOT EXISTS api_tokens (
 | `LASTFM_API_KEY` | `""` | LastFM AudioScrobbler API Key |
 | `LASTFM_API_SECRET` | `""` | LastFM API Secret (optional) |
 | `CACHE_REVALIDATE_SECONDS` | `900` | Caching TTL in seconds for response headers |
-| `OTEL_EXPORTER_OTLP_ENDPOINT`| `""` | OpenTelemetry OTLP HTTP collector endpoint |
-| `OTEL_STDOUT_TRACING` | `false` | Set to `true` to print traces to stdout |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`| `""` | OpenTelemetry OTLP gRPC endpoint (e.g. `localhost:4317`) |
+| `PYROSCOPE_SERVER_ADDRESS` | `""` | Grafana Pyroscope continuous profiling server address |
+| `LOG_LEVEL` | `info` | Logging verbosity (`debug`, `info`, `warn`, `error`) |
+| `LOG_FORMAT` | `json` | Structured log output format (`json` or `text`) |
 | `DISCORD_WEBHOOK_URL` | `""` | Optional Discord webhook for instant notifications |
 | `TELEGRAM_BOT_TOKEN` | `""` | Optional Telegram bot token for alerts |
 | `TELEGRAM_CHAT_ID` | `""` | Optional Telegram chat ID for alerts |
+| `CONTACT_RECEIVER_EMAIL` | `""` | Email address to receive contact form notifications |
+| `SMTP_HOST` | `""` | SMTP mail server host |
+| `SMTP_PORT` | `587` | SMTP mail server port |
+| `SMTP_USER` | `""` | SMTP username |
+| `SMTP_PASS` | `""` | SMTP password |
 
 ---
 
-## Getting Started
+## Development & Quality Verification
 
-### Local Development
+### Build & Dev Commands
 ```bash
-# 1. Copy environment template
-cp .env.example .env
-
-# 2. Configure DATABASE_URL and LASTFM_API_KEY in .env
-
-# 3. Run development server
+# 1. Run development server
 make dev
 # or
 go run ./cmd/server
+
+# 2. Recompile Protobuf schemas with Buf
+make proto
+
+# 3. Lint Protobuf schemas
+make lint-proto
+
+# 4. Build release binaries
+make build
 ```
 
-### Running Tests
+### Security & Quality Verification Pipeline
 ```bash
-make test
-# or
-go test -v ./...
-```
+# Run unit & integration tests
+go test -v ./test/...
 
-### Security & Vulnerability Auditing
-```bash
 # Run Gosec AST security scanner (excluding generated Protobuf code)
 make sec
 
 # Run Go vulnerability database scanner
 make vuln
 
-# Run both security checks
-make audit
-
-# Run test suite, Gosec, and Govulncheck
+# Run full audit (Tests + Gosec + Govulncheck + Buf Lint)
 make check
-```
-
-### Building Binaries
-```bash
-make build
-# Outputs ./bin/server and ./bin/token
 ```
 
 ---
@@ -371,13 +317,10 @@ docker compose logs -f
 docker compose down
 ```
 
-### Caddy Reverse Proxy Configuration
-```caddy
-api.irvanma.eu.org {
-    reverse_proxy realm-api:8080
-}
-```
-Reload Caddy:
-```bash
-docker exec -w /etc/caddy caddy caddy reload
-```
+The Docker stack includes built-in container health checking (`wget -qO- /health`), process init wrapping (`tini`), log rotation (`20m`/`5` files), and PostgreSQL shared memory optimization (`shm_size: 256mb`).
+
+---
+
+## License
+
+Licensed under the [Realm Collectives Community License (RCCL) Version 1.0](https://github.com/irvanmalik48/realm-api/blob/main/LICENSE).
