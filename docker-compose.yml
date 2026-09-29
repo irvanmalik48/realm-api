@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile
     container_name: realm-api
     restart: unless-stopped
+    init: true
+    stop_grace_period: 15s
     environment:
       - PORT=8080
       - GRPC_PORT=50051
@@ -16,9 +18,26 @@ services:
       - CACHE_REVALIDATE_SECONDS=${CACHE_REVALIDATE_SECONDS:-900}
       - STORAGE_DIR=/data/storage
       - MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-10}
+      - PASETO_SYMMETRIC_KEY=${PASETO_SYMMETRIC_KEY}
+      - FRONTEND_URL=${FRONTEND_URL:-https://irvanma.eu.org}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URL=${GOOGLE_REDIRECT_URL}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - GITHUB_REDIRECT_URL=${GITHUB_REDIRECT_URL}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - CONTACT_RECEIVER_EMAIL=${CONTACT_RECEIVER_EMAIL}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
+      - PYROSCOPE_SERVER_ADDRESS=${PYROSCOPE_SERVER_ADDRESS}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
     volumes:
       - ./data/storage:/data/storage
     depends_on:
@@ -27,6 +46,17 @@ services:
     networks:
       - caddy_net
       - internal_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
     env_file:
       - path: .env
         required: false
@@ -35,6 +65,7 @@ services:
     image: postgres:17-alpine
     container_name: realm-postgres
     restart: unless-stopped
+    shm_size: 256mb
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -48,6 +79,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
 
 networks:
   caddy_net:
