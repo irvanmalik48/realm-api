@@ -50,7 +50,7 @@ func NewZstdEngine(storageDir string) (Engine, error) {
 		storageDir = "./data/storage"
 	}
 
-	if err := os.MkdirAll(storageDir, 0755); err != nil {
+	if err := os.MkdirAll(storageDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create storage directory: %w", err)
 	}
 
@@ -68,9 +68,9 @@ func (e *zstdEngine) webpFilePath(id uuid.UUID) string {
 }
 
 func (e *zstdEngine) Save(reader io.Reader, id uuid.UUID) (int64, int64, string, error) {
-	targetPath := e.FilePath(id)
+	targetPath := filepath.Clean(e.FilePath(id))
 
-	outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600) // #nosec G304 -- targetPath is constructed from UUID and configured storage directory
 	if err != nil {
 		return 0, 0, "", fmt.Errorf("failed to create storage file: %w", err)
 	}
@@ -104,9 +104,9 @@ func (e *zstdEngine) Save(reader io.Reader, id uuid.UUID) (int64, int64, string,
 }
 
 func (e *zstdEngine) Open(id uuid.UUID) (io.ReadCloser, error) {
-	targetPath := e.FilePath(id)
+	targetPath := filepath.Clean(e.FilePath(id))
 
-	file, err := os.Open(targetPath)
+	file, err := os.Open(targetPath) // #nosec G304 -- targetPath is constructed from UUID and configured storage directory
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, ErrFileNotFound
@@ -128,9 +128,9 @@ func (e *zstdEngine) Open(id uuid.UUID) (io.ReadCloser, error) {
 }
 
 func (e *zstdEngine) SaveWebP(id uuid.UUID, reader io.Reader) error {
-	targetPath := e.webpFilePath(id)
+	targetPath := filepath.Clean(e.webpFilePath(id))
 
-	outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600) // #nosec G304 -- targetPath is constructed from UUID and configured storage directory
 	if err != nil {
 		return fmt.Errorf("failed to create webp storage file: %w", err)
 	}
@@ -155,9 +155,9 @@ func (e *zstdEngine) SaveWebP(id uuid.UUID, reader io.Reader) error {
 }
 
 func (e *zstdEngine) OpenWebP(id uuid.UUID) (io.ReadCloser, error) {
-	targetPath := e.webpFilePath(id)
+	targetPath := filepath.Clean(e.webpFilePath(id))
 
-	file, err := os.Open(targetPath)
+	file, err := os.Open(targetPath) // #nosec G304 -- targetPath is constructed from UUID and configured storage directory
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, ErrFileNotFound
