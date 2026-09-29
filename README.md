@@ -328,6 +328,21 @@ make test
 go test -v ./...
 ```
 
+### Security & Vulnerability Auditing
+```bash
+# Run Gosec AST security scanner (excluding generated Protobuf code)
+make sec
+
+# Run Go vulnerability database scanner
+make vuln
+
+# Run both security checks
+make audit
+
+# Run test suite, Gosec, and Govulncheck
+make check
+```
+
 ### Building Binaries
 ```bash
 make build
