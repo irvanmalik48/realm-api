@@ -60,13 +60,13 @@ func (s *contactService) SendMessage(ctx context.Context, req *model.ContactRequ
 		if err := security.ValidateDiscordWebhookURL(s.cfg.DiscordWebhookURL); err != nil {
 			log.Printf("[Contact] SSRF guard blocked invalid Discord webhook: %v\n", err)
 		} else {
-			go func() {
-				notifyCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			go func(bgCtx context.Context) {
+				notifyCtx, cancel := context.WithTimeout(bgCtx, 10*time.Second)
 				defer cancel()
 				if err := s.sendDiscordNotification(notifyCtx, req); err != nil {
 					log.Printf("[Contact] Failed to send Discord notification: %v\n", err)
 				}
-			}()
+			}(context.WithoutCancel(ctx))
 		}
 	}
 
@@ -74,13 +74,13 @@ func (s *contactService) SendMessage(ctx context.Context, req *model.ContactRequ
 		if !security.ValidateTelegramBotToken(s.cfg.TelegramBotToken) {
 			log.Println("[Contact] SSRF guard blocked invalid Telegram bot token format")
 		} else {
-			go func() {
-				notifyCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			go func(bgCtx context.Context) {
+				notifyCtx, cancel := context.WithTimeout(bgCtx, 10*time.Second)
 				defer cancel()
 				if err := s.sendTelegramNotification(notifyCtx, req); err != nil {
 					log.Printf("[Contact] Failed to send Telegram notification: %v\n", err)
 				}
-			}()
+			}(context.WithoutCancel(ctx))
 		}
 	}
 
