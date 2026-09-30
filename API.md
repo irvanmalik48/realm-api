@@ -574,6 +574,48 @@ Deletes the compressed file from disk and its metadata from PostgreSQL.
 
 ---
 
+#### `POST /v1/storage/image-metadata` (or `GET /v1/storage/image-metadata?url=...`)
+Fetches an image from a URL, validates it against SSRF attacks, computes image dimensions, generates a Blurhash string, and produces a low-resolution base64 WebP `blurDataURL` for `next/image` standardization.
+
+- **Aliases**: `POST /v1/media/image-metadata`, `GET /v1/media/image-metadata`
+- **Request Body (`POST`)**:
+  ```json
+  {
+    "url": "https://images.unsplash.com/photo-1543163521-1bf539c55dd2"
+  }
+  ```
+- **Query Parameter (`GET`)**: `?url=https://...`
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "status": "success",
+    "src": "https://images.unsplash.com/photo-1543163521-1bf539c55dd2",
+    "width": 1200,
+    "height": 800,
+    "aspectRatio": 1.5,
+    "format": "jpeg",
+    "size": 104230,
+    "blurhash": "LEHV6nWB2yk8pyo0adR*.7kCMdnj",
+    "blurDataURL": "data:image/webp;base64,UklGRmYAAABXRUJQVlA4...",
+    "blurWidth": 16,
+    "blurHeight": 11,
+    "data": {
+      "src": "https://images.unsplash.com/photo-1543163521-1bf539c55dd2",
+      "width": 1200,
+      "height": 800,
+      "aspectRatio": 1.5,
+      "format": "jpeg",
+      "size": 104230,
+      "blurhash": "LEHV6nWB2yk8pyo0adR*.7kCMdnj",
+      "blurDataURL": "data:image/webp;base64,UklGRmYAAABXRUJQVlA4...",
+      "blurWidth": 16,
+      "blurHeight": 11
+    }
+  }
+  ```
+
+---
+
 ---
 
 ## Live OpenAPI 3.2.0 Specification & Documentation

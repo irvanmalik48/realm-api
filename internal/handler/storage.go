@@ -179,3 +179,50 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 		"status":  "success",
 	})
 }
+
+type ImageMetadataRequest struct {
+	URL string `json:"url" query:"url"`
+}
+
+func (h *StorageHandler) GetImageMetadata(c *fiber.Ctx) error {
+	var req ImageMetadataRequest
+	if c.Method() == fiber.MethodPost && len(c.Body()) > 0 {
+		if err := c.BodyParser(&req); err != nil {
+			return ErrorResponse(c, "Invalid JSON payload. Expected {\"url\": \"https://...\"}", http.StatusBadRequest)
+		}
+	}
+	if req.URL == "" {
+		req.URL = c.Query("url")
+	}
+
+	trimmedURL := strings.TrimSpace(req.URL)
+	if trimmedURL == "" {
+		return ErrorResponse(c, "Image URL is required. Provide 'url' in JSON body or as a query parameter.", http.StatusBadRequest)
+	}
+
+	meta, err := h.service.GetImageMetadataFromURL(c.Context(), trimmedURL)
+	if err != nil {
+		if errors.Is(err, storage.ErrInvalidURL) || errors.Is(err, storage.ErrSSRFForbidden) {
+			return ErrorResponse(c, err.Error(), http.StatusBadRequest)
+		}
+		if errors.Is(err, storage.ErrImageTooLarge) {
+			return ErrorResponse(c, err.Error(), http.StatusRequestEntityTooLarge)
+		}
+		return ErrorResponse(c, fmt.Sprintf("Failed to process image: %v", err), http.StatusUnprocessableEntity)
+	}
+
+	return c.Status(http.StatusOK).JSON(fiber.Map{
+		"status":      "success",
+		"src":         meta.Src,
+		"width":       meta.Width,
+		"height":      meta.Height,
+		"aspectRatio": meta.AspectRatio,
+		"format":      meta.Format,
+		"size":        meta.Size,
+		"blurhash":    meta.Blurhash,
+		"blurDataURL": meta.BlurDataURL,
+		"blurWidth":   meta.BlurWidth,
+		"blurHeight":  meta.BlurHeight,
+		"data":        meta,
+	})
+}

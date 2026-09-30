@@ -30,6 +30,7 @@ type StorageService interface {
 	GetAsWebP(ctx context.Context, id uuid.UUID) (*model.FileRecord, io.Reader, error)
 	GetInfo(ctx context.Context, id uuid.UUID) (*model.FileDTO, error)
 	Delete(ctx context.Context, id uuid.UUID) error
+	GetImageMetadataFromURL(ctx context.Context, targetURL string) (*storage.ImageMetadata, error)
 }
 
 type storageService struct {
@@ -285,4 +286,8 @@ func (s *storageService) recordToDTO(record *model.FileRecord) *model.FileDTO {
 		WebPURL:        webpURL,
 		CreatedAt:      record.CreatedAt,
 	}
+}
+
+func (s *storageService) GetImageMetadataFromURL(ctx context.Context, targetURL string) (*storage.ImageMetadata, error) {
+	return storage.FetchAndProcessImage(ctx, targetURL)
 }

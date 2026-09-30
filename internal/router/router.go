@@ -230,10 +230,17 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 
 	// Storage endpoints (Zstd-compressed, Blurhash, on-the-fly WebP)
 	storageGroup := v1.Group("/storage")
+	storageGroup.Post("/image-metadata", middleware.OptionalToken(tokenSvc, tokenLimiter), storageHdlr.GetImageMetadata)
+	storageGroup.Get("/image-metadata", middleware.OptionalToken(tokenSvc, tokenLimiter), storageHdlr.GetImageMetadata)
 	storageGroup.Post("/upload", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "storage:write"), storageHdlr.Upload)
 	storageGroup.Get("/:id", middleware.OptionalToken(tokenSvc, tokenLimiter), storageHdlr.GetFile)
 	storageGroup.Get("/:id/info", middleware.OptionalToken(tokenSvc, tokenLimiter), storageHdlr.GetFileInfo)
 	storageGroup.Delete("/:id", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "storage:write"), storageHdlr.DeleteFile)
+
+	// Media aliases
+	mediaGroup := v1.Group("/media")
+	mediaGroup.Post("/image-metadata", middleware.OptionalToken(tokenSvc, tokenLimiter), storageHdlr.GetImageMetadata)
+	mediaGroup.Get("/image-metadata", middleware.OptionalToken(tokenSvc, tokenLimiter), storageHdlr.GetImageMetadata)
 
 	// 404 Not Found fallback handler
 	app.Use(func(c *fiber.Ctx) error {
