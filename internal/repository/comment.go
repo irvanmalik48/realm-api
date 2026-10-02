@@ -16,6 +16,9 @@ type CommentRepository interface {
 	UpdateComment(ctx context.Context, commentID, userID uuid.UUID, content string) (*model.CommentDTO, error)
 	DeleteComment(ctx context.Context, commentID, userID uuid.UUID) error
 	GetCommentByID(ctx context.Context, commentID uuid.UUID) (*model.PostComment, error)
+	ListAll(ctx context.Context, limit, offset int, postSlug, search string) ([]model.CommentDTO, int, error)
+	AdminDelete(ctx context.Context, commentID uuid.UUID) error
+	AdminUpdate(ctx context.Context, commentID uuid.UUID, content string) (*model.CommentDTO, error)
 }
 
 type commentRepository struct {
@@ -224,3 +227,148 @@ func (r *commentRepository) GetCommentByID(ctx context.Context, commentID uuid.U
 	}
 	return &c, nil
 }
+
+func (r *commentRepository) ListAll(ctx context.Context, limit, offset int, postSlug, search string) ([]model.CommentDTO, int, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	whereClause := "WHERE 1=1"
+	args := []interface{}{}
+	argIdx := 1
+
+	if postSlug != "" {
+		whereClause += fmt.Sprintf(" AND c.post_slug = $%d", argIdx)
+		args = append(args, postSlug)
+		argIdx++
+	}
+
+	if search != "" {
+		whereClause += fmt.Sprintf(" AND (c.content ILIKE $%d OR u.username ILIKE $%d OR u.full_name ILIKE $%d)", argIdx, argIdx, argIdx)
+		args = append(args, "%"+search+"%")
+		argIdx++
+	}
+
+	countQuery := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM post_comments c
+		JOIN users u ON c.user_id = u.id
+		%s
+	`, whereClause)
+
+	var total int
+	if err := r.db.Pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("failed to count all comments: %w", err)
+	}
+
+	dataQuery := fmt.Sprintf(`
+		SELECT 
+			c.id, c.post_slug, c.user_id, c.parent_id, c.content, c.is_edited, c.created_at, c.updated_at,
+			u.id, u.username, u.full_name, u.avatar_url
+		FROM post_comments c
+		JOIN users u ON c.user_id = u.id
+		%s
+		ORDER BY c.created_at DESC
+		LIMIT $%d OFFSET $%d
+	`, whereClause, argIdx, argIdx+1)
+
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Pool.Query(ctx, dataQuery, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query all comments: %w", err)
+	}
+	defer rows.Close()
+
+	var comments []model.CommentDTO
+	for rows.Next() {
+		var c model.CommentDTO
+		var uID uuid.UUID
+		var uName, uFullName string
+		var uAvatarURL *string
+		var cUserID uuid.UUID
+
+		if err := rows.Scan(
+			&c.ID, &c.PostSlug, &cUserID, &c.ParentID, &c.Content, &c.IsEdited, &c.CreatedAt, &c.UpdatedAt,
+			&uID, &uName, &uFullName, &uAvatarURL,
+		); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan comment: %w", err)
+		}
+
+		c.Author = model.CommentAuthorDTO{
+			ID:        uID,
+			Username:  uName,
+			FullName:  uFullName,
+			AvatarURL: uAvatarURL,
+		}
+		c.Replies = make([]model.CommentDTO, 0)
+		comments = append(comments, c)
+	}
+
+	return comments, total, nil
+}
+
+func (r *commentRepository) AdminDelete(ctx context.Context, commentID uuid.UUID) error {
+	query := `DELETE FROM post_comments WHERE id = $1`
+	cmdTag, err := r.db.Pool.Exec(ctx, query, commentID)
+	if err != nil {
+		return fmt.Errorf("failed to delete comment: %w", err)
+	}
+	if cmdTag.RowsAffected() == 0 {
+		return fmt.Errorf("comment not found")
+	}
+	return nil
+}
+
+func (r *commentRepository) AdminUpdate(ctx context.Context, commentID uuid.UUID, content string) (*model.CommentDTO, error) {
+	query := `
+		WITH upd_comment AS (
+			UPDATE post_comments 
+			SET content = $1, is_edited = true, updated_at = NOW()
+			WHERE id = $2
+			RETURNING id, post_slug, user_id, parent_id, is_edited, created_at, updated_at
+		)
+		SELECT 
+			c.post_slug, c.user_id, c.parent_id, c.is_edited, c.created_at, c.updated_at,
+			u.username, u.full_name, u.avatar_url
+		FROM upd_comment c
+		JOIN users u ON c.user_id = u.id
+	`
+	var postSlug string
+	var userID uuid.UUID
+	var parentID *uuid.UUID
+	var isEdited bool
+	var createdAt, updatedAt time.Time
+	var uName, uFullName string
+	var uAvatarURL *string
+
+	err := r.db.Pool.QueryRow(ctx, query, content, commentID).
+		Scan(&postSlug, &userID, &parentID, &isEdited, &createdAt, &updatedAt, &uName, &uFullName, &uAvatarURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to admin update comment: %w", err)
+	}
+
+	return &model.CommentDTO{
+		ID:        commentID,
+		PostSlug:  postSlug,
+		ParentID:  parentID,
+		Content:   content,
+		IsEdited:  isEdited,
+		Author: model.CommentAuthorDTO{
+			ID:        userID,
+			Username:  uName,
+			FullName:  uFullName,
+			AvatarURL: uAvatarURL,
+		},
+		Replies:   make([]model.CommentDTO, 0),
+		CreatedAt: createdAt,
+		UpdatedAt: updatedAt,
+	}, nil
+}
+
