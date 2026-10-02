@@ -12,6 +12,8 @@ import (
 type ReactionRepository interface {
 	GetReactionsBySlug(ctx context.Context, slug string, userID *uuid.UUID) (*model.PostReactionsResponse, error)
 	ToggleReaction(ctx context.Context, slug string, reactionType string, userID uuid.UUID) (*model.ToggleReactionResponse, error)
+	GetSummaries(ctx context.Context, limit, offset int, search string) ([]model.ReactionSummaryDTO, error)
+	DeleteReaction(ctx context.Context, slug string, userID *uuid.UUID) error
 }
 
 type reactionRepository struct {
@@ -145,3 +147,101 @@ func (r *reactionRepository) ToggleReaction(ctx context.Context, slug string, re
 		UserReactions: summary.UserReactions,
 	}, nil
 }
+
+func (r *reactionRepository) GetSummaries(ctx context.Context, limit, offset int, search string) ([]model.ReactionSummaryDTO, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	whereClause := ""
+	args := []interface{}{}
+	if search != "" {
+		whereClause = "WHERE post_slug ILIKE $1"
+		args = append(args, "%"+search+"%")
+	}
+
+	query := fmt.Sprintf(`
+		SELECT post_slug, reaction_type, COUNT(*)
+		FROM post_reactions
+		%s
+		GROUP BY post_slug, reaction_type
+		ORDER BY post_slug ASC
+	`, whereClause)
+
+	rows, err := r.db.Pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query reactions summary: %w", err)
+	}
+	defer rows.Close()
+
+	summaryMap := make(map[string]map[string]int)
+	orderedSlugs := make([]string, 0)
+
+	for rows.Next() {
+		var slug, rType string
+		var count int
+		if err := rows.Scan(&slug, &rType, &count); err == nil {
+			if _, exists := summaryMap[slug]; !exists {
+				summaryMap[slug] = make(map[string]int)
+				for k := range model.AllowedReactionTypes {
+					summaryMap[slug][k] = 0
+				}
+				orderedSlugs = append(orderedSlugs, slug)
+			}
+			summaryMap[slug][rType] = count
+		}
+	}
+
+	// Apply pagination in memory over unique slugs
+	start := offset
+	if start > len(orderedSlugs) {
+		start = len(orderedSlugs)
+	}
+	end := start + limit
+	if end > len(orderedSlugs) {
+		end = len(orderedSlugs)
+	}
+	pagedSlugs := orderedSlugs[start:end]
+
+	results := make([]model.ReactionSummaryDTO, 0, len(pagedSlugs))
+	for _, slug := range pagedSlugs {
+		counts := summaryMap[slug]
+		total := 0
+		for _, c := range counts {
+			total += c
+		}
+		results = append(results, model.ReactionSummaryDTO{
+			Slug:       slug,
+			TotalCount: total,
+			Reactions:  counts,
+		})
+	}
+
+	return results, nil
+}
+
+func (r *reactionRepository) DeleteReaction(ctx context.Context, slug string, userID *uuid.UUID) error {
+	var query string
+	var args []interface{}
+
+	if userID != nil && *userID != uuid.Nil {
+		query = "DELETE FROM post_reactions WHERE post_slug = $1 AND user_id = $2"
+		args = []interface{}{slug, *userID}
+	} else {
+		query = "DELETE FROM post_reactions WHERE post_slug = $1"
+		args = []interface{}{slug}
+	}
+
+	_, err := r.db.Pool.Exec(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("failed to delete reaction: %w", err)
+	}
+	return nil
+}
+
