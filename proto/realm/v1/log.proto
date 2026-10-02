@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package realm.v1;
+
+option go_package = "github.com/irvanmalik48/realm-api/pkg/pb/realm/v1;realmv1";
+
+message LogEntry {
+  string id = 1;
+  string timestamp = 2;
+  string level = 3;
+  string message = 4;
+  string component = 5;
+  string trace_id = 6;
+  string span_id = 7;
+  string attributes_json = 8;
+}
+
+message GetLogsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  optional string level = 3;
+  optional string search = 4;
+  optional string trace_id = 5;
+}
+
+message GetLogsResponse {
+  int32 total = 1;
+  repeated LogEntry logs = 2;
+}
+
+message DeleteLogsRequest {
+  optional string before_timestamp = 1;
+  optional string log_id = 2;
+  bool clear_all = 3;
+}
+
+message DeleteLogsResponse {
+  int64 deleted_count = 1;
+  string status = 2;
+  string message = 3;
+}
+
+message StreamLogsRequest {
+  optional string level = 1;
+  optional string search = 2;
+}
+
+service LogService {
+  rpc GetLogs(GetLogsRequest) returns (GetLogsResponse);
+  rpc DeleteLogs(DeleteLogsRequest) returns (DeleteLogsResponse);
+  rpc StreamLogs(StreamLogsRequest) returns (stream LogEntry);
+}
