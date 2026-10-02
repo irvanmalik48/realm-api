@@ -60,9 +60,33 @@ message DeleteCommentResponse {
   string message = 2;
 }
 
+message ListAllCommentsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  optional string post_slug = 3;
+  optional string search = 4;
+}
+
+message ListAllCommentsResponse {
+  int32 total_count = 1;
+  repeated Comment comments = 2;
+}
+
+message AdminDeleteCommentRequest {
+  string id = 1;
+}
+
+message AdminUpdateCommentRequest {
+  string id = 1;
+  string content = 2;
+}
+
 service CommentService {
   rpc GetComments(GetCommentsRequest) returns (GetCommentsResponse);
   rpc CreateComment(CreateCommentRequest) returns (CommentResponse);
   rpc UpdateComment(UpdateCommentRequest) returns (CommentResponse);
   rpc DeleteComment(DeleteCommentRequest) returns (DeleteCommentResponse);
+  rpc ListAllComments(ListAllCommentsRequest) returns (ListAllCommentsResponse);
+  rpc AdminDeleteComment(AdminDeleteCommentRequest) returns (DeleteCommentResponse);
+  rpc AdminUpdateComment(AdminUpdateCommentRequest) returns (CommentResponse);
 }
