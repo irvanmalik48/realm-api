@@ -577,6 +577,222 @@ func (x *DeleteCommentResponse) GetMessage() string {
 	return ""
 }
 
+type ListAllCommentsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
+	PostSlug      *string                `protobuf:"bytes,3,opt,name=post_slug,json=postSlug,proto3,oneof" json:"post_slug,omitempty"`
+	Search        *string                `protobuf:"bytes,4,opt,name=search,proto3,oneof" json:"search,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAllCommentsRequest) Reset() {
+	*x = ListAllCommentsRequest{}
+	mi := &file_realm_v1_comment_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAllCommentsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAllCommentsRequest) ProtoMessage() {}
+
+func (x *ListAllCommentsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_comment_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAllCommentsRequest.ProtoReflect.Descriptor instead.
+func (*ListAllCommentsRequest) Descriptor() ([]byte, []int) {
+	return file_realm_v1_comment_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ListAllCommentsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListAllCommentsRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *ListAllCommentsRequest) GetPostSlug() string {
+	if x != nil && x.PostSlug != nil {
+		return *x.PostSlug
+	}
+	return ""
+}
+
+func (x *ListAllCommentsRequest) GetSearch() string {
+	if x != nil && x.Search != nil {
+		return *x.Search
+	}
+	return ""
+}
+
+type ListAllCommentsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TotalCount    int32                  `protobuf:"varint,1,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	Comments      []*Comment             `protobuf:"bytes,2,rep,name=comments,proto3" json:"comments,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListAllCommentsResponse) Reset() {
+	*x = ListAllCommentsResponse{}
+	mi := &file_realm_v1_comment_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListAllCommentsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListAllCommentsResponse) ProtoMessage() {}
+
+func (x *ListAllCommentsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_comment_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListAllCommentsResponse.ProtoReflect.Descriptor instead.
+func (*ListAllCommentsResponse) Descriptor() ([]byte, []int) {
+	return file_realm_v1_comment_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ListAllCommentsResponse) GetTotalCount() int32 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
+func (x *ListAllCommentsResponse) GetComments() []*Comment {
+	if x != nil {
+		return x.Comments
+	}
+	return nil
+}
+
+type AdminDeleteCommentRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdminDeleteCommentRequest) Reset() {
+	*x = AdminDeleteCommentRequest{}
+	mi := &file_realm_v1_comment_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdminDeleteCommentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdminDeleteCommentRequest) ProtoMessage() {}
+
+func (x *AdminDeleteCommentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_comment_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdminDeleteCommentRequest.ProtoReflect.Descriptor instead.
+func (*AdminDeleteCommentRequest) Descriptor() ([]byte, []int) {
+	return file_realm_v1_comment_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *AdminDeleteCommentRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type AdminUpdateCommentRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Content       string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdminUpdateCommentRequest) Reset() {
+	*x = AdminUpdateCommentRequest{}
+	mi := &file_realm_v1_comment_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdminUpdateCommentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdminUpdateCommentRequest) ProtoMessage() {}
+
+func (x *AdminUpdateCommentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_comment_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdminUpdateCommentRequest.ProtoReflect.Descriptor instead.
+func (*AdminUpdateCommentRequest) Descriptor() ([]byte, []int) {
+	return file_realm_v1_comment_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *AdminUpdateCommentRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *AdminUpdateCommentRequest) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
 var File_realm_v1_comment_proto protoreflect.FileDescriptor
 
 const file_realm_v1_comment_proto_rawDesc = "" +
@@ -631,12 +847,32 @@ const file_realm_v1_comment_proto_rawDesc = "" +
 	"\b_message\"I\n" +
 	"\x15DeleteCommentResponse\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2\xc6\x02\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x9e\x01\n" +
+	"\x16ListAllCommentsRequest\x12\x14\n" +
+	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x02 \x01(\x05R\x06offset\x12 \n" +
+	"\tpost_slug\x18\x03 \x01(\tH\x00R\bpostSlug\x88\x01\x01\x12\x1b\n" +
+	"\x06search\x18\x04 \x01(\tH\x01R\x06search\x88\x01\x01B\f\n" +
+	"\n" +
+	"_post_slugB\t\n" +
+	"\a_search\"i\n" +
+	"\x17ListAllCommentsResponse\x12\x1f\n" +
+	"\vtotal_count\x18\x01 \x01(\x05R\n" +
+	"totalCount\x12-\n" +
+	"\bcomments\x18\x02 \x03(\v2\x11.realm.v1.CommentR\bcomments\"+\n" +
+	"\x19AdminDeleteCommentRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"E\n" +
+	"\x19AdminUpdateCommentRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent2\xd0\x04\n" +
 	"\x0eCommentService\x12J\n" +
 	"\vGetComments\x12\x1c.realm.v1.GetCommentsRequest\x1a\x1d.realm.v1.GetCommentsResponse\x12J\n" +
 	"\rCreateComment\x12\x1e.realm.v1.CreateCommentRequest\x1a\x19.realm.v1.CommentResponse\x12J\n" +
 	"\rUpdateComment\x12\x1e.realm.v1.UpdateCommentRequest\x1a\x19.realm.v1.CommentResponse\x12P\n" +
-	"\rDeleteComment\x12\x1e.realm.v1.DeleteCommentRequest\x1a\x1f.realm.v1.DeleteCommentResponseB;Z9github.com/irvanmalik48/realm-api/pkg/pb/realm/v1;realmv1b\x06proto3"
+	"\rDeleteComment\x12\x1e.realm.v1.DeleteCommentRequest\x1a\x1f.realm.v1.DeleteCommentResponse\x12V\n" +
+	"\x0fListAllComments\x12 .realm.v1.ListAllCommentsRequest\x1a!.realm.v1.ListAllCommentsResponse\x12Z\n" +
+	"\x12AdminDeleteComment\x12#.realm.v1.AdminDeleteCommentRequest\x1a\x1f.realm.v1.DeleteCommentResponse\x12T\n" +
+	"\x12AdminUpdateComment\x12#.realm.v1.AdminUpdateCommentRequest\x1a\x19.realm.v1.CommentResponseB;Z9github.com/irvanmalik48/realm-api/pkg/pb/realm/v1;realmv1b\x06proto3"
 
 var (
 	file_realm_v1_comment_proto_rawDescOnce sync.Once
@@ -650,36 +886,47 @@ func file_realm_v1_comment_proto_rawDescGZIP() []byte {
 	return file_realm_v1_comment_proto_rawDescData
 }
 
-var file_realm_v1_comment_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_realm_v1_comment_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_realm_v1_comment_proto_goTypes = []any{
-	(*CommentAuthor)(nil),         // 0: realm.v1.CommentAuthor
-	(*Comment)(nil),               // 1: realm.v1.Comment
-	(*GetCommentsRequest)(nil),    // 2: realm.v1.GetCommentsRequest
-	(*GetCommentsResponse)(nil),   // 3: realm.v1.GetCommentsResponse
-	(*CreateCommentRequest)(nil),  // 4: realm.v1.CreateCommentRequest
-	(*UpdateCommentRequest)(nil),  // 5: realm.v1.UpdateCommentRequest
-	(*DeleteCommentRequest)(nil),  // 6: realm.v1.DeleteCommentRequest
-	(*CommentResponse)(nil),       // 7: realm.v1.CommentResponse
-	(*DeleteCommentResponse)(nil), // 8: realm.v1.DeleteCommentResponse
+	(*CommentAuthor)(nil),             // 0: realm.v1.CommentAuthor
+	(*Comment)(nil),                   // 1: realm.v1.Comment
+	(*GetCommentsRequest)(nil),        // 2: realm.v1.GetCommentsRequest
+	(*GetCommentsResponse)(nil),       // 3: realm.v1.GetCommentsResponse
+	(*CreateCommentRequest)(nil),      // 4: realm.v1.CreateCommentRequest
+	(*UpdateCommentRequest)(nil),      // 5: realm.v1.UpdateCommentRequest
+	(*DeleteCommentRequest)(nil),      // 6: realm.v1.DeleteCommentRequest
+	(*CommentResponse)(nil),           // 7: realm.v1.CommentResponse
+	(*DeleteCommentResponse)(nil),     // 8: realm.v1.DeleteCommentResponse
+	(*ListAllCommentsRequest)(nil),    // 9: realm.v1.ListAllCommentsRequest
+	(*ListAllCommentsResponse)(nil),   // 10: realm.v1.ListAllCommentsResponse
+	(*AdminDeleteCommentRequest)(nil), // 11: realm.v1.AdminDeleteCommentRequest
+	(*AdminUpdateCommentRequest)(nil), // 12: realm.v1.AdminUpdateCommentRequest
 }
 var file_realm_v1_comment_proto_depIdxs = []int32{
-	0, // 0: realm.v1.Comment.author:type_name -> realm.v1.CommentAuthor
-	1, // 1: realm.v1.Comment.replies:type_name -> realm.v1.Comment
-	1, // 2: realm.v1.GetCommentsResponse.comments:type_name -> realm.v1.Comment
-	1, // 3: realm.v1.CommentResponse.comment:type_name -> realm.v1.Comment
-	2, // 4: realm.v1.CommentService.GetComments:input_type -> realm.v1.GetCommentsRequest
-	4, // 5: realm.v1.CommentService.CreateComment:input_type -> realm.v1.CreateCommentRequest
-	5, // 6: realm.v1.CommentService.UpdateComment:input_type -> realm.v1.UpdateCommentRequest
-	6, // 7: realm.v1.CommentService.DeleteComment:input_type -> realm.v1.DeleteCommentRequest
-	3, // 8: realm.v1.CommentService.GetComments:output_type -> realm.v1.GetCommentsResponse
-	7, // 9: realm.v1.CommentService.CreateComment:output_type -> realm.v1.CommentResponse
-	7, // 10: realm.v1.CommentService.UpdateComment:output_type -> realm.v1.CommentResponse
-	8, // 11: realm.v1.CommentService.DeleteComment:output_type -> realm.v1.DeleteCommentResponse
-	8, // [8:12] is the sub-list for method output_type
-	4, // [4:8] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	0,  // 0: realm.v1.Comment.author:type_name -> realm.v1.CommentAuthor
+	1,  // 1: realm.v1.Comment.replies:type_name -> realm.v1.Comment
+	1,  // 2: realm.v1.GetCommentsResponse.comments:type_name -> realm.v1.Comment
+	1,  // 3: realm.v1.CommentResponse.comment:type_name -> realm.v1.Comment
+	1,  // 4: realm.v1.ListAllCommentsResponse.comments:type_name -> realm.v1.Comment
+	2,  // 5: realm.v1.CommentService.GetComments:input_type -> realm.v1.GetCommentsRequest
+	4,  // 6: realm.v1.CommentService.CreateComment:input_type -> realm.v1.CreateCommentRequest
+	5,  // 7: realm.v1.CommentService.UpdateComment:input_type -> realm.v1.UpdateCommentRequest
+	6,  // 8: realm.v1.CommentService.DeleteComment:input_type -> realm.v1.DeleteCommentRequest
+	9,  // 9: realm.v1.CommentService.ListAllComments:input_type -> realm.v1.ListAllCommentsRequest
+	11, // 10: realm.v1.CommentService.AdminDeleteComment:input_type -> realm.v1.AdminDeleteCommentRequest
+	12, // 11: realm.v1.CommentService.AdminUpdateComment:input_type -> realm.v1.AdminUpdateCommentRequest
+	3,  // 12: realm.v1.CommentService.GetComments:output_type -> realm.v1.GetCommentsResponse
+	7,  // 13: realm.v1.CommentService.CreateComment:output_type -> realm.v1.CommentResponse
+	7,  // 14: realm.v1.CommentService.UpdateComment:output_type -> realm.v1.CommentResponse
+	8,  // 15: realm.v1.CommentService.DeleteComment:output_type -> realm.v1.DeleteCommentResponse
+	10, // 16: realm.v1.CommentService.ListAllComments:output_type -> realm.v1.ListAllCommentsResponse
+	8,  // 17: realm.v1.CommentService.AdminDeleteComment:output_type -> realm.v1.DeleteCommentResponse
+	7,  // 18: realm.v1.CommentService.AdminUpdateComment:output_type -> realm.v1.CommentResponse
+	12, // [12:19] is the sub-list for method output_type
+	5,  // [5:12] is the sub-list for method input_type
+	5,  // [5:5] is the sub-list for extension type_name
+	5,  // [5:5] is the sub-list for extension extendee
+	0,  // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_realm_v1_comment_proto_init() }
@@ -691,13 +938,14 @@ func file_realm_v1_comment_proto_init() {
 	file_realm_v1_comment_proto_msgTypes[1].OneofWrappers = []any{}
 	file_realm_v1_comment_proto_msgTypes[4].OneofWrappers = []any{}
 	file_realm_v1_comment_proto_msgTypes[7].OneofWrappers = []any{}
+	file_realm_v1_comment_proto_msgTypes[9].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_realm_v1_comment_proto_rawDesc), len(file_realm_v1_comment_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
