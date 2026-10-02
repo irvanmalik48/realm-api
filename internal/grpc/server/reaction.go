@@ -101,3 +101,53 @@ func (s *ReactionServer) ToggleReaction(ctx context.Context, req *realmv1.Toggle
 		UserReactions: resp.UserReactions,
 	}, nil
 }
+
+func (s *ReactionServer) GetReactionsSummary(ctx context.Context, req *realmv1.GetReactionsSummaryRequest) (*realmv1.GetReactionsSummaryResponse, error) {
+	summaries, err := s.reactionSvc.GetSummaries(ctx, int(req.GetLimit()), int(req.GetOffset()), req.GetSearch())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to get reactions summary: %v", err)
+	}
+
+	pbSummaries := make([]*realmv1.ReactionSummary, 0, len(summaries))
+	for _, sum := range summaries {
+		rMap := make(map[string]int32)
+		for k, v := range sum.Reactions {
+			rMap[k] = int32(v)
+		}
+		pbSummaries = append(pbSummaries, &realmv1.ReactionSummary{
+			Slug:       sum.Slug,
+			TotalCount: int32(sum.TotalCount),
+			Reactions:  rMap,
+		})
+	}
+
+	return &realmv1.GetReactionsSummaryResponse{
+		Summaries: pbSummaries,
+	}, nil
+}
+
+func (s *ReactionServer) DeleteReaction(ctx context.Context, req *realmv1.DeleteReactionRequest) (*realmv1.DeleteReactionResponse, error) {
+	slug := req.GetSlug()
+	if slug == "" {
+		return nil, status.Error(codes.InvalidArgument, "Slug is required")
+	}
+
+	var userIDPtr *uuid.UUID
+	if req.UserId != nil && *req.UserId != "" {
+		id, err := uuid.Parse(*req.UserId)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "Invalid user ID")
+		}
+		userIDPtr = &id
+	}
+
+	if err := s.reactionSvc.DeleteReaction(ctx, slug, userIDPtr); err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to delete reaction: %v", err)
+	}
+
+	return &realmv1.DeleteReactionResponse{
+		Status:  "success",
+		Message: "Reaction deleted successfully",
+	}, nil
+}
+
