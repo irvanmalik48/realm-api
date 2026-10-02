@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/irvanmalik48/realm-api/internal/config"
 	"github.com/irvanmalik48/realm-api/internal/model"
 	"github.com/irvanmalik48/realm-api/internal/repository"
@@ -20,6 +21,8 @@ import (
 
 type ContactService interface {
 	SendMessage(ctx context.Context, req *model.ContactRequest, ipAddress, userAgent string) (*model.ContactSubmission, error)
+	ListSubmissions(ctx context.Context, limit, offset int, search string) ([]model.ContactSubmission, int, error)
+	DeleteSubmission(ctx context.Context, id uuid.UUID) error
 }
 
 type contactService struct {
@@ -163,3 +166,18 @@ func (s *contactService) sendTelegramNotification(ctx context.Context, req *mode
 
 	return nil
 }
+
+func (s *contactService) ListSubmissions(ctx context.Context, limit, offset int, search string) ([]model.ContactSubmission, int, error) {
+	if s.repo == nil {
+		return nil, 0, fmt.Errorf("contact repository unavailable")
+	}
+	return s.repo.List(ctx, limit, offset, search)
+}
+
+func (s *contactService) DeleteSubmission(ctx context.Context, id uuid.UUID) error {
+	if s.repo == nil {
+		return fmt.Errorf("contact repository unavailable")
+	}
+	return s.repo.Delete(ctx, id)
+}
+
