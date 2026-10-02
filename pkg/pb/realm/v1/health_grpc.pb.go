@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	HealthService_GetHealth_FullMethodName = "/realm.v1.HealthService/GetHealth"
+	HealthService_GetHealth_FullMethodName            = "/realm.v1.HealthService/GetHealth"
+	HealthService_GetDetailedTelemetry_FullMethodName = "/realm.v1.HealthService/GetDetailedTelemetry"
 )
 
 // HealthServiceClient is the client API for HealthService service.
@@ -27,6 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type HealthServiceClient interface {
 	GetHealth(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error)
+	GetDetailedTelemetry(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*DetailedTelemetryResponse, error)
 }
 
 type healthServiceClient struct {
@@ -47,11 +49,22 @@ func (c *healthServiceClient) GetHealth(ctx context.Context, in *HealthRequest, 
 	return out, nil
 }
 
+func (c *healthServiceClient) GetDetailedTelemetry(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*DetailedTelemetryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DetailedTelemetryResponse)
+	err := c.cc.Invoke(ctx, HealthService_GetDetailedTelemetry_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // HealthServiceServer is the server API for HealthService service.
 // All implementations must embed UnimplementedHealthServiceServer
 // for forward compatibility.
 type HealthServiceServer interface {
 	GetHealth(context.Context, *HealthRequest) (*HealthResponse, error)
+	GetDetailedTelemetry(context.Context, *HealthRequest) (*DetailedTelemetryResponse, error)
 	mustEmbedUnimplementedHealthServiceServer()
 }
 
@@ -64,6 +77,9 @@ type UnimplementedHealthServiceServer struct{}
 
 func (UnimplementedHealthServiceServer) GetHealth(context.Context, *HealthRequest) (*HealthResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetHealth not implemented")
+}
+func (UnimplementedHealthServiceServer) GetDetailedTelemetry(context.Context, *HealthRequest) (*DetailedTelemetryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetDetailedTelemetry not implemented")
 }
 func (UnimplementedHealthServiceServer) mustEmbedUnimplementedHealthServiceServer() {}
 func (UnimplementedHealthServiceServer) testEmbeddedByValue()                       {}
@@ -104,6 +120,24 @@ func _HealthService_GetHealth_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _HealthService_GetDetailedTelemetry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HealthRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(HealthServiceServer).GetDetailedTelemetry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: HealthService_GetDetailedTelemetry_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(HealthServiceServer).GetDetailedTelemetry(ctx, req.(*HealthRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // HealthService_ServiceDesc is the grpc.ServiceDesc for HealthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -114,6 +148,10 @@ var HealthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetHealth",
 			Handler:    _HealthService_GetHealth_Handler,
+		},
+		{
+			MethodName: "GetDetailedTelemetry",
+			Handler:    _HealthService_GetDetailedTelemetry_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
