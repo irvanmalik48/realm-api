@@ -21,6 +21,106 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type ContactSubmission struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Email         string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
+	Subject       string                 `protobuf:"bytes,4,opt,name=subject,proto3" json:"subject,omitempty"`
+	Message       string                 `protobuf:"bytes,5,opt,name=message,proto3" json:"message,omitempty"`
+	IpAddress     string                 `protobuf:"bytes,6,opt,name=ip_address,json=ipAddress,proto3" json:"ip_address,omitempty"`
+	UserAgent     string                 `protobuf:"bytes,7,opt,name=user_agent,json=userAgent,proto3" json:"user_agent,omitempty"`
+	CreatedAt     string                 `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ContactSubmission) Reset() {
+	*x = ContactSubmission{}
+	mi := &file_realm_v1_contact_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContactSubmission) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContactSubmission) ProtoMessage() {}
+
+func (x *ContactSubmission) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_contact_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContactSubmission.ProtoReflect.Descriptor instead.
+func (*ContactSubmission) Descriptor() ([]byte, []int) {
+	return file_realm_v1_contact_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *ContactSubmission) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ContactSubmission) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ContactSubmission) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *ContactSubmission) GetSubject() string {
+	if x != nil {
+		return x.Subject
+	}
+	return ""
+}
+
+func (x *ContactSubmission) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *ContactSubmission) GetIpAddress() string {
+	if x != nil {
+		return x.IpAddress
+	}
+	return ""
+}
+
+func (x *ContactSubmission) GetUserAgent() string {
+	if x != nil {
+		return x.UserAgent
+	}
+	return ""
+}
+
+func (x *ContactSubmission) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
 type SendMessageRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -36,7 +136,7 @@ type SendMessageRequest struct {
 
 func (x *SendMessageRequest) Reset() {
 	*x = SendMessageRequest{}
-	mi := &file_realm_v1_contact_proto_msgTypes[0]
+	mi := &file_realm_v1_contact_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -48,7 +148,7 @@ func (x *SendMessageRequest) String() string {
 func (*SendMessageRequest) ProtoMessage() {}
 
 func (x *SendMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_realm_v1_contact_proto_msgTypes[0]
+	mi := &file_realm_v1_contact_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61,7 +161,7 @@ func (x *SendMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendMessageRequest.ProtoReflect.Descriptor instead.
 func (*SendMessageRequest) Descriptor() ([]byte, []int) {
-	return file_realm_v1_contact_proto_rawDescGZIP(), []int{0}
+	return file_realm_v1_contact_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *SendMessageRequest) GetName() string {
@@ -123,7 +223,7 @@ type SendMessageResponse struct {
 
 func (x *SendMessageResponse) Reset() {
 	*x = SendMessageResponse{}
-	mi := &file_realm_v1_contact_proto_msgTypes[1]
+	mi := &file_realm_v1_contact_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -135,7 +235,7 @@ func (x *SendMessageResponse) String() string {
 func (*SendMessageResponse) ProtoMessage() {}
 
 func (x *SendMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_realm_v1_contact_proto_msgTypes[1]
+	mi := &file_realm_v1_contact_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -148,7 +248,7 @@ func (x *SendMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendMessageResponse.ProtoReflect.Descriptor instead.
 func (*SendMessageResponse) Descriptor() ([]byte, []int) {
-	return file_realm_v1_contact_proto_rawDescGZIP(), []int{1}
+	return file_realm_v1_contact_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *SendMessageResponse) GetStatus() string {
@@ -165,11 +265,231 @@ func (x *SendMessageResponse) GetMessage() string {
 	return ""
 }
 
+type ListSubmissionsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
+	Search        *string                `protobuf:"bytes,3,opt,name=search,proto3,oneof" json:"search,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSubmissionsRequest) Reset() {
+	*x = ListSubmissionsRequest{}
+	mi := &file_realm_v1_contact_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSubmissionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSubmissionsRequest) ProtoMessage() {}
+
+func (x *ListSubmissionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_contact_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSubmissionsRequest.ProtoReflect.Descriptor instead.
+func (*ListSubmissionsRequest) Descriptor() ([]byte, []int) {
+	return file_realm_v1_contact_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ListSubmissionsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListSubmissionsRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *ListSubmissionsRequest) GetSearch() string {
+	if x != nil && x.Search != nil {
+		return *x.Search
+	}
+	return ""
+}
+
+type ListSubmissionsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Total         int32                  `protobuf:"varint,1,opt,name=total,proto3" json:"total,omitempty"`
+	Submissions   []*ContactSubmission   `protobuf:"bytes,2,rep,name=submissions,proto3" json:"submissions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSubmissionsResponse) Reset() {
+	*x = ListSubmissionsResponse{}
+	mi := &file_realm_v1_contact_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSubmissionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSubmissionsResponse) ProtoMessage() {}
+
+func (x *ListSubmissionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_contact_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSubmissionsResponse.ProtoReflect.Descriptor instead.
+func (*ListSubmissionsResponse) Descriptor() ([]byte, []int) {
+	return file_realm_v1_contact_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ListSubmissionsResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ListSubmissionsResponse) GetSubmissions() []*ContactSubmission {
+	if x != nil {
+		return x.Submissions
+	}
+	return nil
+}
+
+type DeleteSubmissionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteSubmissionRequest) Reset() {
+	*x = DeleteSubmissionRequest{}
+	mi := &file_realm_v1_contact_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteSubmissionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteSubmissionRequest) ProtoMessage() {}
+
+func (x *DeleteSubmissionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_contact_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteSubmissionRequest.ProtoReflect.Descriptor instead.
+func (*DeleteSubmissionRequest) Descriptor() ([]byte, []int) {
+	return file_realm_v1_contact_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *DeleteSubmissionRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type DeleteSubmissionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteSubmissionResponse) Reset() {
+	*x = DeleteSubmissionResponse{}
+	mi := &file_realm_v1_contact_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteSubmissionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteSubmissionResponse) ProtoMessage() {}
+
+func (x *DeleteSubmissionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_contact_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteSubmissionResponse.ProtoReflect.Descriptor instead.
+func (*DeleteSubmissionResponse) Descriptor() ([]byte, []int) {
+	return file_realm_v1_contact_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *DeleteSubmissionResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *DeleteSubmissionResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 var File_realm_v1_contact_proto protoreflect.FileDescriptor
 
 const file_realm_v1_contact_proto_rawDesc = "" +
 	"\n" +
-	"\x16realm/v1/contact.proto\x12\brealm.v1\"\xc8\x01\n" +
+	"\x16realm/v1/contact.proto\x12\brealm.v1\"\xde\x01\n" +
+	"\x11ContactSubmission\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
+	"\x05email\x18\x03 \x01(\tR\x05email\x12\x18\n" +
+	"\asubject\x18\x04 \x01(\tR\asubject\x12\x18\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage\x12\x1d\n" +
+	"\n" +
+	"ip_address\x18\x06 \x01(\tR\tipAddress\x12\x1d\n" +
+	"\n" +
+	"user_agent\x18\a \x01(\tR\tuserAgent\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\b \x01(\tR\tcreatedAt\"\xc8\x01\n" +
 	"\x12SendMessageRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x18\n" +
@@ -182,9 +502,24 @@ const file_realm_v1_contact_proto_rawDesc = "" +
 	"user_agent\x18\a \x01(\tR\tuserAgent\"G\n" +
 	"\x13SendMessageResponse\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2\\\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"n\n" +
+	"\x16ListSubmissionsRequest\x12\x14\n" +
+	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x02 \x01(\x05R\x06offset\x12\x1b\n" +
+	"\x06search\x18\x03 \x01(\tH\x00R\x06search\x88\x01\x01B\t\n" +
+	"\a_search\"n\n" +
+	"\x17ListSubmissionsResponse\x12\x14\n" +
+	"\x05total\x18\x01 \x01(\x05R\x05total\x12=\n" +
+	"\vsubmissions\x18\x02 \x03(\v2\x1b.realm.v1.ContactSubmissionR\vsubmissions\")\n" +
+	"\x17DeleteSubmissionRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"L\n" +
+	"\x18DeleteSubmissionResponse\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage2\x8f\x02\n" +
 	"\x0eContactService\x12J\n" +
-	"\vSendMessage\x12\x1c.realm.v1.SendMessageRequest\x1a\x1d.realm.v1.SendMessageResponseB;Z9github.com/irvanmalik48/realm-api/pkg/pb/realm/v1;realmv1b\x06proto3"
+	"\vSendMessage\x12\x1c.realm.v1.SendMessageRequest\x1a\x1d.realm.v1.SendMessageResponse\x12V\n" +
+	"\x0fListSubmissions\x12 .realm.v1.ListSubmissionsRequest\x1a!.realm.v1.ListSubmissionsResponse\x12Y\n" +
+	"\x10DeleteSubmission\x12!.realm.v1.DeleteSubmissionRequest\x1a\".realm.v1.DeleteSubmissionResponseB;Z9github.com/irvanmalik48/realm-api/pkg/pb/realm/v1;realmv1b\x06proto3"
 
 var (
 	file_realm_v1_contact_proto_rawDescOnce sync.Once
@@ -198,19 +533,29 @@ func file_realm_v1_contact_proto_rawDescGZIP() []byte {
 	return file_realm_v1_contact_proto_rawDescData
 }
 
-var file_realm_v1_contact_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_realm_v1_contact_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_realm_v1_contact_proto_goTypes = []any{
-	(*SendMessageRequest)(nil),  // 0: realm.v1.SendMessageRequest
-	(*SendMessageResponse)(nil), // 1: realm.v1.SendMessageResponse
+	(*ContactSubmission)(nil),        // 0: realm.v1.ContactSubmission
+	(*SendMessageRequest)(nil),       // 1: realm.v1.SendMessageRequest
+	(*SendMessageResponse)(nil),      // 2: realm.v1.SendMessageResponse
+	(*ListSubmissionsRequest)(nil),   // 3: realm.v1.ListSubmissionsRequest
+	(*ListSubmissionsResponse)(nil),  // 4: realm.v1.ListSubmissionsResponse
+	(*DeleteSubmissionRequest)(nil),  // 5: realm.v1.DeleteSubmissionRequest
+	(*DeleteSubmissionResponse)(nil), // 6: realm.v1.DeleteSubmissionResponse
 }
 var file_realm_v1_contact_proto_depIdxs = []int32{
-	0, // 0: realm.v1.ContactService.SendMessage:input_type -> realm.v1.SendMessageRequest
-	1, // 1: realm.v1.ContactService.SendMessage:output_type -> realm.v1.SendMessageResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0, // 0: realm.v1.ListSubmissionsResponse.submissions:type_name -> realm.v1.ContactSubmission
+	1, // 1: realm.v1.ContactService.SendMessage:input_type -> realm.v1.SendMessageRequest
+	3, // 2: realm.v1.ContactService.ListSubmissions:input_type -> realm.v1.ListSubmissionsRequest
+	5, // 3: realm.v1.ContactService.DeleteSubmission:input_type -> realm.v1.DeleteSubmissionRequest
+	2, // 4: realm.v1.ContactService.SendMessage:output_type -> realm.v1.SendMessageResponse
+	4, // 5: realm.v1.ContactService.ListSubmissions:output_type -> realm.v1.ListSubmissionsResponse
+	6, // 6: realm.v1.ContactService.DeleteSubmission:output_type -> realm.v1.DeleteSubmissionResponse
+	4, // [4:7] is the sub-list for method output_type
+	1, // [1:4] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_realm_v1_contact_proto_init() }
@@ -218,13 +563,14 @@ func file_realm_v1_contact_proto_init() {
 	if File_realm_v1_contact_proto != nil {
 		return
 	}
+	file_realm_v1_contact_proto_msgTypes[3].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_realm_v1_contact_proto_rawDesc), len(file_realm_v1_contact_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
