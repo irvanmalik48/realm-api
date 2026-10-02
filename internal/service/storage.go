@@ -31,6 +31,9 @@ type StorageService interface {
 	GetInfo(ctx context.Context, id uuid.UUID) (*model.FileDTO, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	GetImageMetadataFromURL(ctx context.Context, targetURL string) (*storage.ImageMetadata, error)
+	List(ctx context.Context, limit, offset int, search, backend string) ([]model.FileDTO, int, error)
+	GetStorageStats(ctx context.Context) (*model.StorageStatsDTO, error)
+	GeneratePresignedURL(ctx context.Context, id uuid.UUID, expiry time.Duration) (string, time.Time, error)
 }
 
 type storageService struct {
@@ -118,6 +121,16 @@ func (s *storageService) Upload(ctx context.Context, filename string, reader io.
 		sanitizedFilename = fmt.Sprintf("file-%s", fileID.String())
 	}
 
+	backend := "local"
+	var s3Bucket, s3Key *string
+	if s3Eng, ok := s.engine.(storage.S3Engine); ok {
+		backend = "s3"
+		b := s3Eng.BucketName()
+		k := s3Eng.FilePath(fileID)
+		s3Bucket = &b
+		s3Key = &k
+	}
+
 	record := &model.FileRecord{
 		ID:                   fileID,
 		Filename:             sanitizedFilename,
@@ -130,6 +143,9 @@ func (s *storageService) Upload(ctx context.Context, filename string, reader io.
 		Width:                width,
 		Height:               height,
 		IsPublic:             true,
+		StorageBackend:       backend,
+		S3Bucket:             s3Bucket,
+		S3Key:                s3Key,
 		CreatedAt:            time.Now().UTC(),
 	}
 
@@ -284,8 +300,72 @@ func (s *storageService) recordToDTO(record *model.FileRecord) *model.FileDTO {
 		Height:         record.Height,
 		URL:            fileURL,
 		WebPURL:        webpURL,
+		StorageBackend: record.StorageBackend,
+		S3Bucket:       record.S3Bucket,
+		S3Key:          record.S3Key,
+		S3ETag:         record.S3ETag,
 		CreatedAt:      record.CreatedAt,
 	}
+}
+
+func (s *storageService) List(ctx context.Context, limit, offset int, search, backend string) ([]model.FileDTO, int, error) {
+	if s.repo == nil {
+		return nil, 0, ErrRepositoryRequired
+	}
+
+	records, total, err := s.repo.List(ctx, limit, offset, search, backend)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	dtos := make([]model.FileDTO, len(records))
+	for i := range records {
+		dtos[i] = *s.recordToDTO(&records[i])
+	}
+
+	return dtos, total, nil
+}
+
+func (s *storageService) GetStorageStats(ctx context.Context) (*model.StorageStatsDTO, error) {
+	if s.repo == nil {
+		return nil, ErrRepositoryRequired
+	}
+
+	totalFiles, totalOrig, totalComp, avgSavings, err := s.repo.GetStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	activeBackend := "local"
+	var bucketName *string
+	if s3Eng, ok := s.engine.(storage.S3Engine); ok {
+		activeBackend = "s3"
+		b := s3Eng.BucketName()
+		bucketName = &b
+	}
+
+	return &model.StorageStatsDTO{
+		ActiveBackend:         activeBackend,
+		TotalFiles:            totalFiles,
+		TotalOriginalBytes:    totalOrig,
+		TotalCompressedBytes:  totalComp,
+		AverageSavingsPercent: avgSavings,
+		S3BucketName:          bucketName,
+	}, nil
+}
+
+func (s *storageService) GeneratePresignedURL(ctx context.Context, id uuid.UUID, expiry time.Duration) (string, time.Time, error) {
+	s3Eng, ok := s.engine.(storage.S3Engine)
+	if !ok {
+		return "", time.Time{}, errors.New("presigned URLs are only supported on S3 storage backend")
+	}
+
+	url, err := s3Eng.GeneratePresignedURL(ctx, id, expiry)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+
+	return url, time.Now().Add(expiry), nil
 }
 
 func (s *storageService) GetImageMetadataFromURL(ctx context.Context, targetURL string) (*storage.ImageMetadata, error) {
