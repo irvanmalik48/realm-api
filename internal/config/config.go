@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -20,9 +21,20 @@ type Config struct {
 	// Database Settings
 	DatabaseURL string
 
+	// Superadmin & RBAC Settings
+	SuperadminEmails []string
+
 	// Storage Settings
+	StorageBackend  string
 	StorageDir      string
 	MaxUploadSizeMB int
+	S3Endpoint      string
+	S3Region        string
+	S3Bucket        string
+	S3AccessKeyID   string
+	S3SecretAccessKey string
+	S3UsePathStyle  bool
+	S3PublicDomain  string
 
 	// Authentication & PASETO Settings
 	PASETOSymmetricKey string
@@ -101,6 +113,18 @@ const DefaultDevPASETOKey = "707172737475767778797a7b7c7d7e7f8081828384858687888
 		pasetoKey = DefaultDevPASETOKey
 	}
 
+	var superadminEmails []string
+	if rawEmails := getEnv("SUPERADMIN_EMAILS", ""); rawEmails != "" {
+		for _, e := range strings.Split(rawEmails, ",") {
+			if trimmed := strings.ToLower(strings.TrimSpace(e)); trimmed != "" {
+				superadminEmails = append(superadminEmails, trimmed)
+			}
+		}
+	}
+
+	storageBackend := getEnv("STORAGE_BACKEND", "local")
+	s3UsePathStyle := getEnv("S3_USE_PATH_STYLE", "false") == "true"
+
 	return &Config{
 		Port:                   port,
 		GRPCPort:               grpcPort,
@@ -112,8 +136,17 @@ const DefaultDevPASETOKey = "707172737475767778797a7b7c7d7e7f8081828384858687888
 
 		DatabaseURL: databaseURL,
 
-		StorageDir:      storageDir,
-		MaxUploadSizeMB: maxUploadMB,
+		SuperadminEmails:  superadminEmails,
+		StorageBackend:    storageBackend,
+		StorageDir:        storageDir,
+		MaxUploadSizeMB:   maxUploadMB,
+		S3Endpoint:        getEnv("S3_ENDPOINT", ""),
+		S3Region:          getEnv("S3_REGION", "auto"),
+		S3Bucket:          getEnv("S3_BUCKET", ""),
+		S3AccessKeyID:     getEnv("S3_ACCESS_KEY_ID", ""),
+		S3SecretAccessKey: getEnv("S3_SECRET_ACCESS_KEY", ""),
+		S3UsePathStyle:    s3UsePathStyle,
+		S3PublicDomain:    getEnv("S3_PUBLIC_DOMAIN", ""),
 
 		PASETOSymmetricKey: pasetoKey,
 		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:3000"),
