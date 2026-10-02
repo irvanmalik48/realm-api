@@ -59,6 +59,10 @@ func mapFileDTOToProto(dto *model.FileDTO) *realmv1.FileMetadata {
 		Url:            dto.URL,
 		WebpUrl:        dto.WebPURL,
 		CreatedAt:      dto.CreatedAt.Format(time.RFC3339),
+		StorageBackend: dto.StorageBackend,
+		S3Bucket:       dto.S3Bucket,
+		S3Key:          dto.S3Key,
+		S3Etag:         dto.S3ETag,
 	}
 }
 
@@ -167,4 +171,70 @@ func (s *StorageServer) GetFile(req *realmv1.GetFileRequest, stream realmv1.Stor
 	}
 
 	return nil
+}
+
+func (s *StorageServer) ListFiles(ctx context.Context, req *realmv1.ListFilesRequest) (*realmv1.ListFilesResponse, error) {
+	limit := int(req.GetLimit())
+	if limit <= 0 {
+		limit = 20
+	}
+	offset := int(req.GetOffset())
+	if offset < 0 {
+		offset = 0
+	}
+	search := req.GetSearch()
+	backend := req.GetBackend()
+
+	dtos, total, err := s.storageSvc.List(ctx, limit, offset, search, backend)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to list files: %v", err)
+	}
+
+	protoFiles := make([]*realmv1.FileMetadata, len(dtos))
+	for i := range dtos {
+		protoFiles[i] = mapFileDTOToProto(&dtos[i])
+	}
+
+	return &realmv1.ListFilesResponse{
+		Total: int32(total),
+		Files: protoFiles,
+	}, nil
+}
+
+func (s *StorageServer) GetStorageStats(ctx context.Context, req *realmv1.StorageStatsRequest) (*realmv1.StorageStatsResponse, error) {
+	stats, err := s.storageSvc.GetStorageStats(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to get storage stats: %v", err)
+	}
+
+	return &realmv1.StorageStatsResponse{
+		ActiveBackend:         stats.ActiveBackend,
+		TotalFiles:            stats.TotalFiles,
+		TotalOriginalBytes:    stats.TotalOriginalBytes,
+		TotalCompressedBytes:  stats.TotalCompressedBytes,
+		AverageSavingsPercent: stats.AverageSavingsPercent,
+		S3BucketName:          stats.S3BucketName,
+	}, nil
+}
+
+func (s *StorageServer) GeneratePresignedUrl(ctx context.Context, req *realmv1.GeneratePresignedUrlRequest) (*realmv1.GeneratePresignedUrlResponse, error) {
+	fileID, err := uuid.Parse(req.GetId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Invalid file UUID")
+	}
+
+	expirySec := req.GetExpirySeconds()
+	if expirySec <= 0 {
+		expirySec = 3600 // 1 hour default
+	}
+
+	url, expiresAt, err := s.storageSvc.GeneratePresignedURL(ctx, fileID, time.Duration(expirySec)*time.Second)
+	if err != nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "Failed to generate presigned URL: %v", err)
+	}
+
+	return &realmv1.GeneratePresignedUrlResponse{
+		PresignedUrl: url,
+		ExpiresAt:    expiresAt.Format(time.RFC3339),
+	}, nil
 }
