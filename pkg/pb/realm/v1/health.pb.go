@@ -141,6 +141,250 @@ func (x *HealthResponse) GetDatabase() string {
 	return ""
 }
 
+type DBPoolStats struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AcquiredConns int32                  `protobuf:"varint,1,opt,name=acquired_conns,json=acquiredConns,proto3" json:"acquired_conns,omitempty"`
+	IdleConns     int32                  `protobuf:"varint,2,opt,name=idle_conns,json=idleConns,proto3" json:"idle_conns,omitempty"`
+	TotalConns    int32                  `protobuf:"varint,3,opt,name=total_conns,json=totalConns,proto3" json:"total_conns,omitempty"`
+	MaxConns      int32                  `protobuf:"varint,4,opt,name=max_conns,json=maxConns,proto3" json:"max_conns,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DBPoolStats) Reset() {
+	*x = DBPoolStats{}
+	mi := &file_realm_v1_health_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DBPoolStats) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DBPoolStats) ProtoMessage() {}
+
+func (x *DBPoolStats) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_health_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DBPoolStats.ProtoReflect.Descriptor instead.
+func (*DBPoolStats) Descriptor() ([]byte, []int) {
+	return file_realm_v1_health_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *DBPoolStats) GetAcquiredConns() int32 {
+	if x != nil {
+		return x.AcquiredConns
+	}
+	return 0
+}
+
+func (x *DBPoolStats) GetIdleConns() int32 {
+	if x != nil {
+		return x.IdleConns
+	}
+	return 0
+}
+
+func (x *DBPoolStats) GetTotalConns() int32 {
+	if x != nil {
+		return x.TotalConns
+	}
+	return 0
+}
+
+func (x *DBPoolStats) GetMaxConns() int32 {
+	if x != nil {
+		return x.MaxConns
+	}
+	return 0
+}
+
+type RuntimeStats struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Goroutines      int32                  `protobuf:"varint,1,opt,name=goroutines,proto3" json:"goroutines,omitempty"`
+	AllocBytes      uint64                 `protobuf:"varint,2,opt,name=alloc_bytes,json=allocBytes,proto3" json:"alloc_bytes,omitempty"`
+	TotalAllocBytes uint64                 `protobuf:"varint,3,opt,name=total_alloc_bytes,json=totalAllocBytes,proto3" json:"total_alloc_bytes,omitempty"`
+	SysBytes        uint64                 `protobuf:"varint,4,opt,name=sys_bytes,json=sysBytes,proto3" json:"sys_bytes,omitempty"`
+	GcCycles        uint32                 `protobuf:"varint,5,opt,name=gc_cycles,json=gcCycles,proto3" json:"gc_cycles,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *RuntimeStats) Reset() {
+	*x = RuntimeStats{}
+	mi := &file_realm_v1_health_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RuntimeStats) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RuntimeStats) ProtoMessage() {}
+
+func (x *RuntimeStats) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_health_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RuntimeStats.ProtoReflect.Descriptor instead.
+func (*RuntimeStats) Descriptor() ([]byte, []int) {
+	return file_realm_v1_health_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *RuntimeStats) GetGoroutines() int32 {
+	if x != nil {
+		return x.Goroutines
+	}
+	return 0
+}
+
+func (x *RuntimeStats) GetAllocBytes() uint64 {
+	if x != nil {
+		return x.AllocBytes
+	}
+	return 0
+}
+
+func (x *RuntimeStats) GetTotalAllocBytes() uint64 {
+	if x != nil {
+		return x.TotalAllocBytes
+	}
+	return 0
+}
+
+func (x *RuntimeStats) GetSysBytes() uint64 {
+	if x != nil {
+		return x.SysBytes
+	}
+	return 0
+}
+
+func (x *RuntimeStats) GetGcCycles() uint32 {
+	if x != nil {
+		return x.GcCycles
+	}
+	return 0
+}
+
+type DetailedTelemetryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	Service       string                 `protobuf:"bytes,2,opt,name=service,proto3" json:"service,omitempty"`
+	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	UptimeSeconds int64                  `protobuf:"varint,4,opt,name=uptime_seconds,json=uptimeSeconds,proto3" json:"uptime_seconds,omitempty"`
+	Timestamp     string                 `protobuf:"bytes,5,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	Database      string                 `protobuf:"bytes,6,opt,name=database,proto3" json:"database,omitempty"`
+	DbPool        *DBPoolStats           `protobuf:"bytes,7,opt,name=db_pool,json=dbPool,proto3" json:"db_pool,omitempty"`
+	Runtime       *RuntimeStats          `protobuf:"bytes,8,opt,name=runtime,proto3" json:"runtime,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DetailedTelemetryResponse) Reset() {
+	*x = DetailedTelemetryResponse{}
+	mi := &file_realm_v1_health_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DetailedTelemetryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DetailedTelemetryResponse) ProtoMessage() {}
+
+func (x *DetailedTelemetryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_health_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DetailedTelemetryResponse.ProtoReflect.Descriptor instead.
+func (*DetailedTelemetryResponse) Descriptor() ([]byte, []int) {
+	return file_realm_v1_health_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *DetailedTelemetryResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *DetailedTelemetryResponse) GetService() string {
+	if x != nil {
+		return x.Service
+	}
+	return ""
+}
+
+func (x *DetailedTelemetryResponse) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *DetailedTelemetryResponse) GetUptimeSeconds() int64 {
+	if x != nil {
+		return x.UptimeSeconds
+	}
+	return 0
+}
+
+func (x *DetailedTelemetryResponse) GetTimestamp() string {
+	if x != nil {
+		return x.Timestamp
+	}
+	return ""
+}
+
+func (x *DetailedTelemetryResponse) GetDatabase() string {
+	if x != nil {
+		return x.Database
+	}
+	return ""
+}
+
+func (x *DetailedTelemetryResponse) GetDbPool() *DBPoolStats {
+	if x != nil {
+		return x.DbPool
+	}
+	return nil
+}
+
+func (x *DetailedTelemetryResponse) GetRuntime() *RuntimeStats {
+	if x != nil {
+		return x.Runtime
+	}
+	return nil
+}
+
 var File_realm_v1_health_proto protoreflect.FileDescriptor
 
 const file_realm_v1_health_proto_rawDesc = "" +
@@ -153,9 +397,35 @@ const file_realm_v1_health_proto_rawDesc = "" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12%\n" +
 	"\x0euptime_seconds\x18\x04 \x01(\x03R\ruptimeSeconds\x12\x1c\n" +
 	"\ttimestamp\x18\x05 \x01(\tR\ttimestamp\x12\x1a\n" +
-	"\bdatabase\x18\x06 \x01(\tR\bdatabase2O\n" +
+	"\bdatabase\x18\x06 \x01(\tR\bdatabase\"\x91\x01\n" +
+	"\vDBPoolStats\x12%\n" +
+	"\x0eacquired_conns\x18\x01 \x01(\x05R\racquiredConns\x12\x1d\n" +
+	"\n" +
+	"idle_conns\x18\x02 \x01(\x05R\tidleConns\x12\x1f\n" +
+	"\vtotal_conns\x18\x03 \x01(\x05R\n" +
+	"totalConns\x12\x1b\n" +
+	"\tmax_conns\x18\x04 \x01(\x05R\bmaxConns\"\xb5\x01\n" +
+	"\fRuntimeStats\x12\x1e\n" +
+	"\n" +
+	"goroutines\x18\x01 \x01(\x05R\n" +
+	"goroutines\x12\x1f\n" +
+	"\valloc_bytes\x18\x02 \x01(\x04R\n" +
+	"allocBytes\x12*\n" +
+	"\x11total_alloc_bytes\x18\x03 \x01(\x04R\x0ftotalAllocBytes\x12\x1b\n" +
+	"\tsys_bytes\x18\x04 \x01(\x04R\bsysBytes\x12\x1b\n" +
+	"\tgc_cycles\x18\x05 \x01(\rR\bgcCycles\"\xaa\x02\n" +
+	"\x19DetailedTelemetryResponse\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\x12\x18\n" +
+	"\aservice\x18\x02 \x01(\tR\aservice\x12\x18\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\x12%\n" +
+	"\x0euptime_seconds\x18\x04 \x01(\x03R\ruptimeSeconds\x12\x1c\n" +
+	"\ttimestamp\x18\x05 \x01(\tR\ttimestamp\x12\x1a\n" +
+	"\bdatabase\x18\x06 \x01(\tR\bdatabase\x12.\n" +
+	"\adb_pool\x18\a \x01(\v2\x15.realm.v1.DBPoolStatsR\x06dbPool\x120\n" +
+	"\aruntime\x18\b \x01(\v2\x16.realm.v1.RuntimeStatsR\aruntime2\xa5\x01\n" +
 	"\rHealthService\x12>\n" +
-	"\tGetHealth\x12\x17.realm.v1.HealthRequest\x1a\x18.realm.v1.HealthResponseB;Z9github.com/irvanmalik48/realm-api/pkg/pb/realm/v1;realmv1b\x06proto3"
+	"\tGetHealth\x12\x17.realm.v1.HealthRequest\x1a\x18.realm.v1.HealthResponse\x12T\n" +
+	"\x14GetDetailedTelemetry\x12\x17.realm.v1.HealthRequest\x1a#.realm.v1.DetailedTelemetryResponseB;Z9github.com/irvanmalik48/realm-api/pkg/pb/realm/v1;realmv1b\x06proto3"
 
 var (
 	file_realm_v1_health_proto_rawDescOnce sync.Once
@@ -169,19 +439,26 @@ func file_realm_v1_health_proto_rawDescGZIP() []byte {
 	return file_realm_v1_health_proto_rawDescData
 }
 
-var file_realm_v1_health_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_realm_v1_health_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_realm_v1_health_proto_goTypes = []any{
-	(*HealthRequest)(nil),  // 0: realm.v1.HealthRequest
-	(*HealthResponse)(nil), // 1: realm.v1.HealthResponse
+	(*HealthRequest)(nil),             // 0: realm.v1.HealthRequest
+	(*HealthResponse)(nil),            // 1: realm.v1.HealthResponse
+	(*DBPoolStats)(nil),               // 2: realm.v1.DBPoolStats
+	(*RuntimeStats)(nil),              // 3: realm.v1.RuntimeStats
+	(*DetailedTelemetryResponse)(nil), // 4: realm.v1.DetailedTelemetryResponse
 }
 var file_realm_v1_health_proto_depIdxs = []int32{
-	0, // 0: realm.v1.HealthService.GetHealth:input_type -> realm.v1.HealthRequest
-	1, // 1: realm.v1.HealthService.GetHealth:output_type -> realm.v1.HealthResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	2, // 0: realm.v1.DetailedTelemetryResponse.db_pool:type_name -> realm.v1.DBPoolStats
+	3, // 1: realm.v1.DetailedTelemetryResponse.runtime:type_name -> realm.v1.RuntimeStats
+	0, // 2: realm.v1.HealthService.GetHealth:input_type -> realm.v1.HealthRequest
+	0, // 3: realm.v1.HealthService.GetDetailedTelemetry:input_type -> realm.v1.HealthRequest
+	1, // 4: realm.v1.HealthService.GetHealth:output_type -> realm.v1.HealthResponse
+	4, // 5: realm.v1.HealthService.GetDetailedTelemetry:output_type -> realm.v1.DetailedTelemetryResponse
+	4, // [4:6] is the sub-list for method output_type
+	2, // [2:4] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_realm_v1_health_proto_init() }
@@ -195,7 +472,7 @@ func file_realm_v1_health_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_realm_v1_health_proto_rawDesc), len(file_realm_v1_health_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
