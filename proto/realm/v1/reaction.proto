@@ -31,7 +31,35 @@ message ToggleReactionResponse {
   repeated string user_reactions = 7;
 }
 
+message ReactionSummary {
+  string slug = 1;
+  int32 total_count = 2;
+  map<string, int32> reactions = 3;
+}
+
+message GetReactionsSummaryRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  optional string search = 3;
+}
+
+message GetReactionsSummaryResponse {
+  repeated ReactionSummary summaries = 1;
+}
+
+message DeleteReactionRequest {
+  string slug = 1;
+  optional string user_id = 2;
+}
+
+message DeleteReactionResponse {
+  string status = 1;
+  string message = 2;
+}
+
 service ReactionService {
   rpc GetReactions(GetReactionsRequest) returns (ReactionsResponse);
   rpc ToggleReaction(ToggleReactionRequest) returns (ToggleReactionResponse);
+  rpc GetReactionsSummary(GetReactionsSummaryRequest) returns (GetReactionsSummaryResponse);
+  rpc DeleteReaction(DeleteReactionRequest) returns (DeleteReactionResponse);
 }
