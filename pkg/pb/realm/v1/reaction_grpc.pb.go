@@ -19,8 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ReactionService_GetReactions_FullMethodName   = "/realm.v1.ReactionService/GetReactions"
-	ReactionService_ToggleReaction_FullMethodName = "/realm.v1.ReactionService/ToggleReaction"
+	ReactionService_GetReactions_FullMethodName        = "/realm.v1.ReactionService/GetReactions"
+	ReactionService_ToggleReaction_FullMethodName      = "/realm.v1.ReactionService/ToggleReaction"
+	ReactionService_GetReactionsSummary_FullMethodName = "/realm.v1.ReactionService/GetReactionsSummary"
+	ReactionService_DeleteReaction_FullMethodName      = "/realm.v1.ReactionService/DeleteReaction"
 )
 
 // ReactionServiceClient is the client API for ReactionService service.
@@ -29,6 +31,8 @@ const (
 type ReactionServiceClient interface {
 	GetReactions(ctx context.Context, in *GetReactionsRequest, opts ...grpc.CallOption) (*ReactionsResponse, error)
 	ToggleReaction(ctx context.Context, in *ToggleReactionRequest, opts ...grpc.CallOption) (*ToggleReactionResponse, error)
+	GetReactionsSummary(ctx context.Context, in *GetReactionsSummaryRequest, opts ...grpc.CallOption) (*GetReactionsSummaryResponse, error)
+	DeleteReaction(ctx context.Context, in *DeleteReactionRequest, opts ...grpc.CallOption) (*DeleteReactionResponse, error)
 }
 
 type reactionServiceClient struct {
@@ -59,12 +63,34 @@ func (c *reactionServiceClient) ToggleReaction(ctx context.Context, in *ToggleRe
 	return out, nil
 }
 
+func (c *reactionServiceClient) GetReactionsSummary(ctx context.Context, in *GetReactionsSummaryRequest, opts ...grpc.CallOption) (*GetReactionsSummaryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetReactionsSummaryResponse)
+	err := c.cc.Invoke(ctx, ReactionService_GetReactionsSummary_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *reactionServiceClient) DeleteReaction(ctx context.Context, in *DeleteReactionRequest, opts ...grpc.CallOption) (*DeleteReactionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteReactionResponse)
+	err := c.cc.Invoke(ctx, ReactionService_DeleteReaction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ReactionServiceServer is the server API for ReactionService service.
 // All implementations must embed UnimplementedReactionServiceServer
 // for forward compatibility.
 type ReactionServiceServer interface {
 	GetReactions(context.Context, *GetReactionsRequest) (*ReactionsResponse, error)
 	ToggleReaction(context.Context, *ToggleReactionRequest) (*ToggleReactionResponse, error)
+	GetReactionsSummary(context.Context, *GetReactionsSummaryRequest) (*GetReactionsSummaryResponse, error)
+	DeleteReaction(context.Context, *DeleteReactionRequest) (*DeleteReactionResponse, error)
 	mustEmbedUnimplementedReactionServiceServer()
 }
 
@@ -80,6 +106,12 @@ func (UnimplementedReactionServiceServer) GetReactions(context.Context, *GetReac
 }
 func (UnimplementedReactionServiceServer) ToggleReaction(context.Context, *ToggleReactionRequest) (*ToggleReactionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ToggleReaction not implemented")
+}
+func (UnimplementedReactionServiceServer) GetReactionsSummary(context.Context, *GetReactionsSummaryRequest) (*GetReactionsSummaryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetReactionsSummary not implemented")
+}
+func (UnimplementedReactionServiceServer) DeleteReaction(context.Context, *DeleteReactionRequest) (*DeleteReactionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteReaction not implemented")
 }
 func (UnimplementedReactionServiceServer) mustEmbedUnimplementedReactionServiceServer() {}
 func (UnimplementedReactionServiceServer) testEmbeddedByValue()                         {}
@@ -138,6 +170,42 @@ func _ReactionService_ToggleReaction_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ReactionService_GetReactionsSummary_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetReactionsSummaryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReactionServiceServer).GetReactionsSummary(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReactionService_GetReactionsSummary_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReactionServiceServer).GetReactionsSummary(ctx, req.(*GetReactionsSummaryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ReactionService_DeleteReaction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteReactionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReactionServiceServer).DeleteReaction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReactionService_DeleteReaction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReactionServiceServer).DeleteReaction(ctx, req.(*DeleteReactionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ReactionService_ServiceDesc is the grpc.ServiceDesc for ReactionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -152,6 +220,14 @@ var ReactionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ToggleReaction",
 			Handler:    _ReactionService_ToggleReaction_Handler,
+		},
+		{
+			MethodName: "GetReactionsSummary",
+			Handler:    _ReactionService_GetReactionsSummary_Handler,
+		},
+		{
+			MethodName: "DeleteReaction",
+			Handler:    _ReactionService_DeleteReaction_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
