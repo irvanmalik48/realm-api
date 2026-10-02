@@ -18,6 +18,10 @@ message FileMetadata {
   string url = 11;
   optional string webp_url = 12;
   string created_at = 13;
+  string storage_backend = 14;
+  optional string s3_bucket = 15;
+  optional string s3_key = 16;
+  optional string s3_etag = 17;
 }
 
 message UploadFileRequest {
@@ -61,9 +65,45 @@ message FileChunkResponse {
   string filename = 3;
 }
 
+message ListFilesRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  optional string search = 3;
+  optional string backend = 4;
+}
+
+message ListFilesResponse {
+  int32 total = 1;
+  repeated FileMetadata files = 2;
+}
+
+message StorageStatsRequest {}
+
+message StorageStatsResponse {
+  string active_backend = 1;
+  int64 total_files = 2;
+  int64 total_original_bytes = 3;
+  int64 total_compressed_bytes = 4;
+  double average_savings_percent = 5;
+  optional string s3_bucket_name = 6;
+}
+
+message GeneratePresignedUrlRequest {
+  string id = 1;
+  int64 expiry_seconds = 2;
+}
+
+message GeneratePresignedUrlResponse {
+  string presigned_url = 1;
+  string expires_at = 2;
+}
+
 service StorageService {
   rpc UploadFile(UploadFileRequest) returns (UploadFileResponse);
   rpc GetFileInfo(GetFileInfoRequest) returns (GetFileInfoResponse);
   rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse);
   rpc GetFile(GetFileRequest) returns (stream FileChunkResponse);
+  rpc ListFiles(ListFilesRequest) returns (ListFilesResponse);
+  rpc GetStorageStats(StorageStatsRequest) returns (StorageStatsResponse);
+  rpc GeneratePresignedUrl(GeneratePresignedUrlRequest) returns (GeneratePresignedUrlResponse);
 }
