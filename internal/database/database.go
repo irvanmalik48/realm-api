@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/exaring/otelpgx"
@@ -170,8 +171,77 @@ func (db *DB) migrate(ctx context.Context) error {
 	CREATE INDEX IF NOT EXISTS idx_post_comments_slug ON post_comments(post_slug, created_at ASC);
 	CREATE INDEX IF NOT EXISTS idx_post_comments_parent ON post_comments(parent_id);
 	CREATE INDEX IF NOT EXISTS idx_post_comments_user ON post_comments(user_id);
+
+	-- Admin RBAC Table
+	CREATE TABLE IF NOT EXISTS admin_users (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+		is_superadmin BOOLEAN NOT NULL DEFAULT false,
+		permissions TEXT[] NOT NULL DEFAULT '{}',
+		created_by UUID REFERENCES users(id),
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_admin_users_user_id ON admin_users(user_id);
+	CREATE INDEX IF NOT EXISTS idx_admin_users_is_superadmin ON admin_users(is_superadmin);
+
+	-- Dedicated Structured Logs Table
+	CREATE TABLE IF NOT EXISTS system_logs (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+		level VARCHAR(10) NOT NULL,
+		message TEXT NOT NULL,
+		component VARCHAR(50),
+		trace_id VARCHAR(64),
+		span_id VARCHAR(32),
+		attributes JSONB DEFAULT '{}'::jsonb
+	);
+	CREATE INDEX IF NOT EXISTS idx_system_logs_timestamp ON system_logs(timestamp DESC);
+	CREATE INDEX IF NOT EXISTS idx_system_logs_level ON system_logs(level);
+	CREATE INDEX IF NOT EXISTS idx_system_logs_trace_id ON system_logs(trace_id);
+	CREATE INDEX IF NOT EXISTS idx_system_logs_component ON system_logs(component);
+
+	-- S3 Storage Columns on files Table
+	ALTER TABLE files ADD COLUMN IF NOT EXISTS storage_backend VARCHAR(20) DEFAULT 'local';
+	ALTER TABLE files ADD COLUMN IF NOT EXISTS s3_bucket VARCHAR(100);
+	ALTER TABLE files ADD COLUMN IF NOT EXISTS s3_key VARCHAR(500);
+	ALTER TABLE files ADD COLUMN IF NOT EXISTS s3_etag VARCHAR(100);
 	`
 
 	_, err := db.Pool.Exec(ctx, query)
 	return err
 }
+
+// BootstrapSuperadmins ensures that all users matching the configured superadmin emails
+// are granted superadmin status in admin_users with all permissions.
+func (db *DB) BootstrapSuperadmins(ctx context.Context, superadminEmails []string) error {
+	if len(superadminEmails) == 0 {
+		return nil
+	}
+
+	for _, email := range superadminEmails {
+		trimmed := strings.ToLower(strings.TrimSpace(email))
+		if trimmed == "" {
+			continue
+		}
+
+		query := `
+		INSERT INTO admin_users (user_id, is_superadmin, permissions)
+		SELECT id, true, ARRAY['*']
+		FROM users
+		WHERE LOWER(email) = $1
+		ON CONFLICT (user_id) DO UPDATE
+		SET is_superadmin = true, permissions = ARRAY['*'], updated_at = NOW();
+		`
+		res, err := db.Pool.Exec(ctx, query, trimmed)
+		if err != nil {
+			slog.Error("Failed to bootstrap superadmin", "email", trimmed, "error", err)
+			continue
+		}
+		if res.RowsAffected() > 0 {
+			slog.Info("Superadmin bootstrapped successfully", "email", trimmed)
+		}
+	}
+	return nil
+}
+
