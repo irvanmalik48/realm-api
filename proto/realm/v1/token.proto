@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package realm.v1;
+
+option go_package = "github.com/irvanmalik48/realm-api/pkg/pb/realm/v1;realmv1";
+
+message APIToken {
+  string id = 1;
+  string name = 2;
+  string token_prefix = 3;
+  repeated string scopes = 4;
+  int32 rate_limit_rpm = 5;
+  optional string last_used_at = 6;
+  optional string expires_at = 7;
+  bool is_revoked = 8;
+  string created_at = 9;
+}
+
+message ListTokensRequest {}
+
+message ListTokensResponse {
+  repeated APIToken tokens = 1;
+}
+
+message CreateTokenRequest {
+  string name = 1;
+  repeated string scopes = 2;
+  int32 rate_limit_rpm = 3;
+  optional int64 expires_in_seconds = 4;
+}
+
+message CreateTokenResponse {
+  APIToken token = 1;
+  string raw_token = 2;
+}
+
+message RevokeTokenRequest {
+  string id = 1;
+}
+
+message RevokeTokenResponse {
+  string status = 1;
+  string message = 2;
+}
+
+service TokenService {
+  rpc ListTokens(ListTokensRequest) returns (ListTokensResponse);
+  rpc CreateToken(CreateTokenRequest) returns (CreateTokenResponse);
+  rpc RevokeToken(RevokeTokenRequest) returns (RevokeTokenResponse);
+}
