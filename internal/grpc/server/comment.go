@@ -162,3 +162,56 @@ func (s *CommentServer) DeleteComment(ctx context.Context, req *realmv1.DeleteCo
 		Message: "Comment deleted",
 	}, nil
 }
+
+func (s *CommentServer) ListAllComments(ctx context.Context, req *realmv1.ListAllCommentsRequest) (*realmv1.ListAllCommentsResponse, error) {
+	comments, total, err := s.commentSvc.ListAllComments(ctx, int(req.GetLimit()), int(req.GetOffset()), req.GetPostSlug(), req.GetSearch())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to list comments: %v", err)
+	}
+
+	pbComments := make([]*realmv1.Comment, 0, len(comments))
+	for _, c := range comments {
+		pbComments = append(pbComments, mapCommentDTOToProto(&c))
+	}
+
+	return &realmv1.ListAllCommentsResponse{
+		TotalCount: int32(total),
+		Comments:   pbComments,
+	}, nil
+}
+
+func (s *CommentServer) AdminDeleteComment(ctx context.Context, req *realmv1.AdminDeleteCommentRequest) (*realmv1.DeleteCommentResponse, error) {
+	commentID, err := uuid.Parse(req.GetId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Invalid comment UUID")
+	}
+
+	if err := s.commentSvc.AdminDeleteComment(ctx, commentID); err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to delete comment: %v", err)
+	}
+
+	return &realmv1.DeleteCommentResponse{
+		Status:  "success",
+		Message: "Comment deleted successfully",
+	}, nil
+}
+
+func (s *CommentServer) AdminUpdateComment(ctx context.Context, req *realmv1.AdminUpdateCommentRequest) (*realmv1.CommentResponse, error) {
+	commentID, err := uuid.Parse(req.GetId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Invalid comment UUID")
+	}
+
+	dto, err := s.commentSvc.AdminUpdateComment(ctx, commentID, req.GetContent())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to update comment: %v", err)
+	}
+
+	msg := "Comment updated successfully"
+	return &realmv1.CommentResponse{
+		Status:  "success",
+		Message: &msg,
+		Comment: mapCommentDTOToProto(dto),
+	}, nil
+}
+
