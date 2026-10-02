@@ -49,3 +49,9 @@ type ToggleReactionResponse struct {
 	UserReaction  *string        `json:"user_reaction"`
 	UserReactions []string       `json:"user_reactions"`
 }
+
+type ReactionSummaryDTO struct {
+	Slug       string         `json:"slug"`
+	TotalCount int            `json:"total_count"`
+	Reactions  map[string]int `json:"reactions"`
+}
