@@ -42,6 +42,14 @@ func (m *mockContactService) SendMessage(ctx context.Context, req *model.Contact
 	}, nil
 }
 
+func (m *mockContactService) ListSubmissions(ctx context.Context, limit, offset int, search string) ([]model.ContactSubmission, int, error) {
+	return nil, 0, nil
+}
+
+func (m *mockContactService) DeleteSubmission(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+
 func setupContactTestApp(cfg *config.Config, svc service.ContactService) *fiber.App {
 	app := fiber.New()
 	hdlr := handler.NewContactHandler(cfg, svc)
