@@ -34,6 +34,8 @@ func NewServer(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *grpc.S
 	var userRepo repository.UserRepository
 	var reactionRepo repository.ReactionRepository
 	var commentRepo repository.CommentRepository
+	var adminRepo repository.AdminRepository
+	var logRepo repository.LogRepository
 
 	if db != nil {
 		contactRepo = repository.NewContactRepository(db)
@@ -42,6 +44,8 @@ func NewServer(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *grpc.S
 		userRepo = repository.NewUserRepository(db)
 		reactionRepo = repository.NewReactionRepository(db)
 		commentRepo = repository.NewCommentRepository(db)
+		adminRepo = repository.NewAdminRepository(db)
+		logRepo = repository.NewLogRepository(db)
 	}
 
 	var storageEngine storage.Engine
@@ -109,6 +113,9 @@ func NewServer(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *grpc.S
 	realmv1.RegisterStorageServiceServer(server, grpcServer.NewStorageServer(cfg, storageSvc))
 	realmv1.RegisterReactionServiceServer(server, grpcServer.NewReactionServer(reactionSvc))
 	realmv1.RegisterCommentServiceServer(server, grpcServer.NewCommentServer(commentSvc))
+	realmv1.RegisterAdminRBACServiceServer(server, grpcServer.NewAdminServer(adminRepo))
+	realmv1.RegisterLogServiceServer(server, grpcServer.NewLogServer(logRepo))
+	realmv1.RegisterTokenServiceServer(server, grpcServer.NewTokenServer(tokenSvc))
 
 	// Register standard gRPC Health Checking Protocol (grpc.health.v1)
 	standardHealthServer := health.NewServer()
@@ -121,6 +128,9 @@ func NewServer(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *grpc.S
 	standardHealthServer.SetServingStatus("realm.v1.StorageService", healthpb.HealthCheckResponse_SERVING)
 	standardHealthServer.SetServingStatus("realm.v1.ReactionService", healthpb.HealthCheckResponse_SERVING)
 	standardHealthServer.SetServingStatus("realm.v1.CommentService", healthpb.HealthCheckResponse_SERVING)
+	standardHealthServer.SetServingStatus("realm.v1.AdminRBACService", healthpb.HealthCheckResponse_SERVING)
+	standardHealthServer.SetServingStatus("realm.v1.LogService", healthpb.HealthCheckResponse_SERVING)
+	standardHealthServer.SetServingStatus("realm.v1.TokenService", healthpb.HealthCheckResponse_SERVING)
 
 	// Enable gRPC Server Reflection for debugging and developer tooling
 	reflection.Register(server)
