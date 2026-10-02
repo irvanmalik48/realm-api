@@ -27,6 +27,9 @@ type CommentService interface {
 	CreateComment(ctx context.Context, slug string, userID uuid.UUID, content string, parentID *uuid.UUID) (*model.CommentDTO, error)
 	UpdateComment(ctx context.Context, commentID, userID uuid.UUID, content string) (*model.CommentDTO, error)
 	DeleteComment(ctx context.Context, commentID, userID uuid.UUID) error
+	ListAllComments(ctx context.Context, limit, offset int, postSlug, search string) ([]model.CommentDTO, int, error)
+	AdminDeleteComment(ctx context.Context, commentID uuid.UUID) error
+	AdminUpdateComment(ctx context.Context, commentID uuid.UUID, content string) (*model.CommentDTO, error)
 }
 
 type commentService struct {
@@ -118,3 +121,32 @@ func (s *commentService) DeleteComment(ctx context.Context, commentID, userID uu
 
 	return s.repo.DeleteComment(ctx, commentID, userID)
 }
+
+func (s *commentService) ListAllComments(ctx context.Context, limit, offset int, postSlug, search string) ([]model.CommentDTO, int, error) {
+	if s.repo == nil {
+		return nil, 0, nil
+	}
+	return s.repo.ListAll(ctx, limit, offset, postSlug, search)
+}
+
+func (s *commentService) AdminDeleteComment(ctx context.Context, commentID uuid.UUID) error {
+	if s.repo == nil {
+		return nil
+	}
+	return s.repo.AdminDelete(ctx, commentID)
+}
+
+func (s *commentService) AdminUpdateComment(ctx context.Context, commentID uuid.UUID, content string) (*model.CommentDTO, error) {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return nil, ErrEmptyComment
+	}
+	if utf8.RuneCountInString(content) > MaxCommentLength {
+		return nil, ErrCommentTooLong
+	}
+	if s.repo == nil {
+		return nil, nil
+	}
+	return s.repo.AdminUpdate(ctx, commentID, content)
+}
+
