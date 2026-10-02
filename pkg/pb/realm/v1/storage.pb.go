@@ -36,6 +36,10 @@ type FileMetadata struct {
 	Url            string                 `protobuf:"bytes,11,opt,name=url,proto3" json:"url,omitempty"`
 	WebpUrl        *string                `protobuf:"bytes,12,opt,name=webp_url,json=webpUrl,proto3,oneof" json:"webp_url,omitempty"`
 	CreatedAt      string                 `protobuf:"bytes,13,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	StorageBackend string                 `protobuf:"bytes,14,opt,name=storage_backend,json=storageBackend,proto3" json:"storage_backend,omitempty"`
+	S3Bucket       *string                `protobuf:"bytes,15,opt,name=s3_bucket,json=s3Bucket,proto3,oneof" json:"s3_bucket,omitempty"`
+	S3Key          *string                `protobuf:"bytes,16,opt,name=s3_key,json=s3Key,proto3,oneof" json:"s3_key,omitempty"`
+	S3Etag         *string                `protobuf:"bytes,17,opt,name=s3_etag,json=s3Etag,proto3,oneof" json:"s3_etag,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -157,6 +161,34 @@ func (x *FileMetadata) GetWebpUrl() string {
 func (x *FileMetadata) GetCreatedAt() string {
 	if x != nil {
 		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *FileMetadata) GetStorageBackend() string {
+	if x != nil {
+		return x.StorageBackend
+	}
+	return ""
+}
+
+func (x *FileMetadata) GetS3Bucket() string {
+	if x != nil && x.S3Bucket != nil {
+		return *x.S3Bucket
+	}
+	return ""
+}
+
+func (x *FileMetadata) GetS3Key() string {
+	if x != nil && x.S3Key != nil {
+		return *x.S3Key
+	}
+	return ""
+}
+
+func (x *FileMetadata) GetS3Etag() string {
+	if x != nil && x.S3Etag != nil {
+		return *x.S3Etag
 	}
 	return ""
 }
@@ -585,11 +617,355 @@ func (x *FileChunkResponse) GetFilename() string {
 	return ""
 }
 
+type ListFilesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
+	Search        *string                `protobuf:"bytes,3,opt,name=search,proto3,oneof" json:"search,omitempty"`
+	Backend       *string                `protobuf:"bytes,4,opt,name=backend,proto3,oneof" json:"backend,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListFilesRequest) Reset() {
+	*x = ListFilesRequest{}
+	mi := &file_realm_v1_storage_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListFilesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListFilesRequest) ProtoMessage() {}
+
+func (x *ListFilesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_storage_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListFilesRequest.ProtoReflect.Descriptor instead.
+func (*ListFilesRequest) Descriptor() ([]byte, []int) {
+	return file_realm_v1_storage_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ListFilesRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListFilesRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *ListFilesRequest) GetSearch() string {
+	if x != nil && x.Search != nil {
+		return *x.Search
+	}
+	return ""
+}
+
+func (x *ListFilesRequest) GetBackend() string {
+	if x != nil && x.Backend != nil {
+		return *x.Backend
+	}
+	return ""
+}
+
+type ListFilesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Total         int32                  `protobuf:"varint,1,opt,name=total,proto3" json:"total,omitempty"`
+	Files         []*FileMetadata        `protobuf:"bytes,2,rep,name=files,proto3" json:"files,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListFilesResponse) Reset() {
+	*x = ListFilesResponse{}
+	mi := &file_realm_v1_storage_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListFilesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListFilesResponse) ProtoMessage() {}
+
+func (x *ListFilesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_storage_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListFilesResponse.ProtoReflect.Descriptor instead.
+func (*ListFilesResponse) Descriptor() ([]byte, []int) {
+	return file_realm_v1_storage_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ListFilesResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ListFilesResponse) GetFiles() []*FileMetadata {
+	if x != nil {
+		return x.Files
+	}
+	return nil
+}
+
+type StorageStatsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StorageStatsRequest) Reset() {
+	*x = StorageStatsRequest{}
+	mi := &file_realm_v1_storage_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StorageStatsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StorageStatsRequest) ProtoMessage() {}
+
+func (x *StorageStatsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_storage_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StorageStatsRequest.ProtoReflect.Descriptor instead.
+func (*StorageStatsRequest) Descriptor() ([]byte, []int) {
+	return file_realm_v1_storage_proto_rawDescGZIP(), []int{11}
+}
+
+type StorageStatsResponse struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	ActiveBackend         string                 `protobuf:"bytes,1,opt,name=active_backend,json=activeBackend,proto3" json:"active_backend,omitempty"`
+	TotalFiles            int64                  `protobuf:"varint,2,opt,name=total_files,json=totalFiles,proto3" json:"total_files,omitempty"`
+	TotalOriginalBytes    int64                  `protobuf:"varint,3,opt,name=total_original_bytes,json=totalOriginalBytes,proto3" json:"total_original_bytes,omitempty"`
+	TotalCompressedBytes  int64                  `protobuf:"varint,4,opt,name=total_compressed_bytes,json=totalCompressedBytes,proto3" json:"total_compressed_bytes,omitempty"`
+	AverageSavingsPercent float64                `protobuf:"fixed64,5,opt,name=average_savings_percent,json=averageSavingsPercent,proto3" json:"average_savings_percent,omitempty"`
+	S3BucketName          *string                `protobuf:"bytes,6,opt,name=s3_bucket_name,json=s3BucketName,proto3,oneof" json:"s3_bucket_name,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *StorageStatsResponse) Reset() {
+	*x = StorageStatsResponse{}
+	mi := &file_realm_v1_storage_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StorageStatsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StorageStatsResponse) ProtoMessage() {}
+
+func (x *StorageStatsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_storage_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StorageStatsResponse.ProtoReflect.Descriptor instead.
+func (*StorageStatsResponse) Descriptor() ([]byte, []int) {
+	return file_realm_v1_storage_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *StorageStatsResponse) GetActiveBackend() string {
+	if x != nil {
+		return x.ActiveBackend
+	}
+	return ""
+}
+
+func (x *StorageStatsResponse) GetTotalFiles() int64 {
+	if x != nil {
+		return x.TotalFiles
+	}
+	return 0
+}
+
+func (x *StorageStatsResponse) GetTotalOriginalBytes() int64 {
+	if x != nil {
+		return x.TotalOriginalBytes
+	}
+	return 0
+}
+
+func (x *StorageStatsResponse) GetTotalCompressedBytes() int64 {
+	if x != nil {
+		return x.TotalCompressedBytes
+	}
+	return 0
+}
+
+func (x *StorageStatsResponse) GetAverageSavingsPercent() float64 {
+	if x != nil {
+		return x.AverageSavingsPercent
+	}
+	return 0
+}
+
+func (x *StorageStatsResponse) GetS3BucketName() string {
+	if x != nil && x.S3BucketName != nil {
+		return *x.S3BucketName
+	}
+	return ""
+}
+
+type GeneratePresignedUrlRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ExpirySeconds int64                  `protobuf:"varint,2,opt,name=expiry_seconds,json=expirySeconds,proto3" json:"expiry_seconds,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GeneratePresignedUrlRequest) Reset() {
+	*x = GeneratePresignedUrlRequest{}
+	mi := &file_realm_v1_storage_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GeneratePresignedUrlRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GeneratePresignedUrlRequest) ProtoMessage() {}
+
+func (x *GeneratePresignedUrlRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_storage_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GeneratePresignedUrlRequest.ProtoReflect.Descriptor instead.
+func (*GeneratePresignedUrlRequest) Descriptor() ([]byte, []int) {
+	return file_realm_v1_storage_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *GeneratePresignedUrlRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *GeneratePresignedUrlRequest) GetExpirySeconds() int64 {
+	if x != nil {
+		return x.ExpirySeconds
+	}
+	return 0
+}
+
+type GeneratePresignedUrlResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PresignedUrl  string                 `protobuf:"bytes,1,opt,name=presigned_url,json=presignedUrl,proto3" json:"presigned_url,omitempty"`
+	ExpiresAt     string                 `protobuf:"bytes,2,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GeneratePresignedUrlResponse) Reset() {
+	*x = GeneratePresignedUrlResponse{}
+	mi := &file_realm_v1_storage_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GeneratePresignedUrlResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GeneratePresignedUrlResponse) ProtoMessage() {}
+
+func (x *GeneratePresignedUrlResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_storage_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GeneratePresignedUrlResponse.ProtoReflect.Descriptor instead.
+func (*GeneratePresignedUrlResponse) Descriptor() ([]byte, []int) {
+	return file_realm_v1_storage_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *GeneratePresignedUrlResponse) GetPresignedUrl() string {
+	if x != nil {
+		return x.PresignedUrl
+	}
+	return ""
+}
+
+func (x *GeneratePresignedUrlResponse) GetExpiresAt() string {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return ""
+}
+
 var File_realm_v1_storage_proto protoreflect.FileDescriptor
 
 const file_realm_v1_storage_proto_rawDesc = "" +
 	"\n" +
-	"\x16realm/v1/storage.proto\x12\brealm.v1\"\xc5\x03\n" +
+	"\x16realm/v1/storage.proto\x12\brealm.v1\"\xef\x04\n" +
 	"\fFileMetadata\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\bfilename\x18\x02 \x01(\tR\bfilename\x12!\n" +
@@ -605,11 +981,20 @@ const file_realm_v1_storage_proto_rawDesc = "" +
 	"\x03url\x18\v \x01(\tR\x03url\x12\x1e\n" +
 	"\bwebp_url\x18\f \x01(\tH\x03R\awebpUrl\x88\x01\x01\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\r \x01(\tR\tcreatedAtB\v\n" +
+	"created_at\x18\r \x01(\tR\tcreatedAt\x12'\n" +
+	"\x0fstorage_backend\x18\x0e \x01(\tR\x0estorageBackend\x12 \n" +
+	"\ts3_bucket\x18\x0f \x01(\tH\x04R\bs3Bucket\x88\x01\x01\x12\x1a\n" +
+	"\x06s3_key\x18\x10 \x01(\tH\x05R\x05s3Key\x88\x01\x01\x12\x1c\n" +
+	"\as3_etag\x18\x11 \x01(\tH\x06R\x06s3Etag\x88\x01\x01B\v\n" +
 	"\t_blurhashB\b\n" +
 	"\x06_widthB\t\n" +
 	"\a_heightB\v\n" +
-	"\t_webp_url\"f\n" +
+	"\t_webp_urlB\f\n" +
+	"\n" +
+	"_s3_bucketB\t\n" +
+	"\a_s3_keyB\n" +
+	"\n" +
+	"\b_s3_etag\"f\n" +
 	"\x11UploadFileRequest\x12\x1a\n" +
 	"\bfilename\x18\x01 \x01(\tR\bfilename\x12!\n" +
 	"\fcontent_type\x18\x02 \x01(\tR\vcontentType\x12\x12\n" +
@@ -635,14 +1020,45 @@ const file_realm_v1_storage_proto_rawDesc = "" +
 	"\x11FileChunkResponse\x12\x14\n" +
 	"\x05chunk\x18\x01 \x01(\fR\x05chunk\x12!\n" +
 	"\fcontent_type\x18\x02 \x01(\tR\vcontentType\x12\x1a\n" +
-	"\bfilename\x18\x03 \x01(\tR\bfilename2\xb2\x02\n" +
+	"\bfilename\x18\x03 \x01(\tR\bfilename\"\x93\x01\n" +
+	"\x10ListFilesRequest\x12\x14\n" +
+	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x02 \x01(\x05R\x06offset\x12\x1b\n" +
+	"\x06search\x18\x03 \x01(\tH\x00R\x06search\x88\x01\x01\x12\x1d\n" +
+	"\abackend\x18\x04 \x01(\tH\x01R\abackend\x88\x01\x01B\t\n" +
+	"\a_searchB\n" +
+	"\n" +
+	"\b_backend\"W\n" +
+	"\x11ListFilesResponse\x12\x14\n" +
+	"\x05total\x18\x01 \x01(\x05R\x05total\x12,\n" +
+	"\x05files\x18\x02 \x03(\v2\x16.realm.v1.FileMetadataR\x05files\"\x15\n" +
+	"\x13StorageStatsRequest\"\xbc\x02\n" +
+	"\x14StorageStatsResponse\x12%\n" +
+	"\x0eactive_backend\x18\x01 \x01(\tR\ractiveBackend\x12\x1f\n" +
+	"\vtotal_files\x18\x02 \x01(\x03R\n" +
+	"totalFiles\x120\n" +
+	"\x14total_original_bytes\x18\x03 \x01(\x03R\x12totalOriginalBytes\x124\n" +
+	"\x16total_compressed_bytes\x18\x04 \x01(\x03R\x14totalCompressedBytes\x126\n" +
+	"\x17average_savings_percent\x18\x05 \x01(\x01R\x15averageSavingsPercent\x12)\n" +
+	"\x0es3_bucket_name\x18\x06 \x01(\tH\x00R\fs3BucketName\x88\x01\x01B\x11\n" +
+	"\x0f_s3_bucket_name\"T\n" +
+	"\x1bGeneratePresignedUrlRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12%\n" +
+	"\x0eexpiry_seconds\x18\x02 \x01(\x03R\rexpirySeconds\"b\n" +
+	"\x1cGeneratePresignedUrlResponse\x12#\n" +
+	"\rpresigned_url\x18\x01 \x01(\tR\fpresignedUrl\x12\x1d\n" +
+	"\n" +
+	"expires_at\x18\x02 \x01(\tR\texpiresAt2\xb1\x04\n" +
 	"\x0eStorageService\x12G\n" +
 	"\n" +
 	"UploadFile\x12\x1b.realm.v1.UploadFileRequest\x1a\x1c.realm.v1.UploadFileResponse\x12J\n" +
 	"\vGetFileInfo\x12\x1c.realm.v1.GetFileInfoRequest\x1a\x1d.realm.v1.GetFileInfoResponse\x12G\n" +
 	"\n" +
 	"DeleteFile\x12\x1b.realm.v1.DeleteFileRequest\x1a\x1c.realm.v1.DeleteFileResponse\x12B\n" +
-	"\aGetFile\x12\x18.realm.v1.GetFileRequest\x1a\x1b.realm.v1.FileChunkResponse0\x01B;Z9github.com/irvanmalik48/realm-api/pkg/pb/realm/v1;realmv1b\x06proto3"
+	"\aGetFile\x12\x18.realm.v1.GetFileRequest\x1a\x1b.realm.v1.FileChunkResponse0\x01\x12D\n" +
+	"\tListFiles\x12\x1a.realm.v1.ListFilesRequest\x1a\x1b.realm.v1.ListFilesResponse\x12P\n" +
+	"\x0fGetStorageStats\x12\x1d.realm.v1.StorageStatsRequest\x1a\x1e.realm.v1.StorageStatsResponse\x12e\n" +
+	"\x14GeneratePresignedUrl\x12%.realm.v1.GeneratePresignedUrlRequest\x1a&.realm.v1.GeneratePresignedUrlResponseB;Z9github.com/irvanmalik48/realm-api/pkg/pb/realm/v1;realmv1b\x06proto3"
 
 var (
 	file_realm_v1_storage_proto_rawDescOnce sync.Once
@@ -656,34 +1072,47 @@ func file_realm_v1_storage_proto_rawDescGZIP() []byte {
 	return file_realm_v1_storage_proto_rawDescData
 }
 
-var file_realm_v1_storage_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_realm_v1_storage_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_realm_v1_storage_proto_goTypes = []any{
-	(*FileMetadata)(nil),        // 0: realm.v1.FileMetadata
-	(*UploadFileRequest)(nil),   // 1: realm.v1.UploadFileRequest
-	(*UploadFileResponse)(nil),  // 2: realm.v1.UploadFileResponse
-	(*GetFileInfoRequest)(nil),  // 3: realm.v1.GetFileInfoRequest
-	(*GetFileInfoResponse)(nil), // 4: realm.v1.GetFileInfoResponse
-	(*DeleteFileRequest)(nil),   // 5: realm.v1.DeleteFileRequest
-	(*DeleteFileResponse)(nil),  // 6: realm.v1.DeleteFileResponse
-	(*GetFileRequest)(nil),      // 7: realm.v1.GetFileRequest
-	(*FileChunkResponse)(nil),   // 8: realm.v1.FileChunkResponse
+	(*FileMetadata)(nil),                 // 0: realm.v1.FileMetadata
+	(*UploadFileRequest)(nil),            // 1: realm.v1.UploadFileRequest
+	(*UploadFileResponse)(nil),           // 2: realm.v1.UploadFileResponse
+	(*GetFileInfoRequest)(nil),           // 3: realm.v1.GetFileInfoRequest
+	(*GetFileInfoResponse)(nil),          // 4: realm.v1.GetFileInfoResponse
+	(*DeleteFileRequest)(nil),            // 5: realm.v1.DeleteFileRequest
+	(*DeleteFileResponse)(nil),           // 6: realm.v1.DeleteFileResponse
+	(*GetFileRequest)(nil),               // 7: realm.v1.GetFileRequest
+	(*FileChunkResponse)(nil),            // 8: realm.v1.FileChunkResponse
+	(*ListFilesRequest)(nil),             // 9: realm.v1.ListFilesRequest
+	(*ListFilesResponse)(nil),            // 10: realm.v1.ListFilesResponse
+	(*StorageStatsRequest)(nil),          // 11: realm.v1.StorageStatsRequest
+	(*StorageStatsResponse)(nil),         // 12: realm.v1.StorageStatsResponse
+	(*GeneratePresignedUrlRequest)(nil),  // 13: realm.v1.GeneratePresignedUrlRequest
+	(*GeneratePresignedUrlResponse)(nil), // 14: realm.v1.GeneratePresignedUrlResponse
 }
 var file_realm_v1_storage_proto_depIdxs = []int32{
-	0, // 0: realm.v1.UploadFileResponse.file:type_name -> realm.v1.FileMetadata
-	0, // 1: realm.v1.GetFileInfoResponse.file:type_name -> realm.v1.FileMetadata
-	1, // 2: realm.v1.StorageService.UploadFile:input_type -> realm.v1.UploadFileRequest
-	3, // 3: realm.v1.StorageService.GetFileInfo:input_type -> realm.v1.GetFileInfoRequest
-	5, // 4: realm.v1.StorageService.DeleteFile:input_type -> realm.v1.DeleteFileRequest
-	7, // 5: realm.v1.StorageService.GetFile:input_type -> realm.v1.GetFileRequest
-	2, // 6: realm.v1.StorageService.UploadFile:output_type -> realm.v1.UploadFileResponse
-	4, // 7: realm.v1.StorageService.GetFileInfo:output_type -> realm.v1.GetFileInfoResponse
-	6, // 8: realm.v1.StorageService.DeleteFile:output_type -> realm.v1.DeleteFileResponse
-	8, // 9: realm.v1.StorageService.GetFile:output_type -> realm.v1.FileChunkResponse
-	6, // [6:10] is the sub-list for method output_type
-	2, // [2:6] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	0,  // 0: realm.v1.UploadFileResponse.file:type_name -> realm.v1.FileMetadata
+	0,  // 1: realm.v1.GetFileInfoResponse.file:type_name -> realm.v1.FileMetadata
+	0,  // 2: realm.v1.ListFilesResponse.files:type_name -> realm.v1.FileMetadata
+	1,  // 3: realm.v1.StorageService.UploadFile:input_type -> realm.v1.UploadFileRequest
+	3,  // 4: realm.v1.StorageService.GetFileInfo:input_type -> realm.v1.GetFileInfoRequest
+	5,  // 5: realm.v1.StorageService.DeleteFile:input_type -> realm.v1.DeleteFileRequest
+	7,  // 6: realm.v1.StorageService.GetFile:input_type -> realm.v1.GetFileRequest
+	9,  // 7: realm.v1.StorageService.ListFiles:input_type -> realm.v1.ListFilesRequest
+	11, // 8: realm.v1.StorageService.GetStorageStats:input_type -> realm.v1.StorageStatsRequest
+	13, // 9: realm.v1.StorageService.GeneratePresignedUrl:input_type -> realm.v1.GeneratePresignedUrlRequest
+	2,  // 10: realm.v1.StorageService.UploadFile:output_type -> realm.v1.UploadFileResponse
+	4,  // 11: realm.v1.StorageService.GetFileInfo:output_type -> realm.v1.GetFileInfoResponse
+	6,  // 12: realm.v1.StorageService.DeleteFile:output_type -> realm.v1.DeleteFileResponse
+	8,  // 13: realm.v1.StorageService.GetFile:output_type -> realm.v1.FileChunkResponse
+	10, // 14: realm.v1.StorageService.ListFiles:output_type -> realm.v1.ListFilesResponse
+	12, // 15: realm.v1.StorageService.GetStorageStats:output_type -> realm.v1.StorageStatsResponse
+	14, // 16: realm.v1.StorageService.GeneratePresignedUrl:output_type -> realm.v1.GeneratePresignedUrlResponse
+	10, // [10:17] is the sub-list for method output_type
+	3,  // [3:10] is the sub-list for method input_type
+	3,  // [3:3] is the sub-list for extension type_name
+	3,  // [3:3] is the sub-list for extension extendee
+	0,  // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_realm_v1_storage_proto_init() }
@@ -693,13 +1122,15 @@ func file_realm_v1_storage_proto_init() {
 	}
 	file_realm_v1_storage_proto_msgTypes[0].OneofWrappers = []any{}
 	file_realm_v1_storage_proto_msgTypes[7].OneofWrappers = []any{}
+	file_realm_v1_storage_proto_msgTypes[9].OneofWrappers = []any{}
+	file_realm_v1_storage_proto_msgTypes[12].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_realm_v1_storage_proto_rawDesc), len(file_realm_v1_storage_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
