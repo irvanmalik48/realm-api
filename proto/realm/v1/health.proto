@@ -15,6 +15,33 @@ message HealthResponse {
   string database = 6;
 }
 
+message DBPoolStats {
+  int32 acquired_conns = 1;
+  int32 idle_conns = 2;
+  int32 total_conns = 3;
+  int32 max_conns = 4;
+}
+
+message RuntimeStats {
+  int32 goroutines = 1;
+  uint64 alloc_bytes = 2;
+  uint64 total_alloc_bytes = 3;
+  uint64 sys_bytes = 4;
+  uint32 gc_cycles = 5;
+}
+
+message DetailedTelemetryResponse {
+  string status = 1;
+  string service = 2;
+  string version = 3;
+  int64 uptime_seconds = 4;
+  string timestamp = 5;
+  string database = 6;
+  DBPoolStats db_pool = 7;
+  RuntimeStats runtime = 8;
+}
+
 service HealthService {
   rpc GetHealth(HealthRequest) returns (HealthResponse);
+  rpc GetDetailedTelemetry(HealthRequest) returns (DetailedTelemetryResponse);
 }
