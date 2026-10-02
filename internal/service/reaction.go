@@ -18,6 +18,8 @@ var (
 type ReactionService interface {
 	GetReactions(ctx context.Context, slug string, userID *uuid.UUID) (*model.PostReactionsResponse, error)
 	ToggleReaction(ctx context.Context, slug string, reactionType string, userID uuid.UUID) (*model.ToggleReactionResponse, error)
+	GetSummaries(ctx context.Context, limit, offset int, search string) ([]model.ReactionSummaryDTO, error)
+	DeleteReaction(ctx context.Context, slug string, userID *uuid.UUID) error
 }
 
 type reactionService struct {
@@ -65,3 +67,18 @@ func (s *reactionService) ToggleReaction(ctx context.Context, slug string, react
 
 	return s.repo.ToggleReaction(ctx, slug, reactionType, userID)
 }
+
+func (s *reactionService) GetSummaries(ctx context.Context, limit, offset int, search string) ([]model.ReactionSummaryDTO, error) {
+	if s.repo == nil {
+		return []model.ReactionSummaryDTO{}, nil
+	}
+	return s.repo.GetSummaries(ctx, limit, offset, search)
+}
+
+func (s *reactionService) DeleteReaction(ctx context.Context, slug string, userID *uuid.UUID) error {
+	if s.repo == nil {
+		return nil
+	}
+	return s.repo.DeleteReaction(ctx, slug, userID)
+}
+
