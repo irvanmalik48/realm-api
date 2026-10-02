@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package realm.v1;
+
+option go_package = "github.com/irvanmalik48/realm-api/pkg/pb/realm/v1;realmv1";
+
+import "realm/v1/auth.proto";
+
+message AdminUser {
+  string id = 1;
+  User user = 2;
+  bool is_superadmin = 3;
+  repeated string permissions = 4;
+  string created_at = 5;
+  string updated_at = 6;
+}
+
+message ListAdminsRequest {}
+
+message ListAdminsResponse {
+  repeated AdminUser admins = 1;
+}
+
+message AddAdminRequest {
+  string email = 1;
+  repeated string permissions = 2;
+}
+
+message UpdateAdminPermissionsRequest {
+  string admin_id = 1;
+  repeated string permissions = 2;
+}
+
+message RemoveAdminRequest {
+  string admin_id = 1;
+}
+
+message AdminOperationResponse {
+  string status = 1;
+  string message = 2;
+}
+
+service AdminRBACService {
+  rpc ListAdmins(ListAdminsRequest) returns (ListAdminsResponse);
+  rpc AddAdmin(AddAdminRequest) returns (AdminUser);
+  rpc UpdateAdminPermissions(UpdateAdminPermissionsRequest) returns (AdminUser);
+  rpc RemoveAdmin(RemoveAdminRequest) returns (AdminOperationResponse);
+}
