@@ -4,6 +4,17 @@ package realm.v1;
 
 option go_package = "github.com/irvanmalik48/realm-api/pkg/pb/realm/v1;realmv1";
 
+message ContactSubmission {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  string subject = 4;
+  string message = 5;
+  string ip_address = 6;
+  string user_agent = 7;
+  string created_at = 8;
+}
+
 message SendMessageRequest {
   string name = 1;
   string email = 2;
@@ -19,6 +30,28 @@ message SendMessageResponse {
   string message = 2;
 }
 
+message ListSubmissionsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  optional string search = 3;
+}
+
+message ListSubmissionsResponse {
+  int32 total = 1;
+  repeated ContactSubmission submissions = 2;
+}
+
+message DeleteSubmissionRequest {
+  string id = 1;
+}
+
+message DeleteSubmissionResponse {
+  string status = 1;
+  string message = 2;
+}
+
 service ContactService {
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  rpc ListSubmissions(ListSubmissionsRequest) returns (ListSubmissionsResponse);
+  rpc DeleteSubmission(DeleteSubmissionRequest) returns (DeleteSubmissionResponse);
 }
