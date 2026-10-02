@@ -285,6 +285,274 @@ func (x *ToggleReactionResponse) GetUserReactions() []string {
 	return nil
 }
 
+type ReactionSummary struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Slug          string                 `protobuf:"bytes,1,opt,name=slug,proto3" json:"slug,omitempty"`
+	TotalCount    int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	Reactions     map[string]int32       `protobuf:"bytes,3,rep,name=reactions,proto3" json:"reactions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReactionSummary) Reset() {
+	*x = ReactionSummary{}
+	mi := &file_realm_v1_reaction_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReactionSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReactionSummary) ProtoMessage() {}
+
+func (x *ReactionSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_reaction_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReactionSummary.ProtoReflect.Descriptor instead.
+func (*ReactionSummary) Descriptor() ([]byte, []int) {
+	return file_realm_v1_reaction_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ReactionSummary) GetSlug() string {
+	if x != nil {
+		return x.Slug
+	}
+	return ""
+}
+
+func (x *ReactionSummary) GetTotalCount() int32 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
+func (x *ReactionSummary) GetReactions() map[string]int32 {
+	if x != nil {
+		return x.Reactions
+	}
+	return nil
+}
+
+type GetReactionsSummaryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	Offset        int32                  `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
+	Search        *string                `protobuf:"bytes,3,opt,name=search,proto3,oneof" json:"search,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetReactionsSummaryRequest) Reset() {
+	*x = GetReactionsSummaryRequest{}
+	mi := &file_realm_v1_reaction_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetReactionsSummaryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetReactionsSummaryRequest) ProtoMessage() {}
+
+func (x *GetReactionsSummaryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_reaction_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetReactionsSummaryRequest.ProtoReflect.Descriptor instead.
+func (*GetReactionsSummaryRequest) Descriptor() ([]byte, []int) {
+	return file_realm_v1_reaction_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *GetReactionsSummaryRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *GetReactionsSummaryRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *GetReactionsSummaryRequest) GetSearch() string {
+	if x != nil && x.Search != nil {
+		return *x.Search
+	}
+	return ""
+}
+
+type GetReactionsSummaryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Summaries     []*ReactionSummary     `protobuf:"bytes,1,rep,name=summaries,proto3" json:"summaries,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetReactionsSummaryResponse) Reset() {
+	*x = GetReactionsSummaryResponse{}
+	mi := &file_realm_v1_reaction_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetReactionsSummaryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetReactionsSummaryResponse) ProtoMessage() {}
+
+func (x *GetReactionsSummaryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_reaction_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetReactionsSummaryResponse.ProtoReflect.Descriptor instead.
+func (*GetReactionsSummaryResponse) Descriptor() ([]byte, []int) {
+	return file_realm_v1_reaction_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GetReactionsSummaryResponse) GetSummaries() []*ReactionSummary {
+	if x != nil {
+		return x.Summaries
+	}
+	return nil
+}
+
+type DeleteReactionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Slug          string                 `protobuf:"bytes,1,opt,name=slug,proto3" json:"slug,omitempty"`
+	UserId        *string                `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3,oneof" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteReactionRequest) Reset() {
+	*x = DeleteReactionRequest{}
+	mi := &file_realm_v1_reaction_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteReactionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteReactionRequest) ProtoMessage() {}
+
+func (x *DeleteReactionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_reaction_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteReactionRequest.ProtoReflect.Descriptor instead.
+func (*DeleteReactionRequest) Descriptor() ([]byte, []int) {
+	return file_realm_v1_reaction_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *DeleteReactionRequest) GetSlug() string {
+	if x != nil {
+		return x.Slug
+	}
+	return ""
+}
+
+func (x *DeleteReactionRequest) GetUserId() string {
+	if x != nil && x.UserId != nil {
+		return *x.UserId
+	}
+	return ""
+}
+
+type DeleteReactionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteReactionResponse) Reset() {
+	*x = DeleteReactionResponse{}
+	mi := &file_realm_v1_reaction_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteReactionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteReactionResponse) ProtoMessage() {}
+
+func (x *DeleteReactionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_realm_v1_reaction_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteReactionResponse.ProtoReflect.Descriptor instead.
+func (*DeleteReactionResponse) Descriptor() ([]byte, []int) {
+	return file_realm_v1_reaction_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *DeleteReactionResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *DeleteReactionResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 var File_realm_v1_reaction_proto protoreflect.FileDescriptor
 
 const file_realm_v1_reaction_proto_rawDesc = "" +
@@ -318,10 +586,35 @@ const file_realm_v1_reaction_proto_rawDesc = "" +
 	"\x0eReactionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01B\x10\n" +
-	"\x0e_user_reaction2\xb2\x01\n" +
+	"\x0e_user_reaction\"\xcc\x01\n" +
+	"\x0fReactionSummary\x12\x12\n" +
+	"\x04slug\x18\x01 \x01(\tR\x04slug\x12\x1f\n" +
+	"\vtotal_count\x18\x02 \x01(\x05R\n" +
+	"totalCount\x12F\n" +
+	"\treactions\x18\x03 \x03(\v2(.realm.v1.ReactionSummary.ReactionsEntryR\treactions\x1a<\n" +
+	"\x0eReactionsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"r\n" +
+	"\x1aGetReactionsSummaryRequest\x12\x14\n" +
+	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x02 \x01(\x05R\x06offset\x12\x1b\n" +
+	"\x06search\x18\x03 \x01(\tH\x00R\x06search\x88\x01\x01B\t\n" +
+	"\a_search\"V\n" +
+	"\x1bGetReactionsSummaryResponse\x127\n" +
+	"\tsummaries\x18\x01 \x03(\v2\x19.realm.v1.ReactionSummaryR\tsummaries\"U\n" +
+	"\x15DeleteReactionRequest\x12\x12\n" +
+	"\x04slug\x18\x01 \x01(\tR\x04slug\x12\x1c\n" +
+	"\auser_id\x18\x02 \x01(\tH\x00R\x06userId\x88\x01\x01B\n" +
+	"\n" +
+	"\b_user_id\"J\n" +
+	"\x16DeleteReactionResponse\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage2\xeb\x02\n" +
 	"\x0fReactionService\x12J\n" +
 	"\fGetReactions\x12\x1d.realm.v1.GetReactionsRequest\x1a\x1b.realm.v1.ReactionsResponse\x12S\n" +
-	"\x0eToggleReaction\x12\x1f.realm.v1.ToggleReactionRequest\x1a .realm.v1.ToggleReactionResponseB;Z9github.com/irvanmalik48/realm-api/pkg/pb/realm/v1;realmv1b\x06proto3"
+	"\x0eToggleReaction\x12\x1f.realm.v1.ToggleReactionRequest\x1a .realm.v1.ToggleReactionResponse\x12b\n" +
+	"\x13GetReactionsSummary\x12$.realm.v1.GetReactionsSummaryRequest\x1a%.realm.v1.GetReactionsSummaryResponse\x12S\n" +
+	"\x0eDeleteReaction\x12\x1f.realm.v1.DeleteReactionRequest\x1a .realm.v1.DeleteReactionResponseB;Z9github.com/irvanmalik48/realm-api/pkg/pb/realm/v1;realmv1b\x06proto3"
 
 var (
 	file_realm_v1_reaction_proto_rawDescOnce sync.Once
@@ -335,27 +628,39 @@ func file_realm_v1_reaction_proto_rawDescGZIP() []byte {
 	return file_realm_v1_reaction_proto_rawDescData
 }
 
-var file_realm_v1_reaction_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_realm_v1_reaction_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_realm_v1_reaction_proto_goTypes = []any{
-	(*GetReactionsRequest)(nil),    // 0: realm.v1.GetReactionsRequest
-	(*ReactionsResponse)(nil),      // 1: realm.v1.ReactionsResponse
-	(*ToggleReactionRequest)(nil),  // 2: realm.v1.ToggleReactionRequest
-	(*ToggleReactionResponse)(nil), // 3: realm.v1.ToggleReactionResponse
-	nil,                            // 4: realm.v1.ReactionsResponse.ReactionsEntry
-	nil,                            // 5: realm.v1.ToggleReactionResponse.ReactionsEntry
+	(*GetReactionsRequest)(nil),         // 0: realm.v1.GetReactionsRequest
+	(*ReactionsResponse)(nil),           // 1: realm.v1.ReactionsResponse
+	(*ToggleReactionRequest)(nil),       // 2: realm.v1.ToggleReactionRequest
+	(*ToggleReactionResponse)(nil),      // 3: realm.v1.ToggleReactionResponse
+	(*ReactionSummary)(nil),             // 4: realm.v1.ReactionSummary
+	(*GetReactionsSummaryRequest)(nil),  // 5: realm.v1.GetReactionsSummaryRequest
+	(*GetReactionsSummaryResponse)(nil), // 6: realm.v1.GetReactionsSummaryResponse
+	(*DeleteReactionRequest)(nil),       // 7: realm.v1.DeleteReactionRequest
+	(*DeleteReactionResponse)(nil),      // 8: realm.v1.DeleteReactionResponse
+	nil,                                 // 9: realm.v1.ReactionsResponse.ReactionsEntry
+	nil,                                 // 10: realm.v1.ToggleReactionResponse.ReactionsEntry
+	nil,                                 // 11: realm.v1.ReactionSummary.ReactionsEntry
 }
 var file_realm_v1_reaction_proto_depIdxs = []int32{
-	4, // 0: realm.v1.ReactionsResponse.reactions:type_name -> realm.v1.ReactionsResponse.ReactionsEntry
-	5, // 1: realm.v1.ToggleReactionResponse.reactions:type_name -> realm.v1.ToggleReactionResponse.ReactionsEntry
-	0, // 2: realm.v1.ReactionService.GetReactions:input_type -> realm.v1.GetReactionsRequest
-	2, // 3: realm.v1.ReactionService.ToggleReaction:input_type -> realm.v1.ToggleReactionRequest
-	1, // 4: realm.v1.ReactionService.GetReactions:output_type -> realm.v1.ReactionsResponse
-	3, // 5: realm.v1.ReactionService.ToggleReaction:output_type -> realm.v1.ToggleReactionResponse
-	4, // [4:6] is the sub-list for method output_type
-	2, // [2:4] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	9,  // 0: realm.v1.ReactionsResponse.reactions:type_name -> realm.v1.ReactionsResponse.ReactionsEntry
+	10, // 1: realm.v1.ToggleReactionResponse.reactions:type_name -> realm.v1.ToggleReactionResponse.ReactionsEntry
+	11, // 2: realm.v1.ReactionSummary.reactions:type_name -> realm.v1.ReactionSummary.ReactionsEntry
+	4,  // 3: realm.v1.GetReactionsSummaryResponse.summaries:type_name -> realm.v1.ReactionSummary
+	0,  // 4: realm.v1.ReactionService.GetReactions:input_type -> realm.v1.GetReactionsRequest
+	2,  // 5: realm.v1.ReactionService.ToggleReaction:input_type -> realm.v1.ToggleReactionRequest
+	5,  // 6: realm.v1.ReactionService.GetReactionsSummary:input_type -> realm.v1.GetReactionsSummaryRequest
+	7,  // 7: realm.v1.ReactionService.DeleteReaction:input_type -> realm.v1.DeleteReactionRequest
+	1,  // 8: realm.v1.ReactionService.GetReactions:output_type -> realm.v1.ReactionsResponse
+	3,  // 9: realm.v1.ReactionService.ToggleReaction:output_type -> realm.v1.ToggleReactionResponse
+	6,  // 10: realm.v1.ReactionService.GetReactionsSummary:output_type -> realm.v1.GetReactionsSummaryResponse
+	8,  // 11: realm.v1.ReactionService.DeleteReaction:output_type -> realm.v1.DeleteReactionResponse
+	8,  // [8:12] is the sub-list for method output_type
+	4,  // [4:8] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_realm_v1_reaction_proto_init() }
@@ -365,13 +670,15 @@ func file_realm_v1_reaction_proto_init() {
 	}
 	file_realm_v1_reaction_proto_msgTypes[1].OneofWrappers = []any{}
 	file_realm_v1_reaction_proto_msgTypes[3].OneofWrappers = []any{}
+	file_realm_v1_reaction_proto_msgTypes[5].OneofWrappers = []any{}
+	file_realm_v1_reaction_proto_msgTypes[7].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_realm_v1_reaction_proto_rawDesc), len(file_realm_v1_reaction_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
