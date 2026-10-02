@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/irvanmalik48/realm-api/internal/model"
 	"github.com/irvanmalik48/realm-api/internal/service"
 	realmv1 "github.com/irvanmalik48/realm-api/pkg/pb/realm/v1"
@@ -125,3 +126,46 @@ func (s *ContactServer) SendMessage(ctx context.Context, req *realmv1.SendMessag
 		Message: "Your message has been sent successfully.",
 	}, nil
 }
+
+func (s *ContactServer) ListSubmissions(ctx context.Context, req *realmv1.ListSubmissionsRequest) (*realmv1.ListSubmissionsResponse, error) {
+	submissions, total, err := s.contactSvc.ListSubmissions(ctx, int(req.GetLimit()), int(req.GetOffset()), req.GetSearch())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to list submissions: %v", err)
+	}
+
+	pbSubmissions := make([]*realmv1.ContactSubmission, 0, len(submissions))
+	for _, sub := range submissions {
+		pbSubmissions = append(pbSubmissions, &realmv1.ContactSubmission{
+			Id:        sub.ID.String(),
+			Name:      sub.Name,
+			Email:     sub.Email,
+			Subject:   sub.Subject,
+			Message:   sub.Message,
+			IpAddress: sub.IPAddress,
+			UserAgent: sub.UserAgent,
+			CreatedAt: sub.CreatedAt.Format(time.RFC3339),
+		})
+	}
+
+	return &realmv1.ListSubmissionsResponse{
+		Total:       int32(total),
+		Submissions: pbSubmissions,
+	}, nil
+}
+
+func (s *ContactServer) DeleteSubmission(ctx context.Context, req *realmv1.DeleteSubmissionRequest) (*realmv1.DeleteSubmissionResponse, error) {
+	id, err := uuid.Parse(req.GetId())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Invalid submission ID format")
+	}
+
+	if err := s.contactSvc.DeleteSubmission(ctx, id); err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to delete submission: %v", err)
+	}
+
+	return &realmv1.DeleteSubmissionResponse{
+		Status:  "success",
+		Message: "Submission deleted successfully",
+	}, nil
+}
+
