@@ -62,20 +62,45 @@ func main() {
 			slog.Warn("Failed to connect to database", "error", err)
 		} else {
 			defer db.Close()
+			// Re-initialize logger with asynchronous DB log sink
+			telemetry.InitLogger(cfg.Environment, db)
+
+			// Bootstrap Superadmins from env configuration
+			if len(cfg.SuperadminEmails) > 0 {
+				if err := db.BootstrapSuperadmins(context.Background(), cfg.SuperadminEmails); err != nil {
+					slog.Warn("Failed to bootstrap superadmins", "error", err)
+				} else {
+					slog.Info("Superadmin accounts bootstrapped", "count", len(cfg.SuperadminEmails))
+				}
+			}
 		}
 	}
 
 	// Initialize shared storage and rate limiting / auth cache
-	storageEngine, err := storage.NewZstdEngine(cfg.StorageDir)
-	if err != nil {
-		slog.Error("Failed to initialize storage engine", "error", err)
-		os.Exit(1)
+	var storageEngine storage.Engine
+	var storageErr error
+	if cfg.StorageBackend == "s3" {
+		storageEngine, storageErr = storage.NewS3Engine(cfg)
+		if storageErr != nil {
+			slog.Error("Failed to initialize S3 storage engine", "error", storageErr)
+			os.Exit(1)
+		}
+		slog.Info("Using S3 storage engine", "bucket", cfg.S3Bucket, "endpoint", cfg.S3Endpoint)
+	} else {
+		storageEngine, storageErr = storage.NewZstdEngine(cfg.StorageDir)
+		if storageErr != nil {
+			slog.Error("Failed to initialize local storage engine", "error", storageErr)
+			os.Exit(1)
+		}
+		slog.Info("Using local Zstd storage engine", "dir", cfg.StorageDir)
 	}
 	tokenCache := auth.NewTokenCache(5 * time.Minute)
 	tokenLimiter := auth.NewTokenRateLimiter()
 
-	// Apply Linux Landlock filesystem containment sandbox
-	_ = security.ApplyLandlockSandbox(cfg.StorageDir)
+	// Apply Linux Landlock filesystem containment sandbox (local storage only)
+	if cfg.StorageBackend != "s3" {
+		_ = security.ApplyLandlockSandbox(cfg.StorageDir)
+	}
 
 	// 1. Initialize & Start gRPC Server with SO_REUSEPORT
 	grpcServer := internalGRPC.NewServer(cfg, db, &internalGRPC.ServerDeps{
