@@ -55,6 +55,18 @@ func (m *mockStorageRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (m *mockStorageRepo) List(ctx context.Context, limit, offset int, search, backend string) ([]model.FileRecord, int, error) {
+	var list []model.FileRecord
+	for _, r := range m.records {
+		list = append(list, *r)
+	}
+	return list, len(list), nil
+}
+
+func (m *mockStorageRepo) GetStats(ctx context.Context) (int64, int64, int64, float64, error) {
+	return int64(len(m.records)), 0, 0, 0, nil
+}
+
 func createTestPNG() []byte {
 	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
 	// Draw colorful pattern
