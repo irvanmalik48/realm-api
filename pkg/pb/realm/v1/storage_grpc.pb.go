@@ -19,10 +19,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	StorageService_UploadFile_FullMethodName  = "/realm.v1.StorageService/UploadFile"
-	StorageService_GetFileInfo_FullMethodName = "/realm.v1.StorageService/GetFileInfo"
-	StorageService_DeleteFile_FullMethodName  = "/realm.v1.StorageService/DeleteFile"
-	StorageService_GetFile_FullMethodName     = "/realm.v1.StorageService/GetFile"
+	StorageService_UploadFile_FullMethodName           = "/realm.v1.StorageService/UploadFile"
+	StorageService_GetFileInfo_FullMethodName          = "/realm.v1.StorageService/GetFileInfo"
+	StorageService_DeleteFile_FullMethodName           = "/realm.v1.StorageService/DeleteFile"
+	StorageService_GetFile_FullMethodName              = "/realm.v1.StorageService/GetFile"
+	StorageService_ListFiles_FullMethodName            = "/realm.v1.StorageService/ListFiles"
+	StorageService_GetStorageStats_FullMethodName      = "/realm.v1.StorageService/GetStorageStats"
+	StorageService_GeneratePresignedUrl_FullMethodName = "/realm.v1.StorageService/GeneratePresignedUrl"
 )
 
 // StorageServiceClient is the client API for StorageService service.
@@ -33,6 +36,9 @@ type StorageServiceClient interface {
 	GetFileInfo(ctx context.Context, in *GetFileInfoRequest, opts ...grpc.CallOption) (*GetFileInfoResponse, error)
 	DeleteFile(ctx context.Context, in *DeleteFileRequest, opts ...grpc.CallOption) (*DeleteFileResponse, error)
 	GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FileChunkResponse], error)
+	ListFiles(ctx context.Context, in *ListFilesRequest, opts ...grpc.CallOption) (*ListFilesResponse, error)
+	GetStorageStats(ctx context.Context, in *StorageStatsRequest, opts ...grpc.CallOption) (*StorageStatsResponse, error)
+	GeneratePresignedUrl(ctx context.Context, in *GeneratePresignedUrlRequest, opts ...grpc.CallOption) (*GeneratePresignedUrlResponse, error)
 }
 
 type storageServiceClient struct {
@@ -92,6 +98,36 @@ func (c *storageServiceClient) GetFile(ctx context.Context, in *GetFileRequest, 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type StorageService_GetFileClient = grpc.ServerStreamingClient[FileChunkResponse]
 
+func (c *storageServiceClient) ListFiles(ctx context.Context, in *ListFilesRequest, opts ...grpc.CallOption) (*ListFilesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListFilesResponse)
+	err := c.cc.Invoke(ctx, StorageService_ListFiles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *storageServiceClient) GetStorageStats(ctx context.Context, in *StorageStatsRequest, opts ...grpc.CallOption) (*StorageStatsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StorageStatsResponse)
+	err := c.cc.Invoke(ctx, StorageService_GetStorageStats_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *storageServiceClient) GeneratePresignedUrl(ctx context.Context, in *GeneratePresignedUrlRequest, opts ...grpc.CallOption) (*GeneratePresignedUrlResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GeneratePresignedUrlResponse)
+	err := c.cc.Invoke(ctx, StorageService_GeneratePresignedUrl_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // StorageServiceServer is the server API for StorageService service.
 // All implementations must embed UnimplementedStorageServiceServer
 // for forward compatibility.
@@ -100,6 +136,9 @@ type StorageServiceServer interface {
 	GetFileInfo(context.Context, *GetFileInfoRequest) (*GetFileInfoResponse, error)
 	DeleteFile(context.Context, *DeleteFileRequest) (*DeleteFileResponse, error)
 	GetFile(*GetFileRequest, grpc.ServerStreamingServer[FileChunkResponse]) error
+	ListFiles(context.Context, *ListFilesRequest) (*ListFilesResponse, error)
+	GetStorageStats(context.Context, *StorageStatsRequest) (*StorageStatsResponse, error)
+	GeneratePresignedUrl(context.Context, *GeneratePresignedUrlRequest) (*GeneratePresignedUrlResponse, error)
 	mustEmbedUnimplementedStorageServiceServer()
 }
 
@@ -121,6 +160,15 @@ func (UnimplementedStorageServiceServer) DeleteFile(context.Context, *DeleteFile
 }
 func (UnimplementedStorageServiceServer) GetFile(*GetFileRequest, grpc.ServerStreamingServer[FileChunkResponse]) error {
 	return status.Error(codes.Unimplemented, "method GetFile not implemented")
+}
+func (UnimplementedStorageServiceServer) ListFiles(context.Context, *ListFilesRequest) (*ListFilesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListFiles not implemented")
+}
+func (UnimplementedStorageServiceServer) GetStorageStats(context.Context, *StorageStatsRequest) (*StorageStatsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetStorageStats not implemented")
+}
+func (UnimplementedStorageServiceServer) GeneratePresignedUrl(context.Context, *GeneratePresignedUrlRequest) (*GeneratePresignedUrlResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GeneratePresignedUrl not implemented")
 }
 func (UnimplementedStorageServiceServer) mustEmbedUnimplementedStorageServiceServer() {}
 func (UnimplementedStorageServiceServer) testEmbeddedByValue()                        {}
@@ -208,6 +256,60 @@ func _StorageService_GetFile_Handler(srv interface{}, stream grpc.ServerStream) 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type StorageService_GetFileServer = grpc.ServerStreamingServer[FileChunkResponse]
 
+func _StorageService_ListFiles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListFilesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StorageServiceServer).ListFiles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StorageService_ListFiles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StorageServiceServer).ListFiles(ctx, req.(*ListFilesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StorageService_GetStorageStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StorageStatsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StorageServiceServer).GetStorageStats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StorageService_GetStorageStats_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StorageServiceServer).GetStorageStats(ctx, req.(*StorageStatsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StorageService_GeneratePresignedUrl_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GeneratePresignedUrlRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StorageServiceServer).GeneratePresignedUrl(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StorageService_GeneratePresignedUrl_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StorageServiceServer).GeneratePresignedUrl(ctx, req.(*GeneratePresignedUrlRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // StorageService_ServiceDesc is the grpc.ServiceDesc for StorageService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -226,6 +328,18 @@ var StorageService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteFile",
 			Handler:    _StorageService_DeleteFile_Handler,
+		},
+		{
+			MethodName: "ListFiles",
+			Handler:    _StorageService_ListFiles_Handler,
+		},
+		{
+			MethodName: "GetStorageStats",
+			Handler:    _StorageService_GetStorageStats_Handler,
+		},
+		{
+			MethodName: "GeneratePresignedUrl",
+			Handler:    _StorageService_GeneratePresignedUrl_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
