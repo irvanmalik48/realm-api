@@ -80,6 +80,7 @@ def seed_via_api(api_url, token, posts):
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
     }
     if token:
         headers["Authorization"] = f"Bearer {token}"
@@ -120,7 +121,7 @@ def seed_via_api(api_url, token, posts):
 
 def main():
     parser = argparse.ArgumentParser(description="Seed past posts into Realm API")
-    parser.add_argument("--url", default="https://api.irvanma.eu.org", help="API base URL (default: https://api.irvanma.eu.org)")
+    parser.add_argument("--url", "--api", dest="url", default="https://api.irvanma.eu.org", help="API base URL (default: https://api.irvanma.eu.org)")
     parser.add_argument("--token", default="", help="Admin API token or session bearer token")
     parser.add_argument("--posts-dir", default="", help="Path to realm-reference/posts directory")
     args = parser.parse_args()
