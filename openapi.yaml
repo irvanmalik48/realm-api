@@ -40,6 +40,9 @@ tags:
   - name: Comments
     summary: Post Comments & Discussions
     description: Hierarchical, threaded comments and discussion moderation for blog posts.
+  - name: Posts
+    summary: Articles & Blog Posts
+    description: Article publishing and content management serving the public reader site and admin console.
 
 paths:
   /:
@@ -727,6 +730,210 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: File record not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/posts:
+    get:
+      summary: List blog articles
+      operationId: listPosts
+      tags:
+        - Posts
+      parameters:
+        - name: tag
+          in: query
+          required: false
+          schema:
+            type: string
+            example: Linux
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            example: Secure Boot
+        - name: published
+          in: query
+          required: false
+          description: Filter by publication status (true or false)
+          schema:
+            type: boolean
+            default: true
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Paginated articles list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostsListResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create new article
+      operationId: createPost
+      tags:
+        - Posts
+      security:
+        - PasetoAuth: []
+        - ApiTokenAuth: []
+        - ApiTokenHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePostRequest'
+      responses:
+        '201':
+          description: Article created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostDTO'
+        '400':
+          description: Invalid payload or empty title
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/posts/{slug}:
+    get:
+      summary: Get full article by slug
+      operationId: getPostBySlug
+      tags:
+        - Posts
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: Article slug
+          schema:
+            type: string
+            example: all-black-and-heavywear
+        - name: include_drafts
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Full article details with markdown content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostDTO'
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      summary: Update article
+      operationId: updatePost
+      tags:
+        - Posts
+      security:
+        - PasetoAuth: []
+        - ApiTokenAuth: []
+        - ApiTokenHeader: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: Article slug
+          schema:
+            type: string
+            example: all-black-and-heavywear
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePostRequest'
+      responses:
+        '200':
+          description: Article updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostDTO'
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete article
+      operationId: deletePost
+      tags:
+        - Posts
+      security:
+        - PasetoAuth: []
+        - ApiTokenAuth: []
+        - ApiTokenHeader: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: Article slug
+          schema:
+            type: string
+            example: all-black-and-heavywear
+      responses:
+        '200':
+          description: Article deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccessResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Post not found
           content:
             application/json:
               schema:
@@ -1595,6 +1802,183 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CommentDTO'
+
+    PostSummaryDTO:
+      type: object
+      required:
+        - id
+        - slug
+        - title
+        - description
+        - tags
+        - reading_time
+        - is_published
+        - published_at
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+          example: all-black-and-heavywear
+        title:
+          type: string
+          example: The Weight of Black
+        description:
+          type: string
+          example: Black is cool, you know.
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["Essay", "Philosophy"]
+        cover_image:
+          type: string
+          nullable: true
+        reading_time:
+          type: string
+          example: 21 min read
+        is_published:
+          type: boolean
+          example: true
+        published_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PostDTO:
+      type: object
+      required:
+        - id
+        - slug
+        - title
+        - description
+        - content
+        - tags
+        - reading_time
+        - is_published
+        - published_at
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+          example: all-black-and-heavywear
+        title:
+          type: string
+          example: The Weight of Black
+        description:
+          type: string
+          example: Black is cool, you know.
+        content:
+          type: string
+          description: Raw markdown or MDX content
+          example: "# The Weight of Black\n\nContent..."
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["Essay", "Philosophy"]
+        cover_image:
+          type: string
+          nullable: true
+        reading_time:
+          type: string
+          example: 21 min read
+        is_published:
+          type: boolean
+          example: true
+        published_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreatePostRequest:
+      type: object
+      required:
+        - title
+        - content
+      properties:
+        slug:
+          type: string
+          description: URL slug (auto-generated from title if omitted)
+          example: new-article-slug
+        title:
+          type: string
+          example: Title of the article
+        description:
+          type: string
+          example: Brief overview
+        content:
+          type: string
+          example: "# Markdown body"
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["Guide", "Tech"]
+        cover_image:
+          type: string
+          nullable: true
+        is_published:
+          type: boolean
+          default: true
+        published_at:
+          type: string
+          format: date-time
+
+    UpdatePostRequest:
+      type: object
+      properties:
+        slug:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        content:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        cover_image:
+          type: string
+          nullable: true
+        is_published:
+          type: boolean
+        published_at:
+          type: string
+          format: date-time
+
+    PostsListResponse:
+      type: object
+      required:
+        - total
+        - posts
+      properties:
+        total:
+          type: integer
+          example: 5
+        posts:
+          type: array
+          items:
+            $ref: '#/components/schemas/PostSummaryDTO'
 
 
 
