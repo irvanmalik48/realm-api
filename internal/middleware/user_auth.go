@@ -46,6 +46,10 @@ func RequireUserAuth(pasetoSvc auth.PasetoService) fiber.Handler {
 			return handler.ErrorResponse(c, "Unauthorized: invalid or expired session", http.StatusUnauthorized)
 		}
 
+		if claims.Purpose == "2fa_challenge" {
+			return handler.ErrorResponse(c, "Unauthorized: two-factor authentication verification required", http.StatusUnauthorized)
+		}
+
 		userID, err := uuid.Parse(claims.ID)
 		if err != nil {
 			return handler.ErrorResponse(c, "Unauthorized: invalid user identifier in token", http.StatusUnauthorized)
@@ -62,7 +66,7 @@ func OptionalUserAuth(pasetoSvc auth.PasetoService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		rawToken := ExtractUserRawToken(c)
 		if rawToken != "" && pasetoSvc != nil {
-			if claims, err := pasetoSvc.VerifyToken(rawToken); err == nil {
+			if claims, err := pasetoSvc.VerifyToken(rawToken); err == nil && claims.Purpose != "2fa_challenge" {
 				if userID, err := uuid.Parse(claims.ID); err == nil {
 					c.Locals("user_claims", claims)
 					c.Locals("user_id", userID)
