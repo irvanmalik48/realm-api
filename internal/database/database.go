@@ -172,6 +172,24 @@ func (db *DB) migrate(ctx context.Context) error {
 	CREATE INDEX IF NOT EXISTS idx_post_comments_parent ON post_comments(parent_id);
 	CREATE INDEX IF NOT EXISTS idx_post_comments_user ON post_comments(user_id);
 
+	-- Posts Table (Articles managed by HQ, served by realm-reference)
+	CREATE TABLE IF NOT EXISTS posts (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		slug VARCHAR(200) UNIQUE NOT NULL,
+		title VARCHAR(255) NOT NULL,
+		description TEXT NOT NULL DEFAULT '',
+		content TEXT NOT NULL DEFAULT '',
+		tags TEXT[] NOT NULL DEFAULT '{}',
+		cover_image TEXT,
+		reading_time VARCHAR(50) DEFAULT '1 min read',
+		is_published BOOLEAN NOT NULL DEFAULT true,
+		published_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_posts_slug ON posts(slug);
+	CREATE INDEX IF NOT EXISTS idx_posts_published ON posts(is_published, published_at DESC);
+
 	-- Admin RBAC Table
 	CREATE TABLE IF NOT EXISTS admin_users (
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
