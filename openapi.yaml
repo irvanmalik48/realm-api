@@ -34,6 +34,12 @@ tags:
   - name: Storage
     summary: Zstandard Compressed File Storage
     description: High-performance file storage with Zstd compression, Blurhash analysis, and endpoint-level WebP conversion.
+  - name: Reactions
+    summary: Post Reactions
+    description: Reader emoji reactions (like, love, fire, dislike, frown, skull) for blog posts.
+  - name: Comments
+    summary: Post Comments & Discussions
+    description: Hierarchical, threaded comments and discussion moderation for blog posts.
 
 paths:
   /:
@@ -726,6 +732,256 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /v1/posts/{slug}/reactions:
+    get:
+      summary: Get post reaction summary
+      operationId: getPostReactions
+      tags:
+        - Reactions
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: Post article slug
+          schema:
+            type: string
+            example: all-black-and-heavywear
+      responses:
+        '200':
+          description: Aggregated reactions count and current user's reaction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostReactionsResponse'
+        '400':
+          description: Invalid slug parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Toggle or set a reaction on a post
+      operationId: togglePostReaction
+      tags:
+        - Reactions
+      security:
+        - PasetoAuth: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: Post article slug
+          schema:
+            type: string
+            example: all-black-and-heavywear
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToggleReactionRequest'
+      responses:
+        '200':
+          description: Reaction toggled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToggleReactionResponse'
+        '400':
+          description: Invalid reaction type or request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/posts/{slug}/comments:
+    get:
+      summary: Get comments for a post
+      operationId: getPostComments
+      tags:
+        - Comments
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: Post article slug
+          schema:
+            type: string
+            example: all-black-and-heavywear
+      responses:
+        '200':
+          description: Threaded comments list for the article
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentsListResponse'
+        '400':
+          description: Invalid slug parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a new comment or reply to an article
+      operationId: createPostComment
+      tags:
+        - Comments
+      security:
+        - PasetoAuth: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: Post article slug
+          schema:
+            type: string
+            example: all-black-and-heavywear
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommentRequest'
+      responses:
+        '201':
+          description: Comment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentDTO'
+        '400':
+          description: Empty comment, content too long, or invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/posts/{slug}/comments/{id}:
+    patch:
+      summary: Edit an existing comment
+      operationId: updatePostComment
+      tags:
+        - Comments
+      security:
+        - PasetoAuth: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: Post article slug
+          schema:
+            type: string
+            example: all-black-and-heavywear
+        - name: id
+          in: path
+          required: true
+          description: Comment UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCommentRequest'
+      responses:
+        '200':
+          description: Comment updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentDTO'
+        '400':
+          description: Invalid comment ID or payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized or not comment owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete a comment
+      operationId: deletePostComment
+      tags:
+        - Comments
+      security:
+        - PasetoAuth: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: Post article slug
+          schema:
+            type: string
+            example: all-black-and-heavywear
+        - name: id
+          in: path
+          required: true
+          description: Comment UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Comment deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccessResponse'
+        '400':
+          description: Invalid comment identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized or not comment owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   securitySchemes:
     PasetoAuth:
@@ -1149,6 +1405,196 @@ components:
         message:
           type: string
           example: Operation completed successfully
+
+    PostReactionsResponse:
+      type: object
+      required:
+        - slug
+        - total_count
+        - reactions
+      properties:
+        slug:
+          type: string
+          example: all-black-and-heavywear
+        total_count:
+          type: integer
+          example: 12
+        reactions:
+          type: object
+          additionalProperties:
+            type: integer
+          example:
+            like: 5
+            love: 4
+            fire: 3
+        user_reaction:
+          type: string
+          nullable: true
+          example: fire
+        user_reactions:
+          type: array
+          items:
+            type: string
+          example: ["fire"]
+
+    ToggleReactionRequest:
+      type: object
+      required:
+        - reaction
+      properties:
+        reaction:
+          type: string
+          enum: [like, love, fire, dislike, frown, skull]
+          example: fire
+
+    ToggleReactionResponse:
+      type: object
+      required:
+        - slug
+        - reaction
+        - active
+        - total_count
+        - reactions
+      properties:
+        slug:
+          type: string
+          example: all-black-and-heavywear
+        reaction:
+          type: string
+          example: fire
+        active:
+          type: boolean
+          example: true
+        total_count:
+          type: integer
+          example: 13
+        reactions:
+          type: object
+          additionalProperties:
+            type: integer
+          example:
+            like: 5
+            love: 4
+            fire: 4
+        user_reaction:
+          type: string
+          nullable: true
+          example: fire
+        user_reactions:
+          type: array
+          items:
+            type: string
+          example: ["fire"]
+
+    CommentAuthorDTO:
+      type: object
+      required:
+        - id
+        - username
+        - full_name
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+          example: irvanma
+        full_name:
+          type: string
+          example: Irvan Malik
+        avatar_url:
+          type: string
+          nullable: true
+          example: https://github.com/irvanmalik48.png
+
+    CommentDTO:
+      type: object
+      required:
+        - id
+        - post_slug
+        - content
+        - is_edited
+        - is_author
+        - author
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        post_slug:
+          type: string
+          example: all-black-and-heavywear
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+        content:
+          type: string
+          example: "Great writeup on fabric weights!"
+        is_edited:
+          type: boolean
+          example: false
+        is_author:
+          type: boolean
+          example: true
+        author:
+          $ref: '#/components/schemas/CommentAuthorDTO'
+        replies:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommentDTO'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateCommentRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 5000
+          example: "Interesting perspective on Btrfs subvolumes."
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional UUID of the parent comment if this is a threaded reply
+
+    UpdateCommentRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 5000
+          example: "Updated comment text."
+
+    CommentsListResponse:
+      type: object
+      required:
+        - slug
+        - total_count
+        - comments
+      properties:
+        slug:
+          type: string
+          example: all-black-and-heavywear
+        total_count:
+          type: integer
+          example: 5
+        comments:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommentDTO'
 
 
 
