@@ -224,6 +224,26 @@ func (db *DB) migrate(ctx context.Context) error {
 	ALTER TABLE files ADD COLUMN IF NOT EXISTS s3_bucket VARCHAR(100);
 	ALTER TABLE files ADD COLUMN IF NOT EXISTS s3_key VARCHAR(500);
 	ALTER TABLE files ADD COLUMN IF NOT EXISTS s3_etag VARCHAR(100);
+
+	-- Analytics / Page Views Table
+	CREATE TABLE IF NOT EXISTS page_views (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		path VARCHAR(512) NOT NULL,
+		post_slug VARCHAR(255),
+		referrer VARCHAR(1024),
+		user_agent VARCHAR(1024),
+		browser VARCHAR(100),
+		os VARCHAR(100),
+		device_type VARCHAR(50),
+		session_id VARCHAR(100),
+		screen_resolution VARCHAR(50),
+		ip_hash VARCHAR(64),
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+	);
+	CREATE INDEX IF NOT EXISTS idx_page_views_created_at ON page_views (created_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_page_views_path ON page_views (path);
+	CREATE INDEX IF NOT EXISTS idx_page_views_post_slug ON page_views (post_slug) WHERE post_slug IS NOT NULL;
+	CREATE INDEX IF NOT EXISTS idx_page_views_session ON page_views (session_id);
 	`
 
 	_, err := db.Pool.Exec(ctx, query)
