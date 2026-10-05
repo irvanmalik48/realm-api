@@ -407,4 +407,90 @@ func (h *AuthHandler) UnlinkOAuth(c *fiber.Ctx) error {
 	})
 }
 
+func (h *AuthHandler) Verify2FA(c *fiber.Ctx) error {
+	var input model.Verify2FARequest
+	if err := c.BodyParser(&input); err != nil {
+		return ErrorResponse(c, "Invalid request body. Expected JSON.", http.StatusBadRequest)
+	}
+
+	if input.TempToken == "" || input.Code == "" {
+		return ErrorResponse(c, "Temporary token and 2FA code are required.", http.StatusBadRequest)
+	}
+
+	resp, err := h.authSvc.Verify2FA(c.Context(), input.TempToken, input.Code)
+	if err != nil {
+		return ErrorResponse(c, err.Error(), http.StatusUnauthorized)
+	}
+
+	return c.Status(http.StatusOK).JSON(resp)
+}
+
+func (h *AuthHandler) Setup2FA(c *fiber.Ctx) error {
+	userID, ok := getUserIDFromLocals(c)
+	if !ok {
+		return ErrorResponse(c, "Unauthorized", http.StatusUnauthorized)
+	}
+
+	resp, err := h.authSvc.Setup2FA(c.Context(), userID)
+	if err != nil {
+		return ErrorResponse(c, fmt.Sprintf("Failed to setup 2FA: %v", err), http.StatusInternalServerError)
+	}
+
+	return c.Status(http.StatusOK).JSON(fiber.Map{
+		"status":      "success",
+		"secret":      resp.Secret,
+		"qr_code":     resp.QRCode,
+		"otpauth_url": resp.OtpauthURL,
+	})
+}
+
+func (h *AuthHandler) Enable2FA(c *fiber.Ctx) error {
+	userID, ok := getUserIDFromLocals(c)
+	if !ok {
+		return ErrorResponse(c, "Unauthorized", http.StatusUnauthorized)
+	}
+
+	var input model.Enable2FARequest
+	if err := c.BodyParser(&input); err != nil {
+		return ErrorResponse(c, "Invalid request body. Expected JSON.", http.StatusBadRequest)
+	}
+
+	if input.Code == "" {
+		return ErrorResponse(c, "Verification code is required.", http.StatusBadRequest)
+	}
+
+	resp, err := h.authSvc.Enable2FA(c.Context(), userID, input.Code, input.Secret)
+	if err != nil {
+		return ErrorResponse(c, err.Error(), http.StatusBadRequest)
+	}
+
+	return c.Status(http.StatusOK).JSON(resp)
+}
+
+func (h *AuthHandler) Disable2FA(c *fiber.Ctx) error {
+	userID, ok := getUserIDFromLocals(c)
+	if !ok {
+		return ErrorResponse(c, "Unauthorized", http.StatusUnauthorized)
+	}
+
+	var input model.Disable2FARequest
+	if err := c.BodyParser(&input); err != nil {
+		return ErrorResponse(c, "Invalid request body. Expected JSON.", http.StatusBadRequest)
+	}
+
+	if input.Code == "" && input.Password == "" {
+		return ErrorResponse(c, "A valid 2FA code or password is required to disable two-factor authentication.", http.StatusBadRequest)
+	}
+
+	if err := h.authSvc.Disable2FA(c.Context(), userID, input.Code, input.Password); err != nil {
+		return ErrorResponse(c, err.Error(), http.StatusBadRequest)
+	}
+
+	return c.Status(http.StatusOK).JSON(fiber.Map{
+		"status":  "success",
+		"message": "Two-factor authentication has been disabled successfully",
+	})
+}
+
+
 
