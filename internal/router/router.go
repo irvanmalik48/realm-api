@@ -144,6 +144,10 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	postSvc := service.NewPostService(postRepo)
 	postHdlr := handler.NewPostHandler(cfg, postSvc)
 
+	analyticsRepo := repository.NewAnalyticsRepository(db)
+	analyticsSvc := service.NewAnalyticsService(analyticsRepo)
+	analyticsHdlr := handler.NewAnalyticsHandler(cfg, analyticsSvc)
+
 	// Root and Health routes
 	app.Get("/", rootHdlr.Handle)
 	app.Get("/health", healthHdlr.Handle)
@@ -212,6 +216,11 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	postsGroup.Patch("/:slug", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter), postHdlr.UpdatePost)
 	postsGroup.Put("/:slug", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter), postHdlr.UpdatePost)
 	postsGroup.Delete("/:slug", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter), postHdlr.DeletePost)
+
+	// Analytics / Page Views endpoints
+	analyticsGroup := v1.Group("/analytics")
+	analyticsGroup.Post("/events", analyticsHdlr.TrackEvent)
+	analyticsGroup.Get("/stats", analyticsHdlr.GetStats)
 
 	// Post Reaction endpoints
 	reactionsGroup := v1.Group("/posts/:slug/reactions")
