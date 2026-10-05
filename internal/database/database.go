@@ -122,6 +122,9 @@ func (db *DB) migrate(ctx context.Context) error {
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 		updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 	);
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN NOT NULL DEFAULT false;
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_secret TEXT;
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_recovery_codes TEXT[] DEFAULT '{}';
 	CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 	CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 	CREATE INDEX IF NOT EXISTS idx_users_provider ON users(provider, provider_id);
