@@ -7,16 +7,19 @@ import (
 )
 
 type User struct {
-	ID           uuid.UUID `json:"id"`
-	Email        string    `json:"email"`
-	Username     string    `json:"username"`
-	FullName     string    `json:"full_name"`
-	PasswordHash *string   `json:"-"`
-	AvatarURL    *string   `json:"avatar_url,omitempty"`
-	Provider     string    `json:"provider"`
-	ProviderID   *string   `json:"provider_id,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID                     uuid.UUID `json:"id"`
+	Email                  string    `json:"email"`
+	Username               string    `json:"username"`
+	FullName               string    `json:"full_name"`
+	PasswordHash           *string   `json:"-"`
+	AvatarURL              *string   `json:"avatar_url,omitempty"`
+	Provider               string    `json:"provider"`
+	ProviderID             *string   `json:"provider_id,omitempty"`
+	TwoFactorEnabled       bool      `json:"two_factor_enabled"`
+	TwoFactorSecret        *string   `json:"-"`
+	TwoFactorRecoveryCodes []string  `json:"-"`
+	CreatedAt              time.Time `json:"created_at"`
+	UpdatedAt              time.Time `json:"updated_at"`
 }
 
 type OAuthAccount struct {
@@ -42,6 +45,7 @@ type UserDTO struct {
 	FullName           string            `json:"full_name"`
 	AvatarURL          *string           `json:"avatar_url,omitempty"`
 	Provider           string            `json:"provider"`
+	TwoFactorEnabled   bool              `json:"two_factor_enabled"`
 	HasPassword        bool              `json:"has_password"`
 	ConnectedProviders []string          `json:"connected_providers"`
 	ConnectedAccounts  []OAuthAccountDTO `json:"connected_accounts"`
@@ -73,6 +77,7 @@ func (u *User) ToDTO() *UserDTO {
 		FullName:           u.FullName,
 		AvatarURL:          u.AvatarURL,
 		Provider:           u.Provider,
+		TwoFactorEnabled:   u.TwoFactorEnabled,
 		HasPassword:        hasPassword,
 		ConnectedProviders: providers,
 		ConnectedAccounts:  accounts,
@@ -183,10 +188,44 @@ type UpdateProfileInput struct {
 }
 
 type AuthResponse struct {
-	Status  string   `json:"status"`
-	Message string   `json:"message,omitempty"`
-	Token   string   `json:"token,omitempty"`
-	User    *UserDTO `json:"user,omitempty"`
+	Status            string   `json:"status"`
+	Message           string   `json:"message,omitempty"`
+	Token             string   `json:"token,omitempty"`
+	TwoFactorRequired bool     `json:"two_factor_required,omitempty"`
+	TempToken         string   `json:"temp_token,omitempty"`
+	User              *UserDTO `json:"user,omitempty"`
+}
+
+type Setup2FAResponse struct {
+	Secret     string `json:"secret"`
+	QRCode     string `json:"qr_code"`
+	OtpauthURL string `json:"otpauth_url"`
+}
+
+type Enable2FARequest struct {
+	Code   string `json:"code"`
+	Secret string `json:"secret,omitempty"`
+}
+
+type Enable2FAResponse struct {
+	Status        string   `json:"status"`
+	Message       string   `json:"message"`
+	RecoveryCodes []string `json:"recovery_codes"`
+}
+
+type Verify2FARequest struct {
+	TempToken string `json:"temp_token"`
+	Code      string `json:"code"`
+}
+
+type Disable2FARequest struct {
+	Code     string `json:"code,omitempty"`
+	Password string `json:"password,omitempty"`
+}
+
+type Disable2FAResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
 }
 
 type UserClaims struct {
@@ -196,6 +235,7 @@ type UserClaims struct {
 	FullName  string    `json:"full_name"`
 	AvatarURL string    `json:"avatar_url,omitempty"`
 	Provider  string    `json:"provider"`
+	Purpose   string    `json:"purpose,omitempty"`
 	Issuer    string    `json:"iss"`
 	Subject   string    `json:"sub"`
 	Audience  string    `json:"aud"`
