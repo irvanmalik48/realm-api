@@ -178,6 +178,51 @@ func (m *mockUserRepo) UnlinkOAuthAccount(ctx context.Context, userID uuid.UUID,
 	return nil
 }
 
+func (m *mockUserRepo) Update2FASecret(ctx context.Context, userID uuid.UUID, secret string) error {
+	u, ok := m.usersByID[userID]
+	if !ok {
+		return repository.ErrUserNotFound
+	}
+	u.TwoFactorSecret = &secret
+	return nil
+}
+
+func (m *mockUserRepo) Enable2FA(ctx context.Context, userID uuid.UUID, secret string, recoveryCodes []string) error {
+	u, ok := m.usersByID[userID]
+	if !ok {
+		return repository.ErrUserNotFound
+	}
+	u.TwoFactorEnabled = true
+	u.TwoFactorSecret = &secret
+	u.TwoFactorRecoveryCodes = recoveryCodes
+	return nil
+}
+
+func (m *mockUserRepo) Disable2FA(ctx context.Context, userID uuid.UUID) error {
+	u, ok := m.usersByID[userID]
+	if !ok {
+		return repository.ErrUserNotFound
+	}
+	u.TwoFactorEnabled = false
+	u.TwoFactorSecret = nil
+	u.TwoFactorRecoveryCodes = nil
+	return nil
+}
+
+func (m *mockUserRepo) ConsumeRecoveryCode(ctx context.Context, userID uuid.UUID, code string) (bool, error) {
+	u, ok := m.usersByID[userID]
+	if !ok {
+		return false, repository.ErrUserNotFound
+	}
+	for i, c := range u.TwoFactorRecoveryCodes {
+		if c == code {
+			u.TwoFactorRecoveryCodes = append(u.TwoFactorRecoveryCodes[:i], u.TwoFactorRecoveryCodes[i+1:]...)
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func setupAuthTestApp(t *testing.T) (*fiber.App, service.AuthService, auth.PasetoService) {
 	pasetoSvc, err := auth.NewPasetoService("707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f")
 	if err != nil {
