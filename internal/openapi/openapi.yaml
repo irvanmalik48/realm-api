@@ -43,6 +43,9 @@ tags:
   - name: Posts
     summary: Articles & Blog Posts
     description: Article publishing and content management serving the public reader site and admin console.
+  - name: Analytics
+    summary: Web Analytics & Visitor Telemetry
+    description: Ingestion and aggregate analytics query endpoints for visitor page views, referrers, and user agents.
 
 paths:
   /:
@@ -1189,6 +1192,55 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /v1/analytics/events:
+    post:
+      summary: Track a pageview event
+      operationId: trackAnalyticsEvent
+      tags:
+        - Analytics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackEventRequest'
+      responses:
+        '201':
+          description: Event recorded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackEventResponse'
+        '400':
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/analytics/stats:
+    get:
+      summary: Retrieve aggregated web analytics statistics
+      operationId: getAnalyticsStats
+      tags:
+        - Analytics
+      parameters:
+        - name: period
+          in: query
+          required: false
+          description: Time window period (24h, 7d, 30d, all). Defaults to 30d.
+          schema:
+            type: string
+            enum: [24h, 7d, 30d, all]
+            default: 30d
+      responses:
+        '200':
+          description: Analytics statistics and trend metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsStatsResponse'
+
 components:
   securitySchemes:
     PasetoAuth:
@@ -1979,6 +2031,217 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PostSummaryDTO'
+
+    TrackEventRequest:
+      type: object
+      required:
+        - path
+      properties:
+        path:
+          type: string
+          example: /blog/markdown-test
+        title:
+          type: string
+          example: Markdown Test Post
+        post_slug:
+          type: string
+          example: markdown-test
+        referrer:
+          type: string
+          example: https://google.com
+        screen_resolution:
+          type: string
+          example: 1920x1080
+        session_id:
+          type: string
+          example: c8f31b20-9118-4b72-b521-d779e51c8a14
+
+    TrackEventResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: event recorded
+
+    TrendPoint:
+      type: object
+      required:
+        - bucket
+        - views
+        - visitors
+      properties:
+        bucket:
+          type: string
+          example: 2026-10-05 14:00
+        views:
+          type: integer
+          example: 42
+        visitors:
+          type: integer
+          example: 18
+
+    PageStat:
+      type: object
+      required:
+        - path
+        - views
+        - visitors
+      properties:
+        path:
+          type: string
+          example: /blog/markdown-test
+        title:
+          type: string
+          example: Markdown Test Post
+        views:
+          type: integer
+          example: 120
+        visitors:
+          type: integer
+          example: 75
+
+    PostStat:
+      type: object
+      required:
+        - post_slug
+        - views
+        - visitors
+      properties:
+        post_slug:
+          type: string
+          example: markdown-test
+        views:
+          type: integer
+          example: 85
+        visitors:
+          type: integer
+          example: 50
+
+    ReferrerStat:
+      type: object
+      required:
+        - referrer
+        - views
+      properties:
+        referrer:
+          type: string
+          example: https://github.com
+        views:
+          type: integer
+          example: 34
+
+    DeviceStat:
+      type: object
+      required:
+        - device_type
+        - count
+      properties:
+        device_type:
+          type: string
+          example: desktop
+        count:
+          type: integer
+          example: 120
+
+    BrowserStat:
+      type: object
+      required:
+        - browser
+        - count
+      properties:
+        browser:
+          type: string
+          example: Chrome
+        count:
+          type: integer
+          example: 88
+
+    RecentPageView:
+      type: object
+      required:
+        - id
+        - path
+        - device_type
+        - browser
+        - os
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        path:
+          type: string
+        title:
+          type: string
+        post_slug:
+          type: string
+        referrer:
+          type: string
+        device_type:
+          type: string
+        browser:
+          type: string
+        os:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    AnalyticsStatsResponse:
+      type: object
+      required:
+        - period
+        - total_views
+        - unique_visitors
+        - trend
+      properties:
+        period:
+          type: string
+          example: 30d
+        total_views:
+          type: integer
+          example: 1240
+        unique_visitors:
+          type: integer
+          example: 580
+        avg_views_per_visitor:
+          type: number
+          format: double
+          example: 2.14
+        trend:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrendPoint'
+        top_pages:
+          type: array
+          items:
+            $ref: '#/components/schemas/PageStat'
+        top_posts:
+          type: array
+          items:
+            $ref: '#/components/schemas/PostStat'
+        top_referrers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReferrerStat'
+        devices:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeviceStat'
+        browsers:
+          type: array
+          items:
+            $ref: '#/components/schemas/BrowserStat'
+        recent_views:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecentPageView'
 
 
 
