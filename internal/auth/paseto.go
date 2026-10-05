@@ -19,6 +19,7 @@ var (
 
 type PasetoService interface {
 	GenerateToken(user *model.User, duration time.Duration) (string, error)
+	Generate2FATempToken(user *model.User, duration time.Duration) (string, error)
 	VerifyToken(tokenString string) (*model.UserClaims, error)
 }
 
@@ -74,6 +75,7 @@ func (s *pasetoService) GenerateToken(user *model.User, duration time.Duration) 
 		FullName:  user.FullName,
 		AvatarURL: avatar,
 		Provider:  user.Provider,
+		Purpose:   "auth",
 		Issuer:    "realm-api",
 		Subject:   user.ID.String(),
 		Audience:  "realm-frontend",
@@ -84,6 +86,38 @@ func (s *pasetoService) GenerateToken(user *model.User, duration time.Duration) 
 	token, err := s.paseto.Encrypt(s.symmetricKey, claims, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to encrypt paseto token: %w", err)
+	}
+
+	return token, nil
+}
+
+func (s *pasetoService) Generate2FATempToken(user *model.User, duration time.Duration) (string, error) {
+	now := time.Now().UTC()
+	exp := now.Add(duration)
+
+	avatar := ""
+	if user.AvatarURL != nil {
+		avatar = *user.AvatarURL
+	}
+
+	claims := model.UserClaims{
+		ID:        user.ID.String(),
+		Email:     user.Email,
+		Username:  user.Username,
+		FullName:  user.FullName,
+		AvatarURL: avatar,
+		Provider:  user.Provider,
+		Purpose:   "2fa_challenge",
+		Issuer:    "realm-api",
+		Subject:   user.ID.String(),
+		Audience:  "realm-frontend",
+		IssuedAt:  now,
+		ExpiresAt: exp,
+	}
+
+	token, err := s.paseto.Encrypt(s.symmetricKey, claims, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to encrypt 2fa paseto token: %w", err)
 	}
 
 	return token, nil
