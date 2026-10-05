@@ -176,6 +176,122 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /v1/auth/2fa/verify:
+    post:
+      summary: Verify two-factor authentication challenge
+      operationId: verify2FA
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Verify2FARequest'
+      responses:
+        '200':
+          description: Successfully verified 2FA and full PASETO session token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid 2FA verification code, recovery code, or expired temporary token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/2fa/setup:
+    post:
+      summary: Initialize two-factor authentication setup
+      operationId: setup2FA
+      tags:
+        - Authentication
+      security:
+        - PasetoAuth: []
+      responses:
+        '200':
+          description: TOTP secret and QR code generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setup2FAResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/2fa/enable:
+    post:
+      summary: Confirm and enable two-factor authentication
+      operationId: enable2FA
+      tags:
+        - Authentication
+      security:
+        - PasetoAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Enable2FARequest'
+      responses:
+        '200':
+          description: 2FA activated and 8 backup recovery codes issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Enable2FAResponse'
+        '400':
+          description: Invalid TOTP verification code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/2fa/disable:
+    post:
+      summary: Disable two-factor authentication
+      operationId: disable2FA
+      tags:
+        - Authentication
+      security:
+        - PasetoAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Disable2FARequest'
+      responses:
+        '200':
+          description: 2FA successfully disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Disable2FAResponse'
+        '400':
+          description: Invalid confirmation code or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /v1/auth/me:
     get:
       summary: Get current authenticated user profile
@@ -1533,6 +1649,9 @@ components:
         provider:
           type: string
           enum: [local, google, github]
+        two_factor_enabled:
+          type: boolean
+          example: false
         created_at:
           type: string
           format: date-time
@@ -1580,6 +1699,100 @@ components:
           format: password
           example: SecurePassword123!
 
+    Verify2FARequest:
+      type: object
+      required:
+        - temp_token
+        - code
+      properties:
+        temp_token:
+          type: string
+          description: Temporary challenge token issued during initial login
+        code:
+          type: string
+          description: 6-digit TOTP code or emergency backup recovery code
+          example: "123456"
+
+    Setup2FAResponse:
+      type: object
+      required:
+        - status
+        - secret
+        - qr_code
+        - otpauth_url
+      properties:
+        status:
+          type: string
+          example: success
+        secret:
+          type: string
+          description: Base32 TOTP secret string
+          example: JBSWY3DPEHPK3PXP
+        qr_code:
+          type: string
+          description: Base64 data URL PNG image for QR code scanning
+          example: data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...
+        otpauth_url:
+          type: string
+          example: otpauth://totp/Realm%20HQ:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Realm+HQ
+
+    Enable2FARequest:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          description: 6-digit TOTP code from authenticator app
+          example: "123456"
+        secret:
+          type: string
+          description: Optional secret if not cached on session
+
+    Enable2FAResponse:
+      type: object
+      required:
+        - status
+        - message
+        - recovery_codes
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: Two-factor authentication has been enabled successfully
+        recovery_codes:
+          type: array
+          items:
+            type: string
+          example: ["A2B4-9F8C", "X7K2-1M9P"]
+
+    Disable2FARequest:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Current 6-digit TOTP code
+          example: "123456"
+        password:
+          type: string
+          description: Account password (fallback if authenticator unavailable)
+          example: "MySecurePassword123!"
+
+    Disable2FAResponse:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: Two-factor authentication has been disabled successfully
+
     UpdateProfileInput:
       type: object
       properties:
@@ -1605,6 +1818,12 @@ components:
           type: string
           description: PASETO v2.local symmetric token
           example: v2.local.k7x...
+        two_factor_required:
+          type: boolean
+          example: false
+        temp_token:
+          type: string
+          description: Short-lived challenge token if 2FA verification is required
         user:
           $ref: '#/components/schemas/UserDTO'
 
