@@ -33,6 +33,10 @@ type UserRepository interface {
 	LinkOAuthAccount(ctx context.Context, account *model.OAuthAccount) error
 	UnlinkOAuthAccount(ctx context.Context, userID uuid.UUID, provider string) error
 	GetByOAuthAccount(ctx context.Context, provider, providerID string) (*model.User, error)
+	Update2FASecret(ctx context.Context, userID uuid.UUID, secret string) error
+	Enable2FA(ctx context.Context, userID uuid.UUID, secret string, recoveryCodes []string) error
+	Disable2FA(ctx context.Context, userID uuid.UUID) error
+	ConsumeRecoveryCode(ctx context.Context, userID uuid.UUID, code string) (bool, error)
 }
 
 type userRepository struct {
@@ -86,7 +90,7 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 
 func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
 	query := `
-		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, created_at, updated_at
+		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, two_factor_enabled, two_factor_secret, COALESCE(two_factor_recovery_codes, '{}'), created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -100,6 +104,9 @@ func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.User
 		&u.AvatarURL,
 		&u.Provider,
 		&u.ProviderID,
+		&u.TwoFactorEnabled,
+		&u.TwoFactorSecret,
+		&u.TwoFactorRecoveryCodes,
 		&u.CreatedAt,
 		&u.UpdatedAt,
 	)
@@ -114,7 +121,7 @@ func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.User
 
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
 	query := `
-		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, created_at, updated_at
+		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, two_factor_enabled, two_factor_secret, COALESCE(two_factor_recovery_codes, '{}'), created_at, updated_at
 		FROM users
 		WHERE LOWER(email) = LOWER($1)
 	`
@@ -128,6 +135,9 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.U
 		&u.AvatarURL,
 		&u.Provider,
 		&u.ProviderID,
+		&u.TwoFactorEnabled,
+		&u.TwoFactorSecret,
+		&u.TwoFactorRecoveryCodes,
 		&u.CreatedAt,
 		&u.UpdatedAt,
 	)
@@ -142,7 +152,7 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.U
 
 func (r *userRepository) GetByUsername(ctx context.Context, username string) (*model.User, error) {
 	query := `
-		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, created_at, updated_at
+		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, two_factor_enabled, two_factor_secret, COALESCE(two_factor_recovery_codes, '{}'), created_at, updated_at
 		FROM users
 		WHERE LOWER(username) = LOWER($1)
 	`
@@ -156,6 +166,9 @@ func (r *userRepository) GetByUsername(ctx context.Context, username string) (*m
 		&u.AvatarURL,
 		&u.Provider,
 		&u.ProviderID,
+		&u.TwoFactorEnabled,
+		&u.TwoFactorSecret,
+		&u.TwoFactorRecoveryCodes,
 		&u.CreatedAt,
 		&u.UpdatedAt,
 	)
@@ -171,7 +184,7 @@ func (r *userRepository) GetByUsername(ctx context.Context, username string) (*m
 func (r *userRepository) GetByIdentifier(ctx context.Context, identifier string) (*model.User, error) {
 	norm := strings.ToLower(strings.TrimSpace(identifier))
 	query := `
-		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, created_at, updated_at
+		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, two_factor_enabled, two_factor_secret, COALESCE(two_factor_recovery_codes, '{}'), created_at, updated_at
 		FROM users
 		WHERE email = $1 OR username = $1
 		LIMIT 1
@@ -186,6 +199,9 @@ func (r *userRepository) GetByIdentifier(ctx context.Context, identifier string)
 		&u.AvatarURL,
 		&u.Provider,
 		&u.ProviderID,
+		&u.TwoFactorEnabled,
+		&u.TwoFactorSecret,
+		&u.TwoFactorRecoveryCodes,
 		&u.CreatedAt,
 		&u.UpdatedAt,
 	)
@@ -205,7 +221,7 @@ func (r *userRepository) GetByProvider(ctx context.Context, provider, providerID
 func (r *userRepository) GetByOAuthAccount(ctx context.Context, provider, providerID string) (*model.User, error) {
 	// First check user_oauth_accounts table
 	query := `
-		SELECT u.id, u.email, u.username, u.full_name, u.password_hash, u.avatar_url, u.provider, u.provider_id, u.created_at, u.updated_at
+		SELECT u.id, u.email, u.username, u.full_name, u.password_hash, u.avatar_url, u.provider, u.provider_id, u.two_factor_enabled, u.two_factor_secret, COALESCE(u.two_factor_recovery_codes, '{}'), u.created_at, u.updated_at
 		FROM users u
 		JOIN user_oauth_accounts oa ON u.id = oa.user_id
 		WHERE oa.provider = $1 AND oa.provider_id = $2
@@ -221,6 +237,9 @@ func (r *userRepository) GetByOAuthAccount(ctx context.Context, provider, provid
 		&u.AvatarURL,
 		&u.Provider,
 		&u.ProviderID,
+		&u.TwoFactorEnabled,
+		&u.TwoFactorSecret,
+		&u.TwoFactorRecoveryCodes,
 		&u.CreatedAt,
 		&u.UpdatedAt,
 	)
@@ -230,7 +249,7 @@ func (r *userRepository) GetByOAuthAccount(ctx context.Context, provider, provid
 
 	// Fallback to users table direct columns for backwards compatibility
 	fallbackQuery := `
-		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, created_at, updated_at
+		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, two_factor_enabled, two_factor_secret, COALESCE(two_factor_recovery_codes, '{}'), created_at, updated_at
 		FROM users
 		WHERE provider = $1 AND provider_id = $2
 		LIMIT 1
@@ -244,6 +263,9 @@ func (r *userRepository) GetByOAuthAccount(ctx context.Context, provider, provid
 		&u.AvatarURL,
 		&u.Provider,
 		&u.ProviderID,
+		&u.TwoFactorEnabled,
+		&u.TwoFactorSecret,
+		&u.TwoFactorRecoveryCodes,
 		&u.CreatedAt,
 		&u.UpdatedAt,
 	)
@@ -390,3 +412,65 @@ func (r *userRepository) UnlinkOAuthAccount(ctx context.Context, userID uuid.UUI
 
 	return nil
 }
+
+func (r *userRepository) Update2FASecret(ctx context.Context, userID uuid.UUID, secret string) error {
+	query := `UPDATE users SET two_factor_secret = $1, updated_at = NOW() WHERE id = $2`
+	_, err := r.db.Pool.Exec(ctx, query, secret, userID)
+	return err
+}
+
+func (r *userRepository) Enable2FA(ctx context.Context, userID uuid.UUID, secret string, recoveryCodes []string) error {
+	query := `
+		UPDATE users
+		SET two_factor_enabled = true,
+		    two_factor_secret = $1,
+		    two_factor_recovery_codes = $2,
+		    updated_at = NOW()
+		WHERE id = $3
+	`
+	_, err := r.db.Pool.Exec(ctx, query, secret, recoveryCodes, userID)
+	return err
+}
+
+func (r *userRepository) Disable2FA(ctx context.Context, userID uuid.UUID) error {
+	query := `
+		UPDATE users
+		SET two_factor_enabled = false,
+		    two_factor_secret = NULL,
+		    two_factor_recovery_codes = '{}',
+		    updated_at = NOW()
+		WHERE id = $1
+	`
+	_, err := r.db.Pool.Exec(ctx, query, userID)
+	return err
+}
+
+func (r *userRepository) ConsumeRecoveryCode(ctx context.Context, userID uuid.UUID, code string) (bool, error) {
+	normCode := strings.ToUpper(strings.TrimSpace(code))
+	user, err := r.GetByID(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+
+	foundIndex := -1
+	for i, c := range user.TwoFactorRecoveryCodes {
+		if strings.ToUpper(strings.TrimSpace(c)) == normCode {
+			foundIndex = i
+			break
+		}
+	}
+
+	if foundIndex == -1 {
+		return false, nil
+	}
+
+	updatedCodes := append(user.TwoFactorRecoveryCodes[:foundIndex], user.TwoFactorRecoveryCodes[foundIndex+1:]...)
+	query := `UPDATE users SET two_factor_recovery_codes = $1, updated_at = NOW() WHERE id = $2`
+	_, err = r.db.Pool.Exec(ctx, query, updatedCodes, userID)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
