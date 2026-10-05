@@ -1,15 +1,20 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"image/png"
 	"net/mail"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/bcrypt"
 	"github.com/irvanmalik48/realm-api/internal/auth"
 	"github.com/irvanmalik48/realm-api/internal/model"
@@ -45,6 +50,10 @@ type AuthService interface {
 	LinkOAuthAccount(ctx context.Context, userID uuid.UUID, userInfo *OAuthUserInfo) error
 	UnlinkOAuthAccount(ctx context.Context, userID uuid.UUID, provider string) error
 	CheckAvailability(ctx context.Context, username, email string) (*model.CheckAvailabilityResponse, error)
+	Setup2FA(ctx context.Context, userID uuid.UUID) (*model.Setup2FAResponse, error)
+	Enable2FA(ctx context.Context, userID uuid.UUID, code, secret string) (*model.Enable2FAResponse, error)
+	Disable2FA(ctx context.Context, userID uuid.UUID, code, password string) error
+	Verify2FA(ctx context.Context, tempToken, code string) (*model.AuthResponse, error)
 }
 
 type authService struct {
@@ -177,12 +186,27 @@ func (s *authService) Login(ctx context.Context, input model.LoginInput) (*model
 		return nil, ErrInvalidCredentials
 	}
 
+	accounts := s.getConnectedAccounts(ctx, user.ID)
+
+	if user.TwoFactorEnabled {
+		tempToken, err := s.pasetoSvc.Generate2FATempToken(user, 5*time.Minute)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate 2fa challenge token: %w", err)
+		}
+
+		return &model.AuthResponse{
+			Status:            "2fa_required",
+			Message:           "Two-factor authentication verification required",
+			TwoFactorRequired: true,
+			TempToken:         tempToken,
+			User:              user.ToDTOWithAccounts(accounts),
+		}, nil
+	}
+
 	token, err := s.pasetoSvc.GenerateToken(user, s.tokenTTL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
-
-	accounts := s.getConnectedAccounts(ctx, user.ID)
 
 	return &model.AuthResponse{
 		Status:  "success",
@@ -552,3 +576,195 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+const recoveryCharset = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
+
+func generateRecoveryCodes(count int) []string {
+	codes := make([]string, count)
+	for i := 0; i < count; i++ {
+		bytes := make([]byte, 8)
+		_, _ = rand.Read(bytes)
+		var sb strings.Builder
+		for j, b := range bytes {
+			if j == 4 {
+				sb.WriteRune('-')
+			}
+			sb.WriteByte(recoveryCharset[int(b)%len(recoveryCharset)])
+		}
+		codes[i] = sb.String()
+	}
+	return codes
+}
+
+func (s *authService) Setup2FA(ctx context.Context, userID uuid.UUID) (*model.Setup2FAResponse, error) {
+	if s.userRepo == nil {
+		return nil, ErrDatabaseUnavailable
+	}
+
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	key, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      "Realm HQ",
+		AccountName: user.Email,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate totp key: %w", err)
+	}
+
+	if err := s.userRepo.Update2FASecret(ctx, userID, key.Secret()); err != nil {
+		return nil, fmt.Errorf("failed to save 2fa secret: %w", err)
+	}
+
+	var buf bytes.Buffer
+	img, err := key.Image(240, 240)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate qr code image: %w", err)
+	}
+	if err := png.Encode(&buf, img); err != nil {
+		return nil, fmt.Errorf("failed to encode qr code png: %w", err)
+	}
+
+	qrBase64 := "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
+
+	return &model.Setup2FAResponse{
+		Secret:     key.Secret(),
+		QRCode:     qrBase64,
+		OtpauthURL: key.URL(),
+	}, nil
+}
+
+func (s *authService) Enable2FA(ctx context.Context, userID uuid.UUID, code, secret string) (*model.Enable2FAResponse, error) {
+	if s.userRepo == nil {
+		return nil, ErrDatabaseUnavailable
+	}
+
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	totpSecret := secret
+	if totpSecret == "" && user.TwoFactorSecret != nil {
+		totpSecret = *user.TwoFactorSecret
+	}
+	if totpSecret == "" {
+		return nil, errors.New("no 2fa secret found; please initiate setup first")
+	}
+
+	trimmedCode := strings.TrimSpace(code)
+	if !totp.Validate(trimmedCode, totpSecret) {
+		return nil, errors.New("invalid verification code; please check your authenticator app and try again")
+	}
+
+	recoveryCodes := generateRecoveryCodes(8)
+	if err := s.userRepo.Enable2FA(ctx, userID, totpSecret, recoveryCodes); err != nil {
+		return nil, fmt.Errorf("failed to enable 2fa: %w", err)
+	}
+
+	return &model.Enable2FAResponse{
+		Status:        "success",
+		Message:       "Two-factor authentication has been enabled successfully",
+		RecoveryCodes: recoveryCodes,
+	}, nil
+}
+
+func (s *authService) Disable2FA(ctx context.Context, userID uuid.UUID, code, password string) error {
+	if s.userRepo == nil {
+		return ErrDatabaseUnavailable
+	}
+
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	if !user.TwoFactorEnabled {
+		return errors.New("two-factor authentication is not currently enabled")
+	}
+
+	valid := false
+	if code != "" && user.TwoFactorSecret != nil {
+		if totp.Validate(strings.TrimSpace(code), *user.TwoFactorSecret) {
+			valid = true
+		}
+	}
+
+	if !valid && password != "" && user.PasswordHash != nil {
+		if err := bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(password)); err == nil {
+			valid = true
+		}
+	}
+
+	if !valid {
+		return errors.New("invalid confirmation code or password")
+	}
+
+	return s.userRepo.Disable2FA(ctx, userID)
+}
+
+func (s *authService) Verify2FA(ctx context.Context, tempToken, code string) (*model.AuthResponse, error) {
+	if s.userRepo == nil {
+		return nil, ErrDatabaseUnavailable
+	}
+
+	claims, err := s.pasetoSvc.VerifyToken(tempToken)
+	if err != nil {
+		return nil, errors.New("session expired or invalid; please log in again")
+	}
+
+	if claims.Purpose != "2fa_challenge" {
+		return nil, errors.New("invalid token purpose")
+	}
+
+	userID, err := uuid.Parse(claims.ID)
+	if err != nil {
+		return nil, errors.New("invalid user id")
+	}
+
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if !user.TwoFactorEnabled || user.TwoFactorSecret == nil {
+		return nil, errors.New("two-factor authentication is not active for this account")
+	}
+
+	trimmedCode := strings.TrimSpace(code)
+	valid := false
+
+	// 1. Try TOTP code validation
+	if len(trimmedCode) == 6 && totp.Validate(trimmedCode, *user.TwoFactorSecret) {
+		valid = true
+	}
+
+	// 2. Try recovery code validation
+	if !valid {
+		consumed, err := s.userRepo.ConsumeRecoveryCode(ctx, userID, trimmedCode)
+		if err == nil && consumed {
+			valid = true
+		}
+	}
+
+	if !valid {
+		return nil, errors.New("invalid verification code or recovery code")
+	}
+
+	token, err := s.pasetoSvc.GenerateToken(user, s.tokenTTL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate token: %w", err)
+	}
+
+	accounts := s.getConnectedAccounts(ctx, user.ID)
+
+	return &model.AuthResponse{
+		Status:  "success",
+		Message: "Authentication successful",
+		Token:   token,
+		User:    user.ToDTOWithAccounts(accounts),
+	}, nil
+}
+
