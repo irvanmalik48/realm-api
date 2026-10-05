@@ -221,6 +221,40 @@ sudo docker compose exec api /app/token list
 
 ---
 
+## Granular Permissions & Scopes
+
+Realm API implements a multi-tiered permission model supporting both administrative role-based access control (RBAC) and scoped API tokens.
+
+### 1. Administrative Permissions (`admin_users`)
+
+Administrative accounts managed via gRPC (`AdminRBACService`) and Realm HQ support granular permissions:
+
+| Permission | Description | Scope / Impact |
+|---|---|---|
+| `*` | **Superadmin Wildcard** | Unrestricted access across all administrative gRPC and REST subsystems |
+| `storage:write` | Upload & Modify Storage | Upload files, convert images to WebP, and write Zstd blobs |
+| `storage:delete` | Delete Storage Objects | Delete files and purge storage metadata |
+| `comments:moderate`| Comment Moderation | Review, approve, update, and delete discussions across articles |
+| `tokens:manage` | Token Governance | Issue, inspect, and revoke programmatic API tokens |
+| `logs:delete` | Purge System Logs | Truncate and purge system audit logs and trace histories |
+| `system:telemetry` | Observability & Telemetry | Inspect DB pool metrics, Pyroscope profiling, and runtime health |
+
+### 2. API Token Scopes (`api_tokens`)
+
+Programmatic API tokens (`realm_tok_...`) issued via CLI (`cmd/token`) or HQ token management are evaluated via `middleware.RequireToken` and `middleware.RequireTokenOrUserAuth`:
+
+- **Wildcard Matching**: Scopes `*`, `all`, and `admin` grant full access to every protected endpoint.
+- **Prefix Matching**: Scopes ending with `:*` (e.g. `storage:*`) match any sub-action under that namespace (`storage:read`, `storage:write`, `storage:delete`).
+- **Exact Scopes**:
+  - `storage:read` &mdash; Read and download stored media assets
+  - `storage:write` &mdash; Upload new objects to storage
+  - `storage:delete` &mdash; Remove objects from storage
+  - `contact:read` &mdash; Retrieve contact message submissions
+  - `comments:moderate` &mdash; Edit or delete comments on behalf of moderation
+  - `metrics:read` &mdash; Read Prometheus and OpenTelemetry telemetry data
+
+---
+
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -228,7 +262,8 @@ sudo docker compose exec api /app/token list
 | `PORT` | `8080` | HTTP gateway port |
 | `GRPC_PORT` | `50051` | High-performance gRPC port |
 | `ENVIRONMENT` | `development` | Environment (`development`, `production`, `test`) |
-| `ALLOWED_ORIGINS` | `https://irvanma.eu.org` | Comma-separated CORS allowed origins |
+| `ALLOWED_ORIGINS` | `https://irvanma.eu.org,https://hq.irvanma.eu.org` | Comma-separated CORS allowed origins |
+| `SUPERADMIN_EMAILS` | `""` | Comma-separated initial superadmin emails bootstrapped on startup |
 | `DATABASE_URL` | `""` | PostgreSQL connection string |
 | `STORAGE_DIR` | `./data/storage` | Directory path for Zstd compressed file storage |
 | `MAX_UPLOAD_SIZE_MB` | `10` | Maximum allowed file upload size in megabytes |
