@@ -140,6 +140,9 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	authHdlr := handler.NewAuthHandler(cfg, authSvc, oauthSvc, pasetoSvc)
 	reactionHdlr := handler.NewReactionHandler(cfg, reactionSvc)
 	commentHdlr := handler.NewCommentHandler(cfg, commentSvc)
+	postRepo := repository.NewPostRepository(db)
+	postSvc := service.NewPostService(postRepo)
+	postHdlr := handler.NewPostHandler(cfg, postSvc)
 
 	// Root and Health routes
 	app.Get("/", rootHdlr.Handle)
@@ -200,6 +203,15 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	authGroup.Get("/google/callback", authHdlr.GoogleCallback)
 	authGroup.Get("/github", authHdlr.GitHubLogin)
 	authGroup.Get("/github/callback", authHdlr.GitHubCallback)
+
+	// Post Article endpoints (served to realm-reference, managed by realm-hq)
+	postsGroup := v1.Group("/posts")
+	postsGroup.Get("/", postHdlr.ListPosts)
+	postsGroup.Get("/:slug", postHdlr.GetPost)
+	postsGroup.Post("/", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter), postHdlr.CreatePost)
+	postsGroup.Patch("/:slug", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter), postHdlr.UpdatePost)
+	postsGroup.Put("/:slug", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter), postHdlr.UpdatePost)
+	postsGroup.Delete("/:slug", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter), postHdlr.DeletePost)
 
 	// Post Reaction endpoints
 	reactionsGroup := v1.Group("/posts/:slug/reactions")
