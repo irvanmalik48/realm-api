@@ -18,6 +18,7 @@ type User struct {
 	TwoFactorEnabled       bool      `json:"two_factor_enabled"`
 	TwoFactorSecret        *string   `json:"-"`
 	TwoFactorRecoveryCodes []string  `json:"-"`
+	IsActive               bool      `json:"is_active"`
 	CreatedAt              time.Time `json:"created_at"`
 	UpdatedAt              time.Time `json:"updated_at"`
 }
@@ -47,6 +48,7 @@ type UserDTO struct {
 	Provider           string            `json:"provider"`
 	TwoFactorEnabled   bool              `json:"two_factor_enabled"`
 	HasPassword        bool              `json:"has_password"`
+	IsActive           bool              `json:"is_active"`
 	ConnectedProviders []string          `json:"connected_providers"`
 	ConnectedAccounts  []OAuthAccountDTO `json:"connected_accounts"`
 	CreatedAt          time.Time         `json:"created_at"`
@@ -79,6 +81,7 @@ func (u *User) ToDTO() *UserDTO {
 		Provider:           u.Provider,
 		TwoFactorEnabled:   u.TwoFactorEnabled,
 		HasPassword:        hasPassword,
+		IsActive:           u.IsActive,
 		ConnectedProviders: providers,
 		ConnectedAccounts:  accounts,
 		CreatedAt:          u.CreatedAt,
@@ -248,4 +251,11 @@ type CheckAvailabilityResponse struct {
 	EmailAvailable    *bool  `json:"email_available,omitempty"`
 	UsernameReason    string `json:"username_reason,omitempty"`
 	EmailReason       string `json:"email_reason,omitempty"`
+}
+
+type UpdateUserInput struct {
+	Email    *string `json:"email"`
+	Username *string `json:"username"`
+	FullName *string `json:"full_name"`
+	IsActive *bool   `json:"is_active"`
 }
