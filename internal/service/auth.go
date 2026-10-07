@@ -33,6 +33,7 @@ var (
 	ErrCurrentPasswordBad = errors.New("incorrect current password")
 	ErrDatabaseUnavailable = errors.New("database repository unavailable")
 	ErrUnverifiedOAuthEmail = errors.New("unverified email from OAuth provider cannot be used for authentication")
+	ErrAccountDeactivated   = errors.New("user account has been deactivated")
 )
 
 // Precomputed valid bcrypt hash used to prevent timing attacks when a user is not found
@@ -177,6 +178,10 @@ func (s *authService) Login(ctx context.Context, input model.LoginInput) (*model
 		return nil, err
 	}
 
+	if !user.IsActive {
+		return nil, ErrAccountDeactivated
+	}
+
 	if user.PasswordHash == nil || *user.PasswordHash == "" {
 		_ = bcrypt.CompareHashAndPassword(dummyBcryptHash, []byte(input.Password))
 		return nil, ErrInvalidCredentials
@@ -233,6 +238,9 @@ func (s *authService) HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserI
 	// 1. Try finding by OAuth account
 	user, err := s.userRepo.GetByOAuthAccount(ctx, userInfo.Provider, userInfo.ProviderID)
 	if err == nil && user != nil {
+		if !user.IsActive {
+			return nil, ErrAccountDeactivated
+		}
 		// Update avatar if provided
 		if userInfo.AvatarURL != "" && (user.AvatarURL == nil || *user.AvatarURL == "") {
 			user.AvatarURL = &userInfo.AvatarURL
@@ -266,6 +274,9 @@ func (s *authService) HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserI
 	// 2. Try finding by email to link account
 	user, err = s.userRepo.GetByEmail(ctx, userInfo.Email)
 	if err == nil && user != nil {
+		if !user.IsActive {
+			return nil, ErrAccountDeactivated
+		}
 		oauthAcct := &model.OAuthAccount{
 			ID:         uuid.New(),
 			UserID:     user.ID,
