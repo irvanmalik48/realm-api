@@ -49,6 +49,10 @@ func (m *mockUserRepo) Create(ctx context.Context, user *model.User) error {
 		return repository.ErrUserAlreadyExists
 	}
 
+	if !user.IsActive {
+		user.IsActive = true
+	}
+
 	m.usersByID[user.ID] = user
 	m.usersByEmail[email] = user
 	m.usersByUsername[username] = user
@@ -241,6 +245,39 @@ func (m *mockUserRepo) DeleteUser(ctx context.Context, id uuid.UUID) error {
 	delete(m.usersByUsername, strings.ToLower(u.Username))
 	delete(m.oauthAccounts, id)
 	return nil
+}
+
+func (m *mockUserRepo) UpdateUser(ctx context.Context, id uuid.UUID, input model.UpdateUserInput) (*model.User, error) {
+	u, ok := m.usersByID[id]
+	if !ok {
+		return nil, repository.ErrUserNotFound
+	}
+	if input.Email != nil && *input.Email != "" {
+		newEmail := strings.ToLower(*input.Email)
+		if existing, exists := m.usersByEmail[newEmail]; exists && existing.ID != id {
+			return nil, repository.ErrUserAlreadyExists
+		}
+		delete(m.usersByEmail, strings.ToLower(u.Email))
+		u.Email = *input.Email
+		m.usersByEmail[newEmail] = u
+	}
+	if input.Username != nil && *input.Username != "" {
+		newUsername := strings.ToLower(*input.Username)
+		if existing, exists := m.usersByUsername[newUsername]; exists && existing.ID != id {
+			return nil, repository.ErrUserAlreadyExists
+		}
+		delete(m.usersByUsername, strings.ToLower(u.Username))
+		u.Username = *input.Username
+		m.usersByUsername[newUsername] = u
+	}
+	if input.FullName != nil && *input.FullName != "" {
+		u.FullName = *input.FullName
+	}
+	if input.IsActive != nil {
+		u.IsActive = *input.IsActive
+	}
+	u.UpdatedAt = time.Now()
+	return u, nil
 }
 
 func setupAuthTestApp(t *testing.T) (*fiber.App, service.AuthService, auth.PasetoService) {
