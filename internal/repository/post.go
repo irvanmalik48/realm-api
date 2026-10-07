@@ -76,7 +76,7 @@ func (r *postRepository) ListPosts(ctx context.Context, isPublishedOnly *bool, t
 			id, slug, title, description, tags, cover_image, reading_time, is_published, published_at, created_at, updated_at
 		FROM posts
 		%s
-		ORDER BY published_at DESC, created_at DESC
+		ORDER BY COALESCE(updated_at, published_at, created_at) DESC, created_at DESC
 		LIMIT $%d OFFSET $%d
 	`, whereClause, argIdx, argIdx+1)
 
