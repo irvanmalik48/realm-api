@@ -37,6 +37,8 @@ type UserRepository interface {
 	Enable2FA(ctx context.Context, userID uuid.UUID, secret string, recoveryCodes []string) error
 	Disable2FA(ctx context.Context, userID uuid.UUID) error
 	ConsumeRecoveryCode(ctx context.Context, userID uuid.UUID, code string) (bool, error)
+	ListUsers(ctx context.Context, search, provider string, limit, offset int) ([]model.UserDTO, int, error)
+	DeleteUser(ctx context.Context, id uuid.UUID) error
 }
 
 type userRepository struct {
@@ -473,4 +475,122 @@ func (r *userRepository) ConsumeRecoveryCode(ctx context.Context, userID uuid.UU
 
 	return true, nil
 }
+
+func (r *userRepository) ListUsers(ctx context.Context, search, provider string, limit, offset int) ([]model.UserDTO, int, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	whereClauses := []string{"1=1"}
+	args := []interface{}{}
+	argIdx := 1
+
+	if s := strings.TrimSpace(search); s != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("(LOWER(username) LIKE $%d OR LOWER(email) LIKE $%d OR LOWER(full_name) LIKE $%d)", argIdx, argIdx, argIdx))
+		args = append(args, "%"+strings.ToLower(s)+"%")
+		argIdx++
+	}
+
+	if p := strings.TrimSpace(provider); p != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("(provider = $%d OR EXISTS (SELECT 1 FROM user_oauth_accounts WHERE user_oauth_accounts.user_id = users.id AND user_oauth_accounts.provider = $%d))", argIdx, argIdx))
+		args = append(args, strings.ToLower(p))
+		argIdx++
+	}
+
+	whereSQL := strings.Join(whereClauses, " AND ")
+
+	var total int
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM users WHERE %s", whereSQL)
+	if err := r.db.Pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("failed to count users: %w", err)
+	}
+
+	selectQuery := fmt.Sprintf(`
+		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, two_factor_enabled, created_at, updated_at
+		FROM users
+		WHERE %s
+		ORDER BY created_at DESC
+		LIMIT $%d OFFSET $%d
+	`, whereSQL, argIdx, argIdx+1)
+
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Pool.Query(ctx, selectQuery, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to list users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*model.User
+	var userIDs []uuid.UUID
+
+	for rows.Next() {
+		var u model.User
+		if err := rows.Scan(
+			&u.ID, &u.Email, &u.Username, &u.FullName, &u.PasswordHash, &u.AvatarURL,
+			&u.Provider, &u.ProviderID, &u.TwoFactorEnabled, &u.CreatedAt, &u.UpdatedAt,
+		); err != nil {
+			return nil, 0, fmt.Errorf("failed to scan user: %w", err)
+		}
+		users = append(users, &u)
+		userIDs = append(userIDs, u.ID)
+	}
+
+	if len(users) == 0 {
+		return []model.UserDTO{}, total, nil
+	}
+
+	accountsQuery := `
+		SELECT id, user_id, provider, provider_id, email, avatar_url, created_at
+		FROM user_oauth_accounts
+		WHERE user_id = ANY($1)
+	`
+	accRows, err := r.db.Pool.Query(ctx, accountsQuery, userIDs)
+	oauthMap := make(map[uuid.UUID][]model.OAuthAccount)
+	if err == nil {
+		defer accRows.Close()
+		for accRows.Next() {
+			var a model.OAuthAccount
+			if scanErr := accRows.Scan(&a.ID, &a.UserID, &a.Provider, &a.ProviderID, &a.Email, &a.AvatarURL, &a.CreatedAt); scanErr == nil {
+				oauthMap[a.UserID] = append(oauthMap[a.UserID], a)
+			}
+		}
+	}
+
+	dtos := make([]model.UserDTO, 0, len(users))
+	for _, u := range users {
+		dto := u.ToDTOWithAccounts(oauthMap[u.ID])
+		if dto != nil {
+			dtos = append(dtos, *dto)
+		}
+	}
+
+	return dtos, total, nil
+}
+
+func (r *userRepository) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	var isSuperadmin bool
+	err := r.db.Pool.QueryRow(ctx, `SELECT is_superadmin FROM admin_users WHERE user_id = $1`, id).Scan(&isSuperadmin)
+	if err == nil && isSuperadmin {
+		return errors.New("cannot delete superadmin user")
+	}
+
+	_, _ = r.db.Pool.Exec(ctx, `UPDATE admin_users SET created_by = NULL WHERE created_by = $1`, id)
+
+	result, err := r.db.Pool.Exec(ctx, `DELETE FROM users WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
 
