@@ -1,6 +1,7 @@
 package test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -73,3 +74,104 @@ func TestUserHandler_ListAndUsers(t *testing.T) {
 		t.Fatalf("expected status 404, got %d", delResp2.StatusCode)
 	}
 }
+
+func TestUserHandler_UpdateAndDeactivate(t *testing.T) {
+	repo := newMockUserRepo()
+	u := &model.User{
+		ID:        uuid.New(),
+		Email:     "target@example.com",
+		Username:  "targetuser",
+		FullName:  "Target User",
+		Provider:  "local",
+		IsActive:  true,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	_ = repo.Create(context.Background(), u)
+
+	cfg := &config.Config{}
+	hdlr := handler.NewUserHandler(cfg, repo)
+
+	app := fiber.New()
+	app.Patch("/v1/users/:id", hdlr.UpdateUser)
+
+	// 1. Edit Full Name and Username
+	newFullName := "Updated Name"
+	newUsername := "updatedtarget"
+	updateBody, _ := json.Marshal(model.UpdateUserInput{
+		FullName: &newFullName,
+		Username: &newUsername,
+	})
+	patchReq := httptest.NewRequest(http.MethodPatch, "/v1/users/"+u.ID.String(), bytes.NewReader(updateBody))
+	patchReq.Header.Set("Content-Type", "application/json")
+	patchResp, err := app.Test(patchReq)
+	if err != nil {
+		t.Fatalf("failed to execute patch request: %v", err)
+	}
+	if patchResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", patchResp.StatusCode)
+	}
+
+	var updateRes struct {
+		Status string        `json:"status"`
+		User   model.UserDTO `json:"user"`
+	}
+	if err := json.NewDecoder(patchResp.Body).Decode(&updateRes); err != nil {
+		t.Fatalf("failed to decode patch response: %v", err)
+	}
+	if updateRes.User.FullName != newFullName || updateRes.User.Username != newUsername {
+		t.Fatalf("expected name %s and username %s, got %s and %s", newFullName, newUsername, updateRes.User.FullName, updateRes.User.Username)
+	}
+	if !updateRes.User.IsActive {
+		t.Fatalf("expected user to remain active")
+	}
+
+	// 2. Deactivate Account
+	deactivate := false
+	deactivateBody, _ := json.Marshal(model.UpdateUserInput{
+		IsActive: &deactivate,
+	})
+	deactReq := httptest.NewRequest(http.MethodPatch, "/v1/users/"+u.ID.String(), bytes.NewReader(deactivateBody))
+	deactReq.Header.Set("Content-Type", "application/json")
+	deactResp, err := app.Test(deactReq)
+	if err != nil {
+		t.Fatalf("failed to execute deactivation request: %v", err)
+	}
+	if deactResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", deactResp.StatusCode)
+	}
+
+	var deactRes struct {
+		Status string        `json:"status"`
+		User   model.UserDTO `json:"user"`
+	}
+	_ = json.NewDecoder(deactResp.Body).Decode(&deactRes)
+	if deactRes.User.IsActive {
+		t.Fatalf("expected user to be deactivated (is_active = false)")
+	}
+
+	// 3. Reactivate Account
+	reactivate := true
+	reactivateBody, _ := json.Marshal(model.UpdateUserInput{
+		IsActive: &reactivate,
+	})
+	reactReq := httptest.NewRequest(http.MethodPatch, "/v1/users/"+u.ID.String(), bytes.NewReader(reactivateBody))
+	reactReq.Header.Set("Content-Type", "application/json")
+	reactResp, err := app.Test(reactReq)
+	if err != nil {
+		t.Fatalf("failed to execute reactivation request: %v", err)
+	}
+	if reactResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", reactResp.StatusCode)
+	}
+
+	var reactRes struct {
+		Status string        `json:"status"`
+		User   model.UserDTO `json:"user"`
+	}
+	_ = json.NewDecoder(reactResp.Body).Decode(&reactRes)
+	if !reactRes.User.IsActive {
+		t.Fatalf("expected user to be reactivated (is_active = true)")
+	}
+}
+
