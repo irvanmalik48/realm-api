@@ -266,6 +266,8 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	// User Management endpoints
 	usersGroup := v1.Group("/users")
 	usersGroup.Get("/", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "users:read"), userHdlr.ListUsers)
+	usersGroup.Patch("/:id", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "users:manage"), userHdlr.UpdateUser)
+	usersGroup.Put("/:id", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "users:manage"), userHdlr.UpdateUser)
 	usersGroup.Delete("/:id", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "users:manage"), userHdlr.DeleteUser)
 
 	// Media aliases
