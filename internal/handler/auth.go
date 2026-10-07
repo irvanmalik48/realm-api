@@ -71,6 +71,9 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 	resp, err := h.authSvc.Login(c.Context(), input)
 	if err != nil {
+		if errors.Is(err, service.ErrAccountDeactivated) {
+			return ErrorResponse(c, "Your account has been deactivated. Please contact an administrator.", http.StatusForbidden)
+		}
 		if errors.Is(err, service.ErrInvalidCredentials) {
 			return ErrorResponse(c, "Invalid email/username or password.", http.StatusUnauthorized)
 		}
