@@ -80,3 +80,44 @@ func (h *UserHandler) DeleteUser(c *fiber.Ctx) error {
 		"message": "User deleted successfully",
 	}, http.StatusOK, 0)
 }
+
+func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
+	idParam := c.Params("id")
+	if idParam == "" {
+		return ErrorResponse(c, "User ID is required", http.StatusBadRequest)
+	}
+
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		return ErrorResponse(c, "Invalid user ID", http.StatusBadRequest)
+	}
+
+	var input model.UpdateUserInput
+	if err := c.BodyParser(&input); err != nil {
+		return ErrorResponse(c, "Invalid request body", http.StatusBadRequest)
+	}
+
+	updatedUser, err := h.userRepo.UpdateUser(c.Context(), id, input)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return ErrorResponse(c, "User not found", http.StatusNotFound)
+		}
+		if errors.Is(err, repository.ErrUserAlreadyExists) {
+			return ErrorResponse(c, "Username or email is already taken", http.StatusConflict)
+		}
+		if err.Error() == "cannot deactivate a superadmin account" {
+			return ErrorResponse(c, "Cannot deactivate a superadmin account", http.StatusForbidden)
+		}
+		log.Printf("[Users] UpdateUser error: %v\n", err)
+		return ErrorResponse(c, "Failed to update user", http.StatusInternalServerError)
+	}
+
+	accounts, _ := h.userRepo.GetOAuthAccounts(c.Context(), updatedUser.ID)
+	dto := updatedUser.ToDTOWithAccounts(accounts)
+
+	return JSONResponse(c, fiber.Map{
+		"status": "success",
+		"user":   dto,
+	}, http.StatusOK, 0)
+}
+
