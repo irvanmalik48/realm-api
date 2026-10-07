@@ -223,6 +223,26 @@ func (m *mockUserRepo) ConsumeRecoveryCode(ctx context.Context, userID uuid.UUID
 	return false, nil
 }
 
+func (m *mockUserRepo) ListUsers(ctx context.Context, search, provider string, limit, offset int) ([]model.UserDTO, int, error) {
+	var dtos []model.UserDTO
+	for _, u := range m.usersByID {
+		dtos = append(dtos, *u.ToDTO())
+	}
+	return dtos, len(dtos), nil
+}
+
+func (m *mockUserRepo) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	u, ok := m.usersByID[id]
+	if !ok {
+		return repository.ErrUserNotFound
+	}
+	delete(m.usersByID, id)
+	delete(m.usersByEmail, strings.ToLower(u.Email))
+	delete(m.usersByUsername, strings.ToLower(u.Username))
+	delete(m.oauthAccounts, id)
+	return nil
+}
+
 func setupAuthTestApp(t *testing.T) (*fiber.App, service.AuthService, auth.PasetoService) {
 	pasetoSvc, err := auth.NewPasetoService("707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f")
 	if err != nil {
