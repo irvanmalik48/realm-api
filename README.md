@@ -229,15 +229,26 @@ Realm API implements a multi-tiered permission model supporting both administrat
 
 Administrative accounts managed via gRPC (`AdminRBACService`) and Realm HQ support granular permissions:
 
-| Permission | Description | Scope / Impact |
+| Permission | Domain | Scope / Impact |
 |---|---|---|
 | `*` | **Superadmin Wildcard** | Unrestricted access across all administrative gRPC and REST subsystems |
-| `storage:write` | Upload & Modify Storage | Upload files, convert images to WebP, and write Zstd blobs |
-| `storage:delete` | Delete Storage Objects | Delete files and purge storage metadata |
-| `comments:moderate`| Comment Moderation | Review, approve, update, and delete discussions across articles |
-| `tokens:manage` | Token Governance | Issue, inspect, and revoke programmatic API tokens |
-| `logs:delete` | Purge System Logs | Truncate and purge system audit logs and trace histories |
+| `posts:write` | Articles & Editorial | Create and edit blog articles |
+| `posts:delete` | Articles & Editorial | Delete blog articles |
+| `posts:publish` | Articles & Editorial | Toggle publication status (publish / move to draft) |
+| `users:read` | Platform Users | View user directory, profiles, and connected social accounts |
+| `users:manage` | Platform Users | Update user status and permanently delete user accounts |
+| `comments:moderate` | Community Discussions | Review, edit, and moderate community comments |
+| `comments:delete` | Community Discussions | Permanently purge comments and discussion threads |
+| `reactions:manage` | Community Discussions | View and moderate post reactions |
+| `messages:read` | Contact Inquiries | View contact form messages and inquiries |
+| `messages:delete` | Contact Inquiries | Delete contact form submissions |
+| `storage:write` | Storage & Media | Upload files, convert images to WebP, and write Zstd blobs |
+| `storage:delete` | Storage & Media | Delete files and purge storage metadata |
+| `tokens:manage` | Security Governance | Issue, inspect, and revoke programmatic API tokens |
+| `admins:manage` | Security Governance | Manage administrator roles and RBAC assignments |
+| `analytics:read` | Analytics & Insights | View visitor traffic, telemetry events, and analytics charts |
 | `system:telemetry` | Observability & Telemetry | Inspect DB pool metrics, Pyroscope profiling, and runtime health |
+| `logs:delete` | Observability & Telemetry | Truncate and purge system audit logs and trace histories |
 
 ### 2. API Token Scopes (`api_tokens`)
 
