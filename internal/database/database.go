@@ -125,9 +125,11 @@ func (db *DB) migrate(ctx context.Context) error {
 	ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN NOT NULL DEFAULT false;
 	ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_secret TEXT;
 	ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_recovery_codes TEXT[] DEFAULT '{}';
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
 	CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 	CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 	CREATE INDEX IF NOT EXISTS idx_users_provider ON users(provider, provider_id);
+	CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
 
 	CREATE TABLE IF NOT EXISTS user_oauth_accounts (
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
