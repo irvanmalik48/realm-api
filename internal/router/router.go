@@ -147,6 +147,7 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	analyticsRepo := repository.NewAnalyticsRepository(db)
 	analyticsSvc := service.NewAnalyticsService(analyticsRepo)
 	analyticsHdlr := handler.NewAnalyticsHandler(cfg, analyticsSvc)
+	userHdlr := handler.NewUserHandler(cfg, userRepo)
 
 	// Root and Health routes
 	app.Get("/", rootHdlr.Handle)
@@ -261,6 +262,11 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	storageGroup.Get("/:id", middleware.OptionalToken(tokenSvc, tokenLimiter), storageHdlr.GetFile)
 	storageGroup.Get("/:id/info", middleware.OptionalToken(tokenSvc, tokenLimiter), storageHdlr.GetFileInfo)
 	storageGroup.Delete("/:id", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "storage:write"), storageHdlr.DeleteFile)
+
+	// User Management endpoints
+	usersGroup := v1.Group("/users")
+	usersGroup.Get("/", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "users:read"), userHdlr.ListUsers)
+	usersGroup.Delete("/:id", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "users:manage"), userHdlr.DeleteUser)
 
 	// Media aliases
 	mediaGroup := v1.Group("/media")
