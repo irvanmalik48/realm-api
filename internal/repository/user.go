@@ -38,6 +38,7 @@ type UserRepository interface {
 	Disable2FA(ctx context.Context, userID uuid.UUID) error
 	ConsumeRecoveryCode(ctx context.Context, userID uuid.UUID, code string) (bool, error)
 	ListUsers(ctx context.Context, search, provider string, limit, offset int) ([]model.UserDTO, int, error)
+	UpdateUser(ctx context.Context, id uuid.UUID, input model.UpdateUserInput) (*model.User, error)
 	DeleteUser(ctx context.Context, id uuid.UUID) error
 }
 
@@ -50,9 +51,13 @@ func NewUserRepository(db *database.DB) UserRepository {
 }
 
 func (r *userRepository) Create(ctx context.Context, user *model.User) error {
+	isActive := user.IsActive
+	if !isActive {
+		isActive = true
+	}
 	query := `
-		INSERT INTO users (id, email, username, full_name, password_hash, avatar_url, provider, provider_id, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO users (id, email, username, full_name, password_hash, avatar_url, provider, provider_id, is_active, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 	_, err := r.db.Pool.Exec(ctx, query,
 		user.ID,
@@ -63,6 +68,7 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 		user.AvatarURL,
 		user.Provider,
 		user.ProviderID,
+		isActive,
 		user.CreatedAt,
 		user.UpdatedAt,
 	)
@@ -92,7 +98,7 @@ func (r *userRepository) Create(ctx context.Context, user *model.User) error {
 
 func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
 	query := `
-		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, two_factor_enabled, two_factor_secret, COALESCE(two_factor_recovery_codes, '{}'), created_at, updated_at
+		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, two_factor_enabled, two_factor_secret, COALESCE(two_factor_recovery_codes, '{}'), is_active, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -109,6 +115,7 @@ func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.User
 		&u.TwoFactorEnabled,
 		&u.TwoFactorSecret,
 		&u.TwoFactorRecoveryCodes,
+		&u.IsActive,
 		&u.CreatedAt,
 		&u.UpdatedAt,
 	)
@@ -123,7 +130,7 @@ func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.User
 
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
 	query := `
-		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, two_factor_enabled, two_factor_secret, COALESCE(two_factor_recovery_codes, '{}'), created_at, updated_at
+		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, two_factor_enabled, two_factor_secret, COALESCE(two_factor_recovery_codes, '{}'), is_active, created_at, updated_at
 		FROM users
 		WHERE LOWER(email) = LOWER($1)
 	`
@@ -140,6 +147,7 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.U
 		&u.TwoFactorEnabled,
 		&u.TwoFactorSecret,
 		&u.TwoFactorRecoveryCodes,
+		&u.IsActive,
 		&u.CreatedAt,
 		&u.UpdatedAt,
 	)
@@ -154,7 +162,7 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*model.U
 
 func (r *userRepository) GetByUsername(ctx context.Context, username string) (*model.User, error) {
 	query := `
-		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, two_factor_enabled, two_factor_secret, COALESCE(two_factor_recovery_codes, '{}'), created_at, updated_at
+		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, two_factor_enabled, two_factor_secret, COALESCE(two_factor_recovery_codes, '{}'), is_active, created_at, updated_at
 		FROM users
 		WHERE LOWER(username) = LOWER($1)
 	`
@@ -171,6 +179,7 @@ func (r *userRepository) GetByUsername(ctx context.Context, username string) (*m
 		&u.TwoFactorEnabled,
 		&u.TwoFactorSecret,
 		&u.TwoFactorRecoveryCodes,
+		&u.IsActive,
 		&u.CreatedAt,
 		&u.UpdatedAt,
 	)
@@ -186,7 +195,7 @@ func (r *userRepository) GetByUsername(ctx context.Context, username string) (*m
 func (r *userRepository) GetByIdentifier(ctx context.Context, identifier string) (*model.User, error) {
 	norm := strings.ToLower(strings.TrimSpace(identifier))
 	query := `
-		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, two_factor_enabled, two_factor_secret, COALESCE(two_factor_recovery_codes, '{}'), created_at, updated_at
+		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, two_factor_enabled, two_factor_secret, COALESCE(two_factor_recovery_codes, '{}'), is_active, created_at, updated_at
 		FROM users
 		WHERE email = $1 OR username = $1
 		LIMIT 1
@@ -204,6 +213,7 @@ func (r *userRepository) GetByIdentifier(ctx context.Context, identifier string)
 		&u.TwoFactorEnabled,
 		&u.TwoFactorSecret,
 		&u.TwoFactorRecoveryCodes,
+		&u.IsActive,
 		&u.CreatedAt,
 		&u.UpdatedAt,
 	)
@@ -223,7 +233,7 @@ func (r *userRepository) GetByProvider(ctx context.Context, provider, providerID
 func (r *userRepository) GetByOAuthAccount(ctx context.Context, provider, providerID string) (*model.User, error) {
 	// First check user_oauth_accounts table
 	query := `
-		SELECT u.id, u.email, u.username, u.full_name, u.password_hash, u.avatar_url, u.provider, u.provider_id, u.two_factor_enabled, u.two_factor_secret, COALESCE(u.two_factor_recovery_codes, '{}'), u.created_at, u.updated_at
+		SELECT u.id, u.email, u.username, u.full_name, u.password_hash, u.avatar_url, u.provider, u.provider_id, u.two_factor_enabled, u.two_factor_secret, COALESCE(u.two_factor_recovery_codes, '{}'), u.is_active, u.created_at, u.updated_at
 		FROM users u
 		JOIN user_oauth_accounts oa ON u.id = oa.user_id
 		WHERE oa.provider = $1 AND oa.provider_id = $2
@@ -242,6 +252,7 @@ func (r *userRepository) GetByOAuthAccount(ctx context.Context, provider, provid
 		&u.TwoFactorEnabled,
 		&u.TwoFactorSecret,
 		&u.TwoFactorRecoveryCodes,
+		&u.IsActive,
 		&u.CreatedAt,
 		&u.UpdatedAt,
 	)
@@ -251,7 +262,7 @@ func (r *userRepository) GetByOAuthAccount(ctx context.Context, provider, provid
 
 	// Fallback to users table direct columns for backwards compatibility
 	fallbackQuery := `
-		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, two_factor_enabled, two_factor_secret, COALESCE(two_factor_recovery_codes, '{}'), created_at, updated_at
+		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, two_factor_enabled, two_factor_secret, COALESCE(two_factor_recovery_codes, '{}'), is_active, created_at, updated_at
 		FROM users
 		WHERE provider = $1 AND provider_id = $2
 		LIMIT 1
@@ -268,6 +279,7 @@ func (r *userRepository) GetByOAuthAccount(ctx context.Context, provider, provid
 		&u.TwoFactorEnabled,
 		&u.TwoFactorSecret,
 		&u.TwoFactorRecoveryCodes,
+		&u.IsActive,
 		&u.CreatedAt,
 		&u.UpdatedAt,
 	)
@@ -512,7 +524,7 @@ func (r *userRepository) ListUsers(ctx context.Context, search, provider string,
 	}
 
 	selectQuery := fmt.Sprintf(`
-		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, two_factor_enabled, created_at, updated_at
+		SELECT id, email, username, full_name, password_hash, avatar_url, provider, provider_id, two_factor_enabled, is_active, created_at, updated_at
 		FROM users
 		WHERE %s
 		ORDER BY created_at DESC
@@ -534,7 +546,7 @@ func (r *userRepository) ListUsers(ctx context.Context, search, provider string,
 		var u model.User
 		if err := rows.Scan(
 			&u.ID, &u.Email, &u.Username, &u.FullName, &u.PasswordHash, &u.AvatarURL,
-			&u.Provider, &u.ProviderID, &u.TwoFactorEnabled, &u.CreatedAt, &u.UpdatedAt,
+			&u.Provider, &u.ProviderID, &u.TwoFactorEnabled, &u.IsActive, &u.CreatedAt, &u.UpdatedAt,
 		); err != nil {
 			return nil, 0, fmt.Errorf("failed to scan user: %w", err)
 		}
@@ -591,6 +603,91 @@ func (r *userRepository) DeleteUser(ctx context.Context, id uuid.UUID) error {
 		return ErrUserNotFound
 	}
 	return nil
+}
+
+func (r *userRepository) UpdateUser(ctx context.Context, id uuid.UUID, input model.UpdateUserInput) (*model.User, error) {
+	targetUser, err := r.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if input.Email != nil && strings.TrimSpace(*input.Email) != "" {
+		newEmail := strings.ToLower(strings.TrimSpace(*input.Email))
+		if newEmail != strings.ToLower(targetUser.Email) {
+			var exists bool
+			err := r.db.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE LOWER(email) = $1 AND id != $2)`, newEmail, id).Scan(&exists)
+			if err != nil {
+				return nil, fmt.Errorf("failed to check email uniqueness: %w", err)
+			}
+			if exists {
+				return nil, ErrUserAlreadyExists
+			}
+		}
+	}
+
+	if input.Username != nil && strings.TrimSpace(*input.Username) != "" {
+		newUsername := strings.ToLower(strings.TrimSpace(*input.Username))
+		if newUsername != strings.ToLower(targetUser.Username) {
+			var exists bool
+			err := r.db.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE LOWER(username) = $1 AND id != $2)`, newUsername, id).Scan(&exists)
+			if err != nil {
+				return nil, fmt.Errorf("failed to check username uniqueness: %w", err)
+			}
+			if exists {
+				return nil, ErrUserAlreadyExists
+			}
+		}
+	}
+
+	if input.IsActive != nil && !*input.IsActive {
+		var isSuperadmin bool
+		err := r.db.Pool.QueryRow(ctx, `SELECT is_superadmin FROM admin_users WHERE user_id = $1`, id).Scan(&isSuperadmin)
+		if err == nil && isSuperadmin {
+			return nil, errors.New("cannot deactivate a superadmin account")
+		}
+	}
+
+	setClauses := make([]string, 0)
+	args := make([]interface{}, 0)
+	argIdx := 1
+
+	if input.Email != nil && strings.TrimSpace(*input.Email) != "" {
+		setClauses = append(setClauses, fmt.Sprintf("email = $%d", argIdx))
+		args = append(args, strings.ToLower(strings.TrimSpace(*input.Email)))
+		argIdx++
+	}
+	if input.Username != nil && strings.TrimSpace(*input.Username) != "" {
+		setClauses = append(setClauses, fmt.Sprintf("username = $%d", argIdx))
+		args = append(args, strings.ToLower(strings.TrimSpace(*input.Username)))
+		argIdx++
+	}
+	if input.FullName != nil && strings.TrimSpace(*input.FullName) != "" {
+		setClauses = append(setClauses, fmt.Sprintf("full_name = $%d", argIdx))
+		args = append(args, strings.TrimSpace(*input.FullName))
+		argIdx++
+	}
+	if input.IsActive != nil {
+		setClauses = append(setClauses, fmt.Sprintf("is_active = $%d", argIdx))
+		args = append(args, *input.IsActive)
+		argIdx++
+	}
+
+	if len(setClauses) == 0 {
+		return targetUser, nil
+	}
+
+	setClauses = append(setClauses, fmt.Sprintf("updated_at = $%d", argIdx))
+	args = append(args, time.Now().UTC())
+	argIdx++
+
+	args = append(args, id)
+	query := fmt.Sprintf("UPDATE users SET %s WHERE id = $%d", strings.Join(setClauses, ", "), argIdx)
+
+	if _, err := r.db.Pool.Exec(ctx, query, args...); err != nil {
+		return nil, fmt.Errorf("failed to update user: %w", err)
+	}
+
+	return r.GetByID(ctx, id)
 }
 
 
