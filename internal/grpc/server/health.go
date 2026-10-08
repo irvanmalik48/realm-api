@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/irvanmalik48/realm-api/internal/database"
+	"github.com/irvanmalik48/realm-api/internal/telemetry"
 	realmv1 "github.com/irvanmalik48/realm-api/pkg/pb/realm/v1"
+	"google.golang.org/grpc"
 )
 
 var startTime = time.Now()
@@ -77,6 +79,21 @@ func (s *HealthServer) GetDetailedTelemetry(ctx context.Context, req *realmv1.He
 		GcCycles:        mem.NumGC,
 	}
 
+	cpuSnapshot := telemetry.DefaultCPUMonitor().GetStats()
+	cpuStats := &realmv1.CPUStats{
+		UsagePercent:     cpuSnapshot.UsagePercent,
+		CoreUsagePercent: cpuSnapshot.CoreUsagePercent,
+		AvgFrequencyMhz:  cpuSnapshot.AvgFrequencyMHz,
+		CoreFrequencyMhz: cpuSnapshot.CoreFrequencyMHz,
+		MinFrequencyMhz:  cpuSnapshot.MinFrequencyMHz,
+		MaxFrequencyMhz:  cpuSnapshot.MaxFrequencyMHz,
+		Load_1M:          cpuSnapshot.Load1m,
+		Load_5M:          cpuSnapshot.Load5m,
+		Load_15M:         cpuSnapshot.Load15m,
+		ModelName:        cpuSnapshot.ModelName,
+		CoreCount:        cpuSnapshot.CoreCount,
+	}
+
 	return &realmv1.DetailedTelemetryResponse{
 		Status:        healthResp.Status,
 		Service:       healthResp.Service,
@@ -86,5 +103,35 @@ func (s *HealthServer) GetDetailedTelemetry(ctx context.Context, req *realmv1.He
 		Database:      healthResp.Database,
 		DbPool:        poolStats,
 		Runtime:       runtimeStats,
+		Cpu:           cpuStats,
 	}, nil
+}
+
+func (s *HealthServer) StreamTelemetry(req *realmv1.HealthRequest, stream grpc.ServerStreamingServer[realmv1.DetailedTelemetryResponse]) error {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	// Send initial response immediately
+	initialResp, err := s.GetDetailedTelemetry(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+	if err := stream.Send(initialResp); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case <-stream.Context().Done():
+			return stream.Context().Err()
+		case <-ticker.C:
+			resp, err := s.GetDetailedTelemetry(stream.Context(), req)
+			if err != nil {
+				return err
+			}
+			if err := stream.Send(resp); err != nil {
+				return err
+			}
+		}
+	}
 }
