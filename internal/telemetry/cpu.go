@@ -86,6 +86,9 @@ func NewCPUMonitor(interval time.Duration) *CPUMonitor {
 
 	m.initStaticInfo()
 	m.sample() // Initial sample to seed baseline
+	// Quick delta sample so real utilization is available immediately on startup
+	time.Sleep(50 * time.Millisecond)
+	m.sample()
 
 	go m.run(interval)
 	return m
@@ -112,15 +115,35 @@ func (m *CPUMonitor) initStaticInfo() {
 		m.modelName = fmt.Sprintf("Generic CPU (%s)", runtime.GOARCH)
 	}
 
-	// 2. Detect Min & Max Frequency from sysfs
-	if minBytes, err := os.ReadFile("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq"); err == nil {
-		if val, parseErr := strconv.ParseFloat(strings.TrimSpace(string(minBytes)), 64); parseErr == nil {
-			m.minFreqMHz = val / 1000.0
+	// 2. Detect Min & Max Frequency from sysfs cpufreq paths
+	minPaths := []string{
+		"/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq",
+		"/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq",
+		"/sys/devices/system/cpu/cpufreq/policy0/cpuinfo_min_freq",
+		"/sys/devices/system/cpu/cpufreq/policy0/scaling_min_freq",
+	}
+	for _, p := range minPaths {
+		if minBytes, err := os.ReadFile(p); err == nil {
+			if val, parseErr := strconv.ParseFloat(strings.TrimSpace(string(minBytes)), 64); parseErr == nil && val > 0 {
+				m.minFreqMHz = val / 1000.0
+				break
+			}
 		}
 	}
-	if maxBytes, err := os.ReadFile("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq"); err == nil {
-		if val, parseErr := strconv.ParseFloat(strings.TrimSpace(string(maxBytes)), 64); parseErr == nil {
-			m.maxFreqMHz = val / 1000.0
+
+	maxPaths := []string{
+		"/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq",
+		"/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq",
+		"/sys/devices/system/cpu/cpufreq/policy0/cpuinfo_max_freq",
+		"/sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq",
+		"/sys/devices/system/cpu/cpu0/cpufreq/bios_limit",
+	}
+	for _, p := range maxPaths {
+		if maxBytes, err := os.ReadFile(p); err == nil {
+			if val, parseErr := strconv.ParseFloat(strings.TrimSpace(string(maxBytes)), 64); parseErr == nil && val > 0 {
+				m.maxFreqMHz = val / 1000.0
+				break
+			}
 		}
 	}
 }
@@ -189,14 +212,37 @@ func (m *CPUMonitor) sample() {
 	// Read System Load Average
 	load1, load5, load15 := readLoadAvg()
 
+	// Derive min/max frequency if not populated from sysfs static info
+	minFreq := m.minFreqMHz
+	maxFreq := m.maxFreqMHz
+	if (minFreq <= 0 || maxFreq <= 0) && len(coreFreqs) > 0 {
+		var minVal, maxVal float64
+		for _, f := range coreFreqs {
+			if f > 0 {
+				if minVal == 0 || f < minVal {
+					minVal = f
+				}
+				if f > maxVal {
+					maxVal = f
+				}
+			}
+		}
+		if minFreq <= 0 {
+			minFreq = minVal
+		}
+		if maxFreq <= 0 {
+			maxFreq = maxVal
+		}
+	}
+
 	m.mu.Lock()
 	m.stats = CPUStats{
 		UsagePercent:     overallUsage,
 		CoreUsagePercent: coreUsages,
 		AvgFrequencyMHz:  avgFreq,
 		CoreFrequencyMHz: coreFreqs,
-		MinFrequencyMHz:  m.minFreqMHz,
-		MaxFrequencyMHz:  m.maxFreqMHz,
+		MinFrequencyMHz:  minFreq,
+		MaxFrequencyMHz:  maxFreq,
 		Load1m:           load1,
 		Load5m:           load5,
 		Load15m:          load15,
@@ -277,17 +323,25 @@ func readCPUFrequencies(coreCount int) ([]float64, float64) {
 	var sum float64
 	var counted int
 
-	// 1. Try sysfs scaling_cur_freq
+	// 1. Try sysfs scaling_cur_freq or policy
 	hasSysfs := false
 	for i := 0; i < coreCount; i++ {
-		path := filepath.Join("/sys/devices/system/cpu", fmt.Sprintf("cpu%d", i), "cpufreq/scaling_cur_freq")
-		if data, err := os.ReadFile(path); err == nil {
-			if khz, parseErr := strconv.ParseFloat(strings.TrimSpace(string(data)), 64); parseErr == nil {
-				mhz := khz / 1000.0
-				freqs[i] = mhz
-				sum += mhz
-				counted++
-				hasSysfs = true
+		paths := []string{
+			filepath.Join("/sys/devices/system/cpu", fmt.Sprintf("cpu%d", i), "cpufreq/scaling_cur_freq"),
+			filepath.Join("/sys/devices/system/cpu", fmt.Sprintf("cpu%d", i), "cpufreq/cpuinfo_cur_freq"),
+			filepath.Join("/sys/devices/system/cpu/cpufreq", fmt.Sprintf("policy%d", i), "scaling_cur_freq"),
+			filepath.Join("/sys/devices/system/cpu/cpufreq", fmt.Sprintf("policy%d", i), "cpuinfo_cur_freq"),
+		}
+		for _, p := range paths {
+			if data, err := os.ReadFile(p); err == nil {
+				if khz, parseErr := strconv.ParseFloat(strings.TrimSpace(string(data)), 64); parseErr == nil && khz > 0 {
+					mhz := khz / 1000.0
+					freqs[i] = mhz
+					sum += mhz
+					counted++
+					hasSysfs = true
+					break
+				}
 			}
 		}
 	}
@@ -296,17 +350,22 @@ func readCPUFrequencies(coreCount int) ([]float64, float64) {
 		return freqs, sum / float64(counted)
 	}
 
-	// 2. Fallback to /proc/cpuinfo "cpu MHz"
+	// 2. Fallback to /proc/cpuinfo
 	if file, err := os.Open("/proc/cpuinfo"); err == nil {
 		defer file.Close()
 		scanner := bufio.NewScanner(file)
 		coreIdx := 0
 		for scanner.Scan() && coreIdx < coreCount {
 			line := scanner.Text()
-			if strings.HasPrefix(line, "cpu MHz") {
+			lower := strings.ToLower(line)
+			if strings.Contains(lower, "cpu mhz") || strings.Contains(lower, "clock") {
 				parts := strings.SplitN(line, ":", 2)
 				if len(parts) == 2 {
-					if mhz, parseErr := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64); parseErr == nil {
+					valStr := strings.TrimSpace(parts[1])
+					valStr = strings.TrimSuffix(valStr, "MHz")
+					valStr = strings.TrimSuffix(valStr, "mhz")
+					valStr = strings.TrimSpace(valStr)
+					if mhz, parseErr := strconv.ParseFloat(valStr, 64); parseErr == nil && mhz > 0 {
 						freqs[coreIdx] = mhz
 						sum += mhz
 						counted++
