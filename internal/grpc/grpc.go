@@ -23,6 +23,8 @@ type ServerDeps struct {
 	TokenCache    *auth.TokenCache
 	TokenLimiter  *auth.TokenRateLimiter
 	StorageEngine storage.Engine
+	TokenRepo     repository.TokenRepository
+	AdminRepo     repository.AdminRepository
 }
 
 // NewServer creates and configures a new gRPC server with all services and interceptors registered.
@@ -56,6 +58,12 @@ func NewServer(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *grpc.S
 		storageEngine = deps[0].StorageEngine
 		tokenCache = deps[0].TokenCache
 		tokenLimiter = deps[0].TokenLimiter
+		if deps[0].TokenRepo != nil {
+			tokenRepo = deps[0].TokenRepo
+		}
+		if deps[0].AdminRepo != nil {
+			adminRepo = deps[0].AdminRepo
+		}
 	}
 
 	if storageEngine == nil {
@@ -110,12 +118,12 @@ func NewServer(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *grpc.S
 	realmv1.RegisterAuthServiceServer(server, grpcServer.NewAuthServer(authSvc))
 	realmv1.RegisterContactServiceServer(server, grpcServer.NewContactServer(contactSvc))
 	realmv1.RegisterLastFMServiceServer(server, grpcServer.NewLastFMServer(cfg, lastFMSvc))
-	realmv1.RegisterStorageServiceServer(server, grpcServer.NewStorageServer(cfg, storageSvc))
+	realmv1.RegisterStorageServiceServer(server, grpcServer.NewStorageServer(cfg, storageSvc, adminRepo))
 	realmv1.RegisterReactionServiceServer(server, grpcServer.NewReactionServer(reactionSvc))
-	realmv1.RegisterCommentServiceServer(server, grpcServer.NewCommentServer(commentSvc))
+	realmv1.RegisterCommentServiceServer(server, grpcServer.NewCommentServer(commentSvc, adminRepo))
 	realmv1.RegisterAdminRBACServiceServer(server, grpcServer.NewAdminServer(adminRepo))
-	realmv1.RegisterLogServiceServer(server, grpcServer.NewLogServer(logRepo))
-	realmv1.RegisterTokenServiceServer(server, grpcServer.NewTokenServer(tokenSvc))
+	realmv1.RegisterLogServiceServer(server, grpcServer.NewLogServer(logRepo, adminRepo))
+	realmv1.RegisterTokenServiceServer(server, grpcServer.NewTokenServer(tokenSvc, adminRepo))
 
 	// Register standard gRPC Health Checking Protocol (grpc.health.v1)
 	standardHealthServer := health.NewServer()
