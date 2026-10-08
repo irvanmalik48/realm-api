@@ -166,6 +166,48 @@ Detailed service health, uptime, and database connectivity check.
   }
   ```
 
+#### `GET /telemetry` / `GET /v1/telemetry`
+Realtime system observability metrics including CPU utilization, per-core utilization, clock frequencies, load averages, memory allocation, and database connection pool statistics.
+
+- **Request**: No parameters or headers required.
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "status": "healthy",
+    "service": "realm-api",
+    "version": "1.0.0",
+    "uptime_seconds": 86400,
+    "timestamp": "2026-08-20T13:18:31Z",
+    "database": "connected",
+    "db_pool": {
+      "acquired_conns": 3,
+      "idle_conns": 7,
+      "total_conns": 10,
+      "max_conns": 25
+    },
+    "runtime": {
+      "goroutines": 42,
+      "alloc_bytes": 18454912,
+      "total_alloc_bytes": 128459200,
+      "sys_bytes": 45088768,
+      "gc_cycles": 15
+    },
+    "cpu": {
+      "usage_percent": 12.5,
+      "core_usage_percent": [14.2, 10.8, 15.0, 10.0],
+      "avg_frequency_mhz": 3200.5,
+      "core_frequency_mhz": [3200.0, 3198.5, 3205.0, 3199.0],
+      "min_frequency_mhz": 800.0,
+      "max_frequency_mhz": 4500.0,
+      "load_1m": 0.85,
+      "load_5m": 0.62,
+      "load_15m": 0.45,
+      "model_name": "AMD Ryzen 9 7950X 16-Core Processor",
+      "core_count": 32
+    }
+  }
+  ```
+
 ---
 
 ### Authentication & Users
