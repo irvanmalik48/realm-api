@@ -74,6 +74,7 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	var userRepo repository.UserRepository
 	var reactionRepo repository.ReactionRepository
 	var commentRepo repository.CommentRepository
+	var adminRepo repository.AdminRepository
 
 	if db != nil {
 		contactRepo = repository.NewContactRepository(db)
@@ -82,6 +83,7 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 		userRepo = repository.NewUserRepository(db)
 		reactionRepo = repository.NewReactionRepository(db)
 		commentRepo = repository.NewCommentRepository(db)
+		adminRepo = repository.NewAdminRepository(db)
 	}
 
 	var storageEngine storage.Engine
@@ -217,10 +219,10 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	postsGroup := v1.Group("/posts")
 	postsGroup.Get("/", postHdlr.ListPosts)
 	postsGroup.Get("/:slug", postHdlr.GetPost)
-	postsGroup.Post("/", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter), postHdlr.CreatePost)
-	postsGroup.Patch("/:slug", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter), postHdlr.UpdatePost)
-	postsGroup.Put("/:slug", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter), postHdlr.UpdatePost)
-	postsGroup.Delete("/:slug", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter), postHdlr.DeletePost)
+	postsGroup.Post("/", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, adminRepo, tokenLimiter, "posts:write"), postHdlr.CreatePost)
+	postsGroup.Patch("/:slug", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, adminRepo, tokenLimiter, "posts:write"), postHdlr.UpdatePost)
+	postsGroup.Put("/:slug", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, adminRepo, tokenLimiter, "posts:write"), postHdlr.UpdatePost)
+	postsGroup.Delete("/:slug", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, adminRepo, tokenLimiter, "posts:delete"), postHdlr.DeletePost)
 
 	// Analytics / Page Views endpoints
 	analyticsGroup := v1.Group("/analytics")
@@ -258,17 +260,17 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	storageGroup := v1.Group("/storage")
 	storageGroup.Post("/image-metadata", middleware.OptionalToken(tokenSvc, tokenLimiter), storageHdlr.GetImageMetadata)
 	storageGroup.Get("/image-metadata", middleware.OptionalToken(tokenSvc, tokenLimiter), storageHdlr.GetImageMetadata)
-	storageGroup.Post("/upload", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "storage:write"), storageHdlr.Upload)
+	storageGroup.Post("/upload", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, adminRepo, tokenLimiter, "storage:write"), storageHdlr.Upload)
 	storageGroup.Get("/:id", middleware.OptionalToken(tokenSvc, tokenLimiter), storageHdlr.GetFile)
 	storageGroup.Get("/:id/info", middleware.OptionalToken(tokenSvc, tokenLimiter), storageHdlr.GetFileInfo)
-	storageGroup.Delete("/:id", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "storage:write"), storageHdlr.DeleteFile)
+	storageGroup.Delete("/:id", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, adminRepo, tokenLimiter, "storage:write"), storageHdlr.DeleteFile)
 
 	// User Management endpoints
 	usersGroup := v1.Group("/users")
-	usersGroup.Get("/", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "users:read"), userHdlr.ListUsers)
-	usersGroup.Patch("/:id", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "users:manage"), userHdlr.UpdateUser)
-	usersGroup.Put("/:id", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "users:manage"), userHdlr.UpdateUser)
-	usersGroup.Delete("/:id", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "users:manage"), userHdlr.DeleteUser)
+	usersGroup.Get("/", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, adminRepo, tokenLimiter, "users:read"), userHdlr.ListUsers)
+	usersGroup.Patch("/:id", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, adminRepo, tokenLimiter, "users:manage"), userHdlr.UpdateUser)
+	usersGroup.Put("/:id", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, adminRepo, tokenLimiter, "users:manage"), userHdlr.UpdateUser)
+	usersGroup.Delete("/:id", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, adminRepo, tokenLimiter, "users:manage"), userHdlr.DeleteUser)
 
 	// Media aliases
 	mediaGroup := v1.Group("/media")
