@@ -28,11 +28,11 @@ func main() {
 	logger := telemetry.InitLogger(cfg.Environment)
 	logger.Info("Realm API bootstrapping", "env", cfg.Environment)
 
-	// Initialize OpenTelemetry tracer
+	// Initialize OpenTelemetry tracing and metrics
 	ctx := context.Background()
 	otelShutdown, err := telemetry.InitTracer(ctx, "realm-api", cfg.Environment)
 	if err != nil {
-		slog.Warn("Failed to initialize OpenTelemetry tracer", "error", err)
+		slog.Warn("Failed to initialize OpenTelemetry subsystem", "error", err)
 	} else if otelShutdown != nil {
 		defer func() {
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
