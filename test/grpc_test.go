@@ -9,23 +9,41 @@ import (
 
 	"github.com/irvanmalik48/realm-api/internal/config"
 	internalGRPC "github.com/irvanmalik48/realm-api/internal/grpc"
+	"github.com/irvanmalik48/realm-api/internal/model"
+	"github.com/irvanmalik48/realm-api/internal/service"
 	realmv1 "github.com/irvanmalik48/realm-api/pkg/pb/realm/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 )
 
 const bufSize = 1024 * 1024
 
-func setupGRPCTestServer(t *testing.T) (*grpc.ClientConn, func()) {
+func setupGRPCTestServer(t *testing.T) (*grpc.ClientConn, func(), string) {
 	_ = os.Setenv("STORAGE_DIR", "./test_grpc_storage")
 	_ = os.Setenv("PASETO_SYMMETRIC_KEY", "707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f")
 
 	cfg := config.Load()
 	cfg.StorageDir = "./test_grpc_storage"
 
+	tokenRepo := newMockTokenRepo()
+	tokenSvc := service.NewTokenService(tokenRepo, nil, nil)
+	tokResult, err := tokenSvc.Create(context.Background(), model.TokenCreateInput{
+		Name:         "test-grpc-token",
+		Scopes:       []string{"storage:write", "*"},
+		RateLimitRPM: 1000,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create test token: %v", err)
+	}
+
 	lis := bufconn.Listen(bufSize)
-	server := internalGRPC.NewServer(cfg, nil)
+	server := internalGRPC.NewServer(cfg, nil, &internalGRPC.ServerDeps{
+		TokenRepo: tokenRepo,
+	})
 
 	go func() {
 		if err := server.Serve(lis); err != nil && err != grpc.ErrServerStopped {
@@ -51,11 +69,11 @@ func setupGRPCTestServer(t *testing.T) (*grpc.ClientConn, func()) {
 		_ = os.RemoveAll("./test_grpc_storage")
 	}
 
-	return conn, cleanup
+	return conn, cleanup, tokResult.Raw
 }
 
 func TestGRPCHealthService(t *testing.T) {
-	conn, cleanup := setupGRPCTestServer(t)
+	conn, cleanup, _ := setupGRPCTestServer(t)
 	defer cleanup()
 
 	client := realmv1.NewHealthServiceClient(conn)
@@ -80,7 +98,7 @@ func TestGRPCHealthService(t *testing.T) {
 }
 
 func TestGRPCContactService_Validation(t *testing.T) {
-	conn, cleanup := setupGRPCTestServer(t)
+	conn, cleanup, _ := setupGRPCTestServer(t)
 	defer cleanup()
 
 	client := realmv1.NewContactServiceClient(conn)
@@ -126,16 +144,30 @@ func TestGRPCContactService_Validation(t *testing.T) {
 }
 
 func TestGRPCStorageService_UploadAndInfo(t *testing.T) {
-	conn, cleanup := setupGRPCTestServer(t)
+	conn, cleanup, validToken := setupGRPCTestServer(t)
 	defer cleanup()
 
 	client := realmv1.NewStorageServiceClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// 1. Upload a text file payload
+	// 1. Unauthenticated Upload should fail
 	payload := []byte("Hello, this is a gRPC backend storage test payload with enough data to compress.")
-	uploadResp, err := client.UploadFile(ctx, &realmv1.UploadFileRequest{
+	_, err := client.UploadFile(ctx, &realmv1.UploadFileRequest{
+		Filename:    "test.txt",
+		ContentType: "text/plain",
+		Data:        payload,
+	})
+	if err == nil {
+		t.Fatalf("Expected Unauthenticated error when calling UploadFile without credentials, got nil")
+	}
+	if status.Code(err) != codes.Unauthenticated {
+		t.Errorf("Expected Unauthenticated code, got %v", status.Code(err))
+	}
+
+	// 2. Authenticated Upload with valid token
+	authCtx := metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+validToken)
+	uploadResp, err := client.UploadFile(authCtx, &realmv1.UploadFileRequest{
 		Filename:    "test.txt",
 		ContentType: "text/plain",
 		Data:        payload,
