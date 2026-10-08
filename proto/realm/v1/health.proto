@@ -30,6 +30,20 @@ message RuntimeStats {
   uint32 gc_cycles = 5;
 }
 
+message CPUStats {
+  double usage_percent = 1;
+  repeated double core_usage_percent = 2;
+  double avg_frequency_mhz = 3;
+  repeated double core_frequency_mhz = 4;
+  double min_frequency_mhz = 5;
+  double max_frequency_mhz = 6;
+  double load_1m = 7;
+  double load_5m = 8;
+  double load_15m = 9;
+  string model_name = 10;
+  int32 core_count = 11;
+}
+
 message DetailedTelemetryResponse {
   string status = 1;
   string service = 2;
@@ -39,9 +53,11 @@ message DetailedTelemetryResponse {
   string database = 6;
   DBPoolStats db_pool = 7;
   RuntimeStats runtime = 8;
+  CPUStats cpu = 9;
 }
 
 service HealthService {
   rpc GetHealth(HealthRequest) returns (HealthResponse);
   rpc GetDetailedTelemetry(HealthRequest) returns (DetailedTelemetryResponse);
+  rpc StreamTelemetry(HealthRequest) returns (stream DetailedTelemetryResponse);
 }
