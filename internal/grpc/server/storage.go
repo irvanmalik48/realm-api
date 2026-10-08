@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/irvanmalik48/realm-api/internal/config"
 	"github.com/irvanmalik48/realm-api/internal/model"
+	"github.com/irvanmalik48/realm-api/internal/repository"
 	"github.com/irvanmalik48/realm-api/internal/service"
 	realmv1 "github.com/irvanmalik48/realm-api/pkg/pb/realm/v1"
 	"google.golang.org/grpc/codes"
@@ -21,12 +22,14 @@ type StorageServer struct {
 	realmv1.UnimplementedStorageServiceServer
 	cfg        *config.Config
 	storageSvc service.StorageService
+	adminRepo  repository.AdminRepository
 }
 
-func NewStorageServer(cfg *config.Config, storageSvc service.StorageService) *StorageServer {
+func NewStorageServer(cfg *config.Config, storageSvc service.StorageService, adminRepo repository.AdminRepository) *StorageServer {
 	return &StorageServer{
 		cfg:        cfg,
 		storageSvc: storageSvc,
+		adminRepo:  adminRepo,
 	}
 }
 
@@ -67,6 +70,10 @@ func mapFileDTOToProto(dto *model.FileDTO) *realmv1.FileMetadata {
 }
 
 func (s *StorageServer) UploadFile(ctx context.Context, req *realmv1.UploadFileRequest) (*realmv1.UploadFileResponse, error) {
+	if err := Authorize(ctx, s.adminRepo, "storage:write"); err != nil {
+		return nil, err
+	}
+
 	if len(req.GetData()) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "File data cannot be empty")
 	}
@@ -107,6 +114,10 @@ func (s *StorageServer) GetFileInfo(ctx context.Context, req *realmv1.GetFileInf
 }
 
 func (s *StorageServer) DeleteFile(ctx context.Context, req *realmv1.DeleteFileRequest) (*realmv1.DeleteFileResponse, error) {
+	if err := Authorize(ctx, s.adminRepo, "storage:delete"); err != nil {
+		return nil, err
+	}
+
 	fileID, err := uuid.Parse(req.GetId())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid file UUID")
@@ -174,6 +185,10 @@ func (s *StorageServer) GetFile(req *realmv1.GetFileRequest, stream realmv1.Stor
 }
 
 func (s *StorageServer) ListFiles(ctx context.Context, req *realmv1.ListFilesRequest) (*realmv1.ListFilesResponse, error) {
+	if err := Authorize(ctx, s.adminRepo, "storage:write", "storage:delete", "*"); err != nil {
+		return nil, err
+	}
+
 	limit := int(req.GetLimit())
 	if limit <= 0 {
 		limit = 20
@@ -202,6 +217,10 @@ func (s *StorageServer) ListFiles(ctx context.Context, req *realmv1.ListFilesReq
 }
 
 func (s *StorageServer) GetStorageStats(ctx context.Context, req *realmv1.StorageStatsRequest) (*realmv1.StorageStatsResponse, error) {
+	if err := Authorize(ctx, s.adminRepo, "storage:write", "analytics:read", "system:telemetry", "*"); err != nil {
+		return nil, err
+	}
+
 	stats, err := s.storageSvc.GetStorageStats(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to get storage stats: %v", err)
@@ -218,6 +237,10 @@ func (s *StorageServer) GetStorageStats(ctx context.Context, req *realmv1.Storag
 }
 
 func (s *StorageServer) GeneratePresignedUrl(ctx context.Context, req *realmv1.GeneratePresignedUrlRequest) (*realmv1.GeneratePresignedUrlResponse, error) {
+	if err := Authorize(ctx, s.adminRepo, "storage:write"); err != nil {
+		return nil, err
+	}
+
 	fileID, err := uuid.Parse(req.GetId())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid file UUID")
