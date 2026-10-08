@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/irvanmalik48/realm-api/internal/grpc/interceptors"
 	"github.com/irvanmalik48/realm-api/internal/model"
 	"github.com/irvanmalik48/realm-api/internal/repository"
 	realmv1 "github.com/irvanmalik48/realm-api/pkg/pb/realm/v1"
@@ -47,6 +48,10 @@ func mapAdminUserToProto(admin *model.AdminUser) *realmv1.AdminUser {
 }
 
 func (s *AdminServer) ListAdmins(ctx context.Context, req *realmv1.ListAdminsRequest) (*realmv1.ListAdminsResponse, error) {
+	if err := Authorize(ctx, s.adminRepo, "admins:read", "admins:manage", "*"); err != nil {
+		return nil, err
+	}
+
 	admins, err := s.adminRepo.ListAdmins(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to list admins: %v", err)
@@ -63,11 +68,20 @@ func (s *AdminServer) ListAdmins(ctx context.Context, req *realmv1.ListAdminsReq
 }
 
 func (s *AdminServer) AddAdmin(ctx context.Context, req *realmv1.AddAdminRequest) (*realmv1.AdminUser, error) {
+	if err := Authorize(ctx, s.adminRepo, "admins:manage"); err != nil {
+		return nil, err
+	}
+
 	if req.GetEmail() == "" {
 		return nil, status.Error(codes.InvalidArgument, "Email cannot be empty")
 	}
 
-	admin, err := s.adminRepo.AddAdmin(ctx, req.GetEmail(), req.GetPermissions(), nil)
+	var callerID *uuid.UUID
+	if uid, ok := interceptors.GetUserID(ctx); ok {
+		callerID = &uid
+	}
+
+	admin, err := s.adminRepo.AddAdmin(ctx, req.GetEmail(), req.GetPermissions(), callerID)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Failed to add admin: %v", err)
 	}
@@ -76,6 +90,10 @@ func (s *AdminServer) AddAdmin(ctx context.Context, req *realmv1.AddAdminRequest
 }
 
 func (s *AdminServer) UpdateAdminPermissions(ctx context.Context, req *realmv1.UpdateAdminPermissionsRequest) (*realmv1.AdminUser, error) {
+	if err := Authorize(ctx, s.adminRepo, "admins:manage"); err != nil {
+		return nil, err
+	}
+
 	adminID, err := uuid.Parse(req.GetAdminId())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid admin UUID")
@@ -90,6 +108,10 @@ func (s *AdminServer) UpdateAdminPermissions(ctx context.Context, req *realmv1.U
 }
 
 func (s *AdminServer) RemoveAdmin(ctx context.Context, req *realmv1.RemoveAdminRequest) (*realmv1.AdminOperationResponse, error) {
+	if err := Authorize(ctx, s.adminRepo, "admins:manage"); err != nil {
+		return nil, err
+	}
+
 	adminID, err := uuid.Parse(req.GetAdminId())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid admin UUID")
