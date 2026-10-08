@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/irvanmalik48/realm-api/internal/model"
+	"github.com/irvanmalik48/realm-api/internal/repository"
 	"github.com/irvanmalik48/realm-api/internal/service"
 	realmv1 "github.com/irvanmalik48/realm-api/pkg/pb/realm/v1"
 	"google.golang.org/grpc/codes"
@@ -14,12 +15,14 @@ import (
 
 type TokenServer struct {
 	realmv1.UnimplementedTokenServiceServer
-	tokenSvc service.TokenService
+	tokenSvc  service.TokenService
+	adminRepo repository.AdminRepository
 }
 
-func NewTokenServer(tokenSvc service.TokenService) *TokenServer {
+func NewTokenServer(tokenSvc service.TokenService, adminRepo repository.AdminRepository) *TokenServer {
 	return &TokenServer{
-		tokenSvc: tokenSvc,
+		tokenSvc:  tokenSvc,
+		adminRepo: adminRepo,
 	}
 }
 
@@ -52,6 +55,10 @@ func mapTokenDTOToProto(dto *model.TokenDTO) *realmv1.APIToken {
 }
 
 func (s *TokenServer) ListTokens(ctx context.Context, req *realmv1.ListTokensRequest) (*realmv1.ListTokensResponse, error) {
+	if err := Authorize(ctx, s.adminRepo, "tokens:manage"); err != nil {
+		return nil, err
+	}
+
 	tokens, err := s.tokenSvc.List(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to list tokens: %v", err)
@@ -68,6 +75,10 @@ func (s *TokenServer) ListTokens(ctx context.Context, req *realmv1.ListTokensReq
 }
 
 func (s *TokenServer) CreateToken(ctx context.Context, req *realmv1.CreateTokenRequest) (*realmv1.CreateTokenResponse, error) {
+	if err := Authorize(ctx, s.adminRepo, "tokens:manage"); err != nil {
+		return nil, err
+	}
+
 	name := req.GetName()
 	if name == "" {
 		return nil, status.Error(codes.InvalidArgument, "Token name cannot be empty")
@@ -97,6 +108,10 @@ func (s *TokenServer) CreateToken(ctx context.Context, req *realmv1.CreateTokenR
 }
 
 func (s *TokenServer) RevokeToken(ctx context.Context, req *realmv1.RevokeTokenRequest) (*realmv1.RevokeTokenResponse, error) {
+	if err := Authorize(ctx, s.adminRepo, "tokens:manage"); err != nil {
+		return nil, err
+	}
+
 	tokenID, err := uuid.Parse(req.GetId())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid token UUID")
