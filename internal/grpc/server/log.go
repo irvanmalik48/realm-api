@@ -14,12 +14,14 @@ import (
 
 type LogServer struct {
 	realmv1.UnimplementedLogServiceServer
-	logRepo repository.LogRepository
+	logRepo   repository.LogRepository
+	adminRepo repository.AdminRepository
 }
 
-func NewLogServer(logRepo repository.LogRepository) *LogServer {
+func NewLogServer(logRepo repository.LogRepository, adminRepo repository.AdminRepository) *LogServer {
 	return &LogServer{
-		logRepo: logRepo,
+		logRepo:   logRepo,
+		adminRepo: adminRepo,
 	}
 }
 
@@ -41,6 +43,10 @@ func mapLogEntryToProto(l *model.SystemLog) *realmv1.LogEntry {
 }
 
 func (s *LogServer) GetLogs(ctx context.Context, req *realmv1.GetLogsRequest) (*realmv1.GetLogsResponse, error) {
+	if err := Authorize(ctx, s.adminRepo, "analytics:read", "system:telemetry", "logs:delete", "admins:read", "*"); err != nil {
+		return nil, err
+	}
+
 	limit := int(req.GetLimit())
 	if limit <= 0 {
 		limit = 50
@@ -71,6 +77,10 @@ func (s *LogServer) GetLogs(ctx context.Context, req *realmv1.GetLogsRequest) (*
 }
 
 func (s *LogServer) DeleteLogs(ctx context.Context, req *realmv1.DeleteLogsRequest) (*realmv1.DeleteLogsResponse, error) {
+	if err := Authorize(ctx, s.adminRepo, "logs:delete"); err != nil {
+		return nil, err
+	}
+
 	var beforeTime *time.Time
 	if req.BeforeTimestamp != nil && *req.BeforeTimestamp != "" {
 		t, err := time.Parse(time.RFC3339, *req.BeforeTimestamp)
@@ -103,6 +113,9 @@ func (s *LogServer) DeleteLogs(ctx context.Context, req *realmv1.DeleteLogsReque
 
 func (s *LogServer) StreamLogs(req *realmv1.StreamLogsRequest, stream realmv1.LogService_StreamLogsServer) error {
 	ctx := stream.Context()
+	if err := Authorize(ctx, s.adminRepo, "analytics:read", "system:telemetry", "logs:delete", "admins:read", "*"); err != nil {
+		return err
+	}
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
