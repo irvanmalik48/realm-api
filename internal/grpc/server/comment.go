@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/irvanmalik48/realm-api/internal/grpc/interceptors"
 	"github.com/irvanmalik48/realm-api/internal/model"
+	"github.com/irvanmalik48/realm-api/internal/repository"
 	"github.com/irvanmalik48/realm-api/internal/service"
 	realmv1 "github.com/irvanmalik48/realm-api/pkg/pb/realm/v1"
 	"google.golang.org/grpc/codes"
@@ -17,10 +18,14 @@ import (
 type CommentServer struct {
 	realmv1.UnimplementedCommentServiceServer
 	commentSvc service.CommentService
+	adminRepo  repository.AdminRepository
 }
 
-func NewCommentServer(commentSvc service.CommentService) *CommentServer {
-	return &CommentServer{commentSvc: commentSvc}
+func NewCommentServer(commentSvc service.CommentService, adminRepo repository.AdminRepository) *CommentServer {
+	return &CommentServer{
+		commentSvc: commentSvc,
+		adminRepo:  adminRepo,
+	}
 }
 
 func mapCommentDTOToProto(dto *model.CommentDTO) *realmv1.Comment {
@@ -164,6 +169,10 @@ func (s *CommentServer) DeleteComment(ctx context.Context, req *realmv1.DeleteCo
 }
 
 func (s *CommentServer) ListAllComments(ctx context.Context, req *realmv1.ListAllCommentsRequest) (*realmv1.ListAllCommentsResponse, error) {
+	if err := Authorize(ctx, s.adminRepo, "comments:moderate", "comments:delete"); err != nil {
+		return nil, err
+	}
+
 	comments, total, err := s.commentSvc.ListAllComments(ctx, int(req.GetLimit()), int(req.GetOffset()), req.GetPostSlug(), req.GetSearch())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to list comments: %v", err)
@@ -181,6 +190,10 @@ func (s *CommentServer) ListAllComments(ctx context.Context, req *realmv1.ListAl
 }
 
 func (s *CommentServer) AdminDeleteComment(ctx context.Context, req *realmv1.AdminDeleteCommentRequest) (*realmv1.DeleteCommentResponse, error) {
+	if err := Authorize(ctx, s.adminRepo, "comments:delete", "comments:moderate"); err != nil {
+		return nil, err
+	}
+
 	commentID, err := uuid.Parse(req.GetId())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid comment UUID")
@@ -197,6 +210,10 @@ func (s *CommentServer) AdminDeleteComment(ctx context.Context, req *realmv1.Adm
 }
 
 func (s *CommentServer) AdminUpdateComment(ctx context.Context, req *realmv1.AdminUpdateCommentRequest) (*realmv1.CommentResponse, error) {
+	if err := Authorize(ctx, s.adminRepo, "comments:moderate"); err != nil {
+		return nil, err
+	}
+
 	commentID, err := uuid.Parse(req.GetId())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Invalid comment UUID")
