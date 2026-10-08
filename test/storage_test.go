@@ -80,7 +80,69 @@ func createTestPNG() []byte {
 	return buf.Bytes()
 }
 
-func setupStorageTestApp(t *testing.T, withAuth bool) (*fiber.App, string, service.StorageService, string) {
+type mockAdminRepo struct {
+	admins map[uuid.UUID]*model.AdminUser
+}
+
+func newMockAdminRepo() *mockAdminRepo {
+	return &mockAdminRepo{admins: make(map[uuid.UUID]*model.AdminUser)}
+}
+
+func (m *mockAdminRepo) ListAdmins(ctx context.Context) ([]model.AdminUser, error) {
+	var list []model.AdminUser
+	for _, a := range m.admins {
+		list = append(list, *a)
+	}
+	return list, nil
+}
+
+func (m *mockAdminRepo) GetByUserID(ctx context.Context, userID uuid.UUID) (*model.AdminUser, error) {
+	if a, ok := m.admins[userID]; ok {
+		return a, nil
+	}
+	return nil, repository.ErrAdminNotFound
+}
+
+func (m *mockAdminRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.AdminUser, error) {
+	for _, a := range m.admins {
+		if a.ID == id {
+			return a, nil
+		}
+	}
+	return nil, repository.ErrAdminNotFound
+}
+
+func (m *mockAdminRepo) AddAdmin(ctx context.Context, email string, permissions []string, createdBy *uuid.UUID) (*model.AdminUser, error) {
+	admin := &model.AdminUser{
+		ID:          uuid.New(),
+		Permissions: permissions,
+		CreatedBy:   createdBy,
+	}
+	m.admins[admin.ID] = admin
+	return admin, nil
+}
+
+func (m *mockAdminRepo) UpdatePermissions(ctx context.Context, adminID uuid.UUID, permissions []string) (*model.AdminUser, error) {
+	for _, a := range m.admins {
+		if a.ID == adminID {
+			a.Permissions = permissions
+			return a, nil
+		}
+	}
+	return nil, repository.ErrAdminNotFound
+}
+
+func (m *mockAdminRepo) RemoveAdmin(ctx context.Context, adminID uuid.UUID) error {
+	for k, a := range m.admins {
+		if a.ID == adminID {
+			delete(m.admins, k)
+			return nil
+		}
+	}
+	return repository.ErrAdminNotFound
+}
+
+func setupStorageTestApp(t *testing.T, withAuth bool) (*fiber.App, string, service.StorageService, string, *mockAdminRepo) {
 	tempDir, err := os.MkdirTemp("", "realm-storage-test-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -105,6 +167,7 @@ func setupStorageTestApp(t *testing.T, withAuth bool) (*fiber.App, string, servi
 	tokenLimiter := auth.NewTokenRateLimiter()
 	tokenSvc := service.NewTokenService(tokenRepo, tokenCache, tokenLimiter)
 	pasetoSvc, _ := auth.NewPasetoService("707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f")
+	adminRepo := newMockAdminRepo()
 
 	var validToken string
 	if withAuth {
@@ -123,21 +186,22 @@ func setupStorageTestApp(t *testing.T, withAuth bool) (*fiber.App, string, servi
 		BodyLimit: cfg.MaxUploadSizeMB * 1024 * 1024,
 	})
 	v1 := app.Group("/v1/storage")
-	v1.Post("/upload", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "storage:write"), hdlr.Upload)
+	v1.Post("/upload", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, adminRepo, tokenLimiter, "storage:write"), hdlr.Upload)
 	v1.Get("/:id", hdlr.GetFile)
 	v1.Get("/:id/info", hdlr.GetFileInfo)
-	v1.Delete("/:id", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, tokenLimiter, "storage:write"), hdlr.DeleteFile)
+	v1.Delete("/:id", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, adminRepo, tokenLimiter, "storage:write"), hdlr.DeleteFile)
 
-	return app, tempDir, svc, validToken
+	return app, tempDir, svc, validToken, adminRepo
 }
 
 func TestStorage_UserAuthProtection(t *testing.T) {
-	app, tempDir, _, _ := setupStorageTestApp(t, true)
+	app, tempDir, _, _, adminRepo := setupStorageTestApp(t, true)
 	defer os.RemoveAll(tempDir)
 
 	pasetoSvc, _ := auth.NewPasetoService("707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f")
+	userID := uuid.New()
 	userToken, err := pasetoSvc.GenerateToken(&model.User{
-		ID:       uuid.New(),
+		ID:       userID,
 		Email:    "testuser@example.com",
 		Username: "testuser",
 		FullName: "Test User",
@@ -147,30 +211,46 @@ func TestStorage_UserAuthProtection(t *testing.T) {
 		t.Fatalf("failed to generate paseto token: %v", err)
 	}
 
-	// Authorized upload with PASETO user auth token
 	pngBytes := createTestPNG()
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	part, _ := writer.CreateFormFile("file", "user-auth-test.png")
-	_, _ = part.Write(pngBytes)
-	_ = writer.Close()
+	makeReq := func() *http.Response {
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+		part, _ := writer.CreateFormFile("file", "user-auth-test.png")
+		_, _ = part.Write(pngBytes)
+		_ = writer.Close()
 
-	req := httptest.NewRequest(http.MethodPost, "/v1/storage/upload", body)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("Authorization", "Bearer "+userToken)
+		req := httptest.NewRequest(http.MethodPost, "/v1/storage/upload", body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req.Header.Set("Authorization", "Bearer "+userToken)
 
-	resp, err := app.Test(req, -1)
-	if err != nil {
-		t.Fatalf("user auth upload error: %v", err)
+		resp, err := app.Test(req, -1)
+		if err != nil {
+			t.Fatalf("user auth upload error: %v", err)
+		}
+		return resp
 	}
 
+	// 1. Non-admin user should be rejected (403 Forbidden)
+	resp := makeReq()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("expected 403 for non-admin user, got %d", resp.StatusCode)
+	}
+
+	// 2. Admin user with storage:write scope should be allowed (201 Created)
+	adminRepo.admins[userID] = &model.AdminUser{
+		ID:          uuid.New(),
+		UserID:      userID,
+		Permissions: []string{"storage:write"},
+	}
+
+	resp = makeReq()
 	if resp.StatusCode != http.StatusCreated {
-		t.Errorf("expected 201 for valid PASETO user token, got %d", resp.StatusCode)
+		t.Errorf("expected 201 for admin user with storage:write, got %d", resp.StatusCode)
 	}
 }
 
 func TestStorage_UploadAndServe(t *testing.T) {
-	app, tempDir, _, validToken := setupStorageTestApp(t, true)
+	app, tempDir, _, validToken, _ := setupStorageTestApp(t, true)
 	defer os.RemoveAll(tempDir)
 
 	pngBytes := createTestPNG()
@@ -288,7 +368,7 @@ func TestStorage_UploadAndServe(t *testing.T) {
 }
 
 func TestStorage_AuthProtection(t *testing.T) {
-	app, tempDir, _, validToken := setupStorageTestApp(t, true)
+	app, tempDir, _, validToken, _ := setupStorageTestApp(t, true)
 	defer os.RemoveAll(tempDir)
 
 	// Unauthorized upload
@@ -356,7 +436,7 @@ func TestStorage_UploadSizeLimit(t *testing.T) {
 }
 
 func TestStorage_WebPCache(t *testing.T) {
-	app, tempDir, _, validToken := setupStorageTestApp(t, true)
+	app, tempDir, _, validToken, _ := setupStorageTestApp(t, true)
 	defer os.RemoveAll(tempDir)
 
 	pngBytes := createTestPNG()
