@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/irvanmalik48/realm-api/internal/auth"
+	"github.com/irvanmalik48/realm-api/internal/model"
 	"github.com/irvanmalik48/realm-api/internal/service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -29,6 +30,15 @@ func GetUserID(ctx context.Context) (uuid.UUID, bool) {
 		return id, true
 	}
 	return uuid.Nil, false
+}
+
+// GetAPIToken retrieves the authenticated API token from the context, if present.
+func GetAPIToken(ctx context.Context) (*model.APIToken, bool) {
+	val := ctx.Value(apiTokenKey)
+	if tok, ok := val.(*model.APIToken); ok && tok != nil {
+		return tok, true
+	}
+	return nil, false
 }
 
 // RequireUserID returns the authenticated user's UUID or returns an Unauthenticated error.
@@ -89,7 +99,7 @@ func AuthUnaryInterceptor(pasetoSvc auth.PasetoService, tokenSvc service.TokenSe
 		// PASETO user authentication token
 		if pasetoSvc != nil {
 			claims, err := pasetoSvc.VerifyToken(rawToken)
-			if err == nil && claims != nil && claims.ID != "" {
+			if err == nil && claims != nil && claims.ID != "" && claims.Purpose == "auth" {
 				if uid, parseErr := uuid.Parse(claims.ID); parseErr == nil {
 					ctx = context.WithValue(ctx, userIDKey, uid)
 					ctx = context.WithValue(ctx, userEmailKey, claims.Email)
