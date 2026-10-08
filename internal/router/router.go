@@ -151,18 +151,20 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	analyticsHdlr := handler.NewAnalyticsHandler(cfg, analyticsSvc)
 	userHdlr := handler.NewUserHandler(cfg, userRepo)
 
-	// Root and Health routes
+	// Root, Health, and Telemetry routes
 	app.Get("/", rootHdlr.Handle)
 	app.Get("/health", healthHdlr.Handle)
+	app.Get("/telemetry", healthHdlr.Telemetry)
 
 	// OpenAPI Specification and Interactive Docs
 	app.Get("/openapi.yaml", openapi.ServeYAML)
 	app.Get("/openapi.json", openapi.ServeJSON)
 	app.Get("/docs", openapi.ServeDocs)
 
-	// v1 routes (/v1/health, /v1/lastfm/track, /v1/lastfm/user, /v1/contact, /v1/storage, /v1/auth, /v1/posts)
+	// v1 routes (/v1/health, /v1/telemetry, /v1/lastfm/track, /v1/lastfm/user, /v1/contact, /v1/storage, /v1/auth, /v1/posts)
 	v1 := app.Group("/v1")
 	v1.Get("/health", healthHdlr.Handle)
+	v1.Get("/telemetry", healthHdlr.Telemetry)
 	v1.Get("/openapi.yaml", openapi.ServeYAML)
 	v1.Get("/openapi.json", openapi.ServeJSON)
 	v1.Get("/docs", openapi.ServeDocs)
