@@ -57,6 +57,33 @@ func TestOpenAPI_Endpoints(t *testing.T) {
 		t.Errorf("expected openapi version 3.2.x, got %v", jsonMap["openapi"])
 	}
 
+	// Verify telemetry paths exist in specification
+	paths, ok := jsonMap["paths"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected paths object in openapi.json")
+	}
+	if _, found := paths["/telemetry"]; !found {
+		t.Errorf("expected /telemetry path in openapi specification")
+	}
+	if _, found := paths["/v1/telemetry"]; !found {
+		t.Errorf("expected /v1/telemetry path in openapi specification")
+	}
+
+	// Verify telemetry schemas exist in components
+	components, ok := jsonMap["components"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected components object in openapi.json")
+	}
+	schemas, ok := components["schemas"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected schemas object in openapi.json")
+	}
+	for _, schemaName := range []string{"CPUStats", "DetailedTelemetryResponse", "DBPoolStats", "RuntimeStats"} {
+		if _, found := schemas[schemaName]; !found {
+			t.Errorf("expected schema %s to be defined in openapi components", schemaName)
+		}
+	}
+
 	// 3. Test /docs
 	reqDocs := httptest.NewRequest(http.MethodGet, "/docs", nil)
 	respDocs, err := app.Test(reqDocs, -1)
