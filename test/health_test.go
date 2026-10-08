@@ -49,4 +49,36 @@ func TestHealthHandler(t *testing.T) {
 	if respV1.StatusCode != http.StatusOK {
 		t.Fatalf("expected status 200 OK for /v1/health, got %d", respV1.StatusCode)
 	}
+
+	// Test GET /telemetry
+	reqTel := httptest.NewRequest(http.MethodGet, "/telemetry", nil)
+	respTel, err := app.Test(reqTel, -1)
+	if err != nil {
+		t.Fatalf("telemetry request error: %v", err)
+	}
+	if respTel.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200 OK for /telemetry, got %d", respTel.StatusCode)
+	}
+
+	bodyTel, _ := io.ReadAll(respTel.Body)
+	var telResp handler.DetailedTelemetryResponse
+	if err := json.Unmarshal(bodyTel, &telResp); err != nil {
+		t.Fatalf("failed to parse telemetry JSON response: %v", err)
+	}
+	if telResp.Status != "healthy" {
+		t.Errorf("expected telemetry status 'healthy', got '%s'", telResp.Status)
+	}
+	if telResp.CPU.CoreCount <= 0 {
+		t.Errorf("expected positive core count in telemetry, got %d", telResp.CPU.CoreCount)
+	}
+
+	// Test GET /v1/telemetry
+	reqV1Tel := httptest.NewRequest(http.MethodGet, "/v1/telemetry", nil)
+	respV1Tel, err := app.Test(reqV1Tel, -1)
+	if err != nil {
+		t.Fatalf("v1 telemetry request error: %v", err)
+	}
+	if respV1Tel.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200 OK for /v1/telemetry, got %d", respV1Tel.StatusCode)
+	}
 }
