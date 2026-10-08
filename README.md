@@ -1,268 +1,65 @@
 # Realm API
 
-High-performance, observable, and technologically hardened backend service for Realm built with **Go**, **gRPC**, **Fiber v2**, and **PostgreSQL**.
+The backend service for the Realm platform. It handles user authentication, contact messages, file storage, music activity, and system monitoring. Built with Go, PostgreSQL, and gRPC alongside an HTTP gateway.
 
 ---
 
-## Technological Marvel & Overkill Features
+## Features
 
-- **Blazing Fast gRPC Backend**: Native high-performance gRPC services on port `:50051` with Protobuf schemas powering internal microservices, Server Actions, and BFF proxies.
-- **Protobuf Governance & Buf Tooling**: Governed with **Buf v2** (`buf.yaml` and `buf.gen.yaml`), enforcing strict schema linting, breaking change detection, and type-safe code generation.
-- **Standard gRPC Health Checking**: Fully compliant with `grpc.health.v1` (`google.golang.org/grpc/health`) serving statuses for every subsystem alongside existing reflection and HTTP `/health`.
-- **Trace-Correlated Structured Logging**: Standard `log/slog` structured logger with custom OpenTelemetry context handler that automatically extracts `trace_id` and `span_id` into every log record.
-- **Continuous Profiling (Pyroscope)**: Native Grafana Pyroscope profiler capturing CPU, heap allocations, goroutines, and block profiles (configured via `PYROSCOPE_SERVER_ADDRESS`).
-- **Database Observability (`otelpgx`)**: PostgreSQL connection pool instrumented with `exaring/otelpgx` for automated SQL span tracing and latency diagnostics.
-- **Circuit Breaking & Fault Tolerance**: Sony `gobreaker` circuit breaker wrapping external upstreams (LastFM) with automated stale-cache fallbacks during upstream degradation or outages.
-- **Linux Kernel Landlock Sandboxing**: Process-level filesystem sandboxing via `shoenig/go-landlock` restricting file access strictly to allowed certificates, assets, and `/tmp`.
-- **High-Throughput Socket Tuning**: Socket reuse via `SO_REUSEPORT` enabled on the gRPC listener for high-concurrency throughput and multi-process scaling.
-- **HTTP/REST Hybrid Gateway**: Powered by [Fiber v2](https://github.com/gofiber/fiber/v2) on port `:8080` for browser media streaming (WebP/Blurhash) and OAuth2 consent redirects.
-- **User Authentication & PASETO**: Traditional credentials (Email/Username + bcrypt) and **Google OIDC** / **GitHub OAuth2** social login with tamper-proof **PASETO v2.local** symmetric bearer tokens.
-- **OpenTelemetry Distributed Tracing**: Native distributed tracing with `otelgrpc` interceptors and HTTP trace correlation headers.
-- **Interactive OpenAPI 3.2.0 Docs**: Interactive documentation powered by [Scalar](https://github.com/scalar/scalar) served live at `/docs`, `/openapi.yaml`, and `/openapi.json`.
-- **Secure API Tokens**: Cryptographically secure token authentication (`realm_tok_...`) generated via CLI (`cmd/token`), hashed with SHA-256 in PostgreSQL, with in-memory TTL caching.
-- **Sliding-Window Rate Limiting**: Token-bucket sliding window rate limiter with gRPC interceptors and standard `X-RateLimit-*` response headers.
-- **Zstandard (`zstd`) File Storage**: High-compression disk storage with automatic Blurhash calculation, dimension extraction, gRPC streaming, and on-the-fly WebP conversion (`?format=webp`).
-- **PostgreSQL Persistence**: User accounts, contact submissions, file metadata, and API tokens stored via `pgxpool` with automatic schema migrations.
-- **Multi-channel Alerts**: Optional instant notifications to Discord webhooks, Telegram bots, or SMTP upon new contact messages.
-- **Production-Hardened Containers**: Multi-stage lightweight `Dockerfile` with Alpine 3.21, `tini` init process, container health checking, and Docker log rotation.
+- User Authentication: Email and password registration, plus Google and GitHub social login with token-based sessions.
+- File Storage: Stores uploaded files with automatic compression, image dimension detection, and on-the-fly WebP conversion.
+- Contact Messages: Receives contact form submissions and can optionally send alerts to Discord, Telegram, or email.
+- Music Tracking: Integrates with Last.fm to display current listening activity and user profiles.
+- System Monitoring: Tracks CPU utilization, core clock frequencies, memory usage, and database connection pool health in real time.
+- API Tokens: Built-in command-line tool to generate, inspect, and revoke access tokens with specific permissions.
+- API Documentation: Interactive documentation available in the browser at `/docs`, with OpenAPI schemas in JSON and YAML formats.
 
 ---
 
-## API Specification & Interactive Docs
+## Requirements
 
-* **Interactive Docs**: `https://api.irvanma.eu.org/docs` (or `http://localhost:8080/docs`)
-* **OpenAPI 3.2.0 Spec (YAML)**: `GET /openapi.yaml` (or `/v1/openapi.yaml`)
-* **OpenAPI 3.2.0 Spec (JSON)**: `GET /openapi.json` (or `/v1/openapi.json`)
-* Complete endpoint guide and schema references are documented in [`API.md`](./API.md).
+- Go 1.24 or later
+- PostgreSQL 16 or later
+- Protobuf compiler (`protoc`) and `buf` (optional, for regenerating protobuf files)
+- Docker and Docker Compose (optional, for containerized setup)
 
 ---
 
-## API Reference
+## Getting Started
 
-### 1. Health & Status
+### 1. Clone the repository
 
-#### `GET /`
-Root greeting endpoint.
-```json
-{
-  "message": "Nothing to see here",
-  "status": "success"
-}
-```
-
-#### `GET /health` or `GET /v1/health`
-Detailed service health, uptime, and database connectivity.
-```json
-{
-  "status": "healthy",
-  "service": "realm-api",
-  "version": "1.0.0",
-  "uptime_seconds": 86400,
-  "timestamp": "2026-08-20T13:18:31Z",
-  "database": "connected"
-}
-```
-
-#### gRPC Health Check (`grpc.health.v1`)
-Standard health probing via any standard gRPC health client (e.g. `grpc-health-probe`):
 ```bash
-grpc-health-probe -addr=localhost:50051 -service=realm.v1.AuthService
+git clone https://github.com/irvanmalik48/realm-api.git
+cd realm-api
 ```
 
----
+### 2. Configure environment variables
 
-### 2. User Authentication (PASETO & OIDC)
+Copy the example environment file and update the settings to match your local setup:
 
-#### User Registration
-```http
-POST /v1/auth/register
-Content-Type: application/json
-```
-```json
-{
-  "email": "jane@example.com",
-  "username": "janedoe",
-  "password": "SecurePassword123!",
-  "full_name": "Jane Doe",
-  "avatar_url": "https://example.com/avatar.png"
-}
-```
-
-#### User Login
-```http
-POST /v1/auth/login
-Content-Type: application/json
-```
-```json
-{
-  "identifier": "janedoe",
-  "password": "SecurePassword123!"
-}
-```
-
-#### Current User Profile
-```http
-GET /v1/auth/me
-Authorization: Bearer v2.local...
-```
-
-#### Social OIDC Logins
-- Google: `GET /v1/auth/google` (initiates consent) -> `/v1/auth/google/callback`
-- GitHub: `GET /v1/auth/github` (initiates consent) -> `/v1/auth/github/callback`
-
----
-
-### 3. Contact Form Submission
-Submits a contact form message and persists it into PostgreSQL.
-
-```http
-POST /v1/contact
-Content-Type: application/json
-X-Realm-Request: 1
-```
-
-```json
-{
-  "name": "Jane Doe",
-  "email": "jane@example.com",
-  "subject": "Project Collaboration",
-  "message": "Hello, I would like to discuss a project with you."
-}
-```
-
----
-
-### 4. LastFM Integration
-Wrapped with a **Sony gobreaker** circuit breaker and stale-while-revalidate caching.
-
-#### Get Recent Tracks
-```http
-GET /v1/lastfm/track?username={username}&limit={limit}
-```
-
-#### Get User Profile Info
-```http
-GET /v1/lastfm/user?username={username}
-```
-
----
-
-### 5. File Storage Subsystem (Zstd Compressed & WebP)
-
-#### Upload File
-Uploads any file, compresses it on disk using **Zstandard (`zstd`)**, and automatically calculates its **Blurhash** and dimensions.
-
-```http
-POST /v1/storage/upload
-Authorization: Bearer realm_tok_...
-Content-Type: multipart/form-data
-```
-
-##### Success Response (`201 Created`)
-```json
-{
-  "status": "success",
-  "message": "File uploaded and compressed successfully",
-  "file": {
-    "id": "7fa84e72-d7b1-4bb2-b6be-4b95d0ef923b",
-    "filename": "wallpaper.png",
-    "content_type": "image/png",
-    "original_size": 2450000,
-    "compressed_size": 1120000,
-    "savings_percent": 54.28,
-    "sha256": "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
-    "blurhash": "LEHV6nWB2yk8pyo0adR*.7kCMdnj",
-    "width": 1920,
-    "height": 1080,
-    "url": "/v1/storage/7fa84e72-d7b1-4bb2-b6be-4b95d0ef923b",
-    "webp_url": "/v1/storage/7fa84e72-d7b1-4bb2-b6be-4b95d0ef923b?format=webp",
-    "created_at": "2026-08-20T12:00:00Z"
-  }
-}
-```
-
-#### Get File (Original or On-the-Fly WebP)
-Streams the decompressed file from disk. Adding `?format=webp` or header `Accept: image/webp` dynamically converts images to WebP on-the-fly.
-
-```http
-GET /v1/storage/{id}
-GET /v1/storage/{id}?format=webp
-```
-
----
-
-## Administrative API Token CLI (`cmd/token`)
-
-Tokens are generated with direct database access via the administrative CLI tool.
-
-### Local Usage:
 ```bash
-# Create a new API token
-go run ./cmd/token create -name "my-app" -scopes "storage:write,contact:read" -rpm 120 -expires 365d
-
-# List all tokens
-go run ./cmd/token list
-
-# Inspect a raw token secret against database
-go run ./cmd/token inspect -token realm_tok_...
-
-# Revoke a token
-go run ./cmd/token revoke -id <token-uuid>
+cp .env.example .env
 ```
 
-### Docker Compose Usage:
+Key settings to review:
+
+- `DATABASE_URL`: PostgreSQL connection string (for example, `postgres://postgres:postgres@localhost:5432/realm?sslmode=disable`).
+- `PASETO_SYMMETRIC_KEY`: 32-byte hex string used to encrypt user session tokens.
+- `STORAGE_DIR`: Directory on disk where uploaded files are stored.
+- `PORT` and `GRPC_PORT`: Network ports for the HTTP gateway (default `8080`) and gRPC server (default `50051`).
+
+### 3. Run the server
+
 ```bash
-# Create a full-access token inside Docker
-sudo docker compose exec api /app/token create -name "production-app" -scopes "*" -rpm 300
+# Using Make
+make dev
 
-# List tokens
-sudo docker compose exec api /app/token list
+# Or directly with Go
+go run ./cmd/server
 ```
 
----
-
-## Granular Permissions & Scopes
-
-Realm API implements a multi-tiered permission model supporting both administrative role-based access control (RBAC) and scoped API tokens.
-
-### 1. Administrative Permissions (`admin_users`)
-
-Administrative accounts managed via gRPC (`AdminRBACService`) and Realm HQ support granular permissions:
-
-| Permission | Domain | Scope / Impact |
-|---|---|---|
-| `*` | **Superadmin Wildcard** | Unrestricted access across all administrative gRPC and REST subsystems |
-| `posts:write` | Articles & Editorial | Create and edit blog articles |
-| `posts:delete` | Articles & Editorial | Delete blog articles |
-| `posts:publish` | Articles & Editorial | Toggle publication status (publish / move to draft) |
-| `users:read` | Platform Users | View user directory, profiles, and connected social accounts |
-| `users:manage` | Platform Users | Update user status and permanently delete user accounts |
-| `comments:moderate` | Community Discussions | Review, edit, and moderate community comments |
-| `comments:delete` | Community Discussions | Permanently purge comments and discussion threads |
-| `reactions:manage` | Community Discussions | View and moderate post reactions |
-| `messages:read` | Contact Inquiries | View contact form messages and inquiries |
-| `messages:delete` | Contact Inquiries | Delete contact form submissions |
-| `storage:write` | Storage & Media | Upload files, convert images to WebP, and write Zstd blobs |
-| `storage:delete` | Storage & Media | Delete files and purge storage metadata |
-| `tokens:manage` | Security Governance | Issue, inspect, and revoke programmatic API tokens |
-| `admins:manage` | Security Governance | Manage administrator roles and RBAC assignments |
-| `analytics:read` | Analytics & Insights | View visitor traffic, telemetry events, and analytics charts |
-| `system:telemetry` | Observability & Telemetry | Inspect DB pool metrics, Pyroscope profiling, and runtime health |
-| `logs:delete` | Observability & Telemetry | Truncate and purge system audit logs and trace histories |
-
-### 2. API Token Scopes (`api_tokens`)
-
-Programmatic API tokens (`realm_tok_...`) issued via CLI (`cmd/token`) or HQ token management are evaluated via `middleware.RequireToken` and `middleware.RequireTokenOrUserAuth`:
-
-- **Wildcard Matching**: Scopes `*`, `all`, and `admin` grant full access to every protected endpoint.
-- **Prefix Matching**: Scopes ending with `:*` (e.g. `storage:*`) match any sub-action under that namespace (`storage:read`, `storage:write`, `storage:delete`).
-- **Exact Scopes**:
-  - `storage:read` &mdash; Read and download stored media assets
-  - `storage:write` &mdash; Upload new objects to storage
-  - `storage:delete` &mdash; Remove objects from storage
-  - `contact:read` &mdash; Retrieve contact message submissions
-  - `comments:moderate` &mdash; Edit or delete comments on behalf of moderation
-  - `metrics:read` &mdash; Read Prometheus and OpenTelemetry telemetry data
+The HTTP service will listen on `http://localhost:8080` and the gRPC service on `localhost:50051`.
 
 ---
 
@@ -270,100 +67,122 @@ Programmatic API tokens (`realm_tok_...`) issued via CLI (`cmd/token`) or HQ tok
 
 | Variable | Default | Description |
 |---|---|---|
-| `PORT` | `8080` | HTTP gateway port |
-| `GRPC_PORT` | `50051` | High-performance gRPC port |
-| `ENVIRONMENT` | `development` | Environment (`development`, `production`, `test`) |
-| `ALLOWED_ORIGINS` | `https://irvanma.eu.org,https://hq.irvanma.eu.org` | Comma-separated CORS allowed origins |
-| `SUPERADMIN_EMAILS` | `""` | Comma-separated initial superadmin emails bootstrapped on startup |
+| `PORT` | `8080` | Port for the HTTP gateway |
+| `GRPC_PORT` | `50051` | Port for the gRPC service |
+| `ENVIRONMENT` | `development` | Runtime environment (`development`, `production`, `test`) |
+| `ALLOWED_ORIGINS` | `https://irvanma.eu.org,https://hq.irvanma.eu.org` | Allowed origins for browser CORS requests |
 | `DATABASE_URL` | `""` | PostgreSQL connection string |
-| `STORAGE_DIR` | `./data/storage` | Directory path for Zstd compressed file storage |
-| `MAX_UPLOAD_SIZE_MB` | `10` | Maximum allowed file upload size in megabytes |
-| `PASETO_SYMMETRIC_KEY` | `""` | 32-byte hex key for PASETO token encryption *(required in production)* |
-| `FRONTEND_URL` | `http://localhost:3000` | Frontend web application origin for OAuth redirects |
-| `GOOGLE_CLIENT_ID` | `""` | Google OAuth2 client ID |
-| `GOOGLE_CLIENT_SECRET` | `""` | Google OAuth2 client secret |
-| `GOOGLE_REDIRECT_URL` | `http://localhost:8080/v1/auth/google/callback` | Google OAuth2 redirect callback URL |
-| `GITHUB_CLIENT_ID` | `""` | GitHub OAuth2 client ID |
-| `GITHUB_CLIENT_SECRET` | `""` | GitHub OAuth2 client secret |
-| `GITHUB_REDIRECT_URL` | `http://localhost:8080/v1/auth/github/callback` | GitHub OAuth2 redirect callback URL |
-| `POSTGRES_USER` | `postgres` | PostgreSQL user for Docker Compose |
-| `POSTGRES_PASSWORD` | `postgres` | PostgreSQL password for Docker Compose |
-| `POSTGRES_DB` | `realm` | PostgreSQL database name |
-| `LASTFM_API_KEY` | `""` | LastFM AudioScrobbler API Key |
-| `LASTFM_API_SECRET` | `""` | LastFM API Secret (optional) |
-| `CACHE_REVALIDATE_SECONDS` | `900` | Caching TTL in seconds for response headers |
-| `OTEL_EXPORTER_OTLP_ENDPOINT`| `""` | OpenTelemetry OTLP gRPC endpoint (e.g. `localhost:4317`) |
-| `PYROSCOPE_SERVER_ADDRESS` | `""` | Grafana Pyroscope continuous profiling server address |
-| `LOG_LEVEL` | `info` | Logging verbosity (`debug`, `info`, `warn`, `error`) |
-| `LOG_FORMAT` | `json` | Structured log output format (`json` or `text`) |
-| `DISCORD_WEBHOOK_URL` | `""` | Optional Discord webhook for instant notifications |
-| `TELEGRAM_BOT_TOKEN` | `""` | Optional Telegram bot token for alerts |
-| `TELEGRAM_CHAT_ID` | `""` | Optional Telegram chat ID for alerts |
-| `CONTACT_RECEIVER_EMAIL` | `""` | Email address to receive contact form notifications |
-| `SMTP_HOST` | `""` | SMTP mail server host |
-| `SMTP_PORT` | `587` | SMTP mail server port |
+| `STORAGE_DIR` | `./data/storage` | Local folder path where uploaded files are stored |
+| `MAX_UPLOAD_SIZE_MB` | `10` | Maximum file upload size in megabytes |
+| `PASETO_SYMMETRIC_KEY` | `""` | 32-byte hexadecimal key for session tokens |
+| `FRONTEND_URL` | `http://localhost:3000` | Web application URL for OAuth redirects |
+| `GOOGLE_CLIENT_ID` | `""` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | `""` | Google OAuth client secret |
+| `GOOGLE_REDIRECT_URL` | `http://localhost:8080/v1/auth/google/callback` | Google OAuth callback address |
+| `GITHUB_CLIENT_ID` | `""` | GitHub OAuth client ID |
+| `GITHUB_CLIENT_SECRET` | `""` | GitHub OAuth client secret |
+| `GITHUB_REDIRECT_URL` | `http://localhost:8080/v1/auth/github/callback` | GitHub OAuth callback address |
+| `LASTFM_API_KEY` | `""` | Last.fm API key |
+| `LASTFM_API_SECRET` | `""` | Last.fm API secret |
+| `CACHE_REVALIDATE_SECONDS` | `900` | Cache duration in seconds for upstream responses |
+| `LOG_LEVEL` | `info` | Logging detail level (`debug`, `info`, `warn`, `error`) |
+| `LOG_FORMAT` | `json` | Log format output (`json` or `text`) |
+| `DISCORD_WEBHOOK_URL` | `""` | Discord webhook URL for new contact alerts |
+| `TELEGRAM_BOT_TOKEN` | `""` | Telegram bot token for contact alerts |
+| `TELEGRAM_CHAT_ID` | `""` | Telegram chat ID for contact alerts |
+| `CONTACT_RECEIVER_EMAIL` | `""` | Recipient email address for contact form submissions |
+| `SMTP_HOST` | `""` | Outgoing SMTP mail server host |
+| `SMTP_PORT` | `587` | Outgoing SMTP mail server port |
 | `SMTP_USER` | `""` | SMTP username |
 | `SMTP_PASS` | `""` | SMTP password |
 
 ---
 
-## Development & Quality Verification
+## API Endpoints
 
-### Build & Dev Commands
+### Health and Status
+
+- `GET /`: Basic welcome message.
+- `GET /health`: System status, uptime, and database connectivity.
+- gRPC `grpc.health.v1`: Standard gRPC health checking on port `50051`.
+
+### User Authentication
+
+- `POST /v1/auth/register`: Create a new user account.
+- `POST /v1/auth/login`: Sign in with email or username and password.
+- `GET /v1/auth/me`: Get profile information for the authenticated user.
+- `GET /v1/auth/google`: Start Google social sign-in.
+- `GET /v1/auth/github`: Start GitHub social sign-in.
+
+### Contact
+
+- `POST /v1/contact`: Submit a message through the contact form.
+
+### Storage
+
+- `POST /v1/storage/upload`: Upload a file (requires an API token or user login).
+- `GET /v1/storage/{id}`: Download a stored file.
+- `GET /v1/storage/{id}?format=webp`: Download an image converted to WebP format.
+
+### Last.fm
+
+- `GET /v1/lastfm/track?username={username}&limit={limit}`: Get recent music tracks.
+- `GET /v1/lastfm/user?username={username}`: Get user profile details.
+
+### Documentation
+
+- `GET /docs`: Interactive API documentation interface.
+- `GET /openapi.yaml`: OpenAPI schema in YAML format.
+- `GET /openapi.json`: OpenAPI schema in JSON format.
+
+---
+
+## Managing API Tokens (`cmd/token`)
+
+You can create and manage API tokens using the built-in command-line tool:
+
 ```bash
-# 1. Run development server
-make dev
-# or
-go run ./cmd/server
+# Create a new token with specific permissions
+go run ./cmd/token create -name "my-app" -scopes "storage:write,contact:read" -rpm 120 -expires 365d
 
-# 2. Recompile Protobuf schemas with Buf
-make proto
+# List all active tokens
+go run ./cmd/token list
 
-# 3. Lint Protobuf schemas
-make lint-proto
+# Inspect a token secret
+go run ./cmd/token inspect -token realm_tok_...
 
-# 4. Build release binaries
-make build
-```
-
-### Security & Quality Verification Pipeline
-```bash
-# Run unit & integration tests
-go test -v ./test/...
-
-# Run Gosec AST security scanner (excluding generated Protobuf code)
-make sec
-
-# Run Go vulnerability database scanner
-make vuln
-
-# Run full audit (Tests + Gosec + Govulncheck + Buf Lint)
-make check
+# Revoke a token
+go run ./cmd/token revoke -id <token-uuid>
 ```
 
 ---
 
-## Docker & Docker Compose
+## Running with Docker Compose
 
-### Prerequisites
-Ensure the external Caddy network exists before starting the stack:
-```bash
-docker network create caddy_net
-```
+You can start both the API service and PostgreSQL using Docker Compose:
 
-### Starting Services
 ```bash
-# Start API and PostgreSQL in background
+# Start containers in the background
 docker compose up -d
 
-# View logs
+# View live container logs
 docker compose logs -f
 
 # Stop containers
 docker compose down
 ```
 
-The Docker stack includes built-in container health checking (`wget -qO- /health`), process init wrapping (`tini`), log rotation (`20m`/`5` files), and PostgreSQL shared memory optimization (`shm_size: 256mb`).
+---
+
+## Testing and Verification
+
+```bash
+# Run unit and integration tests
+go test ./...
+
+# Check for known vulnerabilities
+govulncheck ./...
+```
 
 ---
 
