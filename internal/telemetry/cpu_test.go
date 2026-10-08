@@ -9,6 +9,11 @@ func TestCPUMonitor(t *testing.T) {
 	monitor := NewCPUMonitor(200 * time.Millisecond)
 	defer monitor.Stop()
 
+	statsImmediate := monitor.GetStats()
+	if statsImmediate.CoreCount <= 0 {
+		t.Errorf("expected positive core count, got %d", statsImmediate.CoreCount)
+	}
+
 	// Allow one tick
 	time.Sleep(300 * time.Millisecond)
 
