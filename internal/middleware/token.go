@@ -11,6 +11,7 @@ import (
 	"github.com/irvanmalik48/realm-api/internal/auth"
 	"github.com/irvanmalik48/realm-api/internal/handler"
 	"github.com/irvanmalik48/realm-api/internal/model"
+	"github.com/irvanmalik48/realm-api/internal/repository"
 	"github.com/irvanmalik48/realm-api/internal/service"
 )
 
@@ -80,8 +81,8 @@ func RequireToken(svc service.TokenService, limiter *auth.TokenRateLimiter, requ
 	}
 }
 
-// RequireTokenOrUserAuth validates either an API token (with required scopes) or a valid PASETO user session
-func RequireTokenOrUserAuth(svc service.TokenService, pasetoSvc auth.PasetoService, limiter *auth.TokenRateLimiter, requiredScopes ...string) fiber.Handler {
+// RequireTokenOrUserAuth validates either an API token (with required scopes) or a valid PASETO user session with admin verification
+func RequireTokenOrUserAuth(svc service.TokenService, pasetoSvc auth.PasetoService, adminRepo repository.AdminRepository, limiter *auth.TokenRateLimiter, requiredScopes ...string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		rawToken := ExtractRawToken(c)
 		if rawToken == "" {
@@ -134,8 +135,47 @@ func RequireTokenOrUserAuth(svc service.TokenService, pasetoSvc auth.PasetoServi
 		if pasetoSvc != nil {
 			claims, err := pasetoSvc.VerifyToken(rawToken)
 			if err == nil && claims != nil {
+				// Disallow 2FA challenge tokens
+				if claims.Purpose == "2fa_challenge" {
+					return handler.ErrorResponse(c, "Unauthorized: two-factor authentication verification required", http.StatusUnauthorized)
+				}
+				if claims.Purpose != "auth" {
+					return handler.ErrorResponse(c, "Unauthorized: invalid authentication session", http.StatusUnauthorized)
+				}
+
 				userID, err := uuid.Parse(claims.ID)
 				if err == nil {
+					// Verify administrator permissions if requiredScopes are specified
+					if len(requiredScopes) > 0 {
+						if adminRepo == nil {
+							return handler.ErrorResponse(c, "Forbidden: administrator verification unavailable", http.StatusForbidden)
+						}
+
+						admin, err := adminRepo.GetByUserID(c.Context(), userID)
+						if err != nil || admin == nil {
+							return handler.ErrorResponse(c, "Forbidden: administrator privileges required", http.StatusForbidden)
+						}
+
+						if !admin.IsSuperadmin {
+							hasPermission := false
+							for _, reqScope := range requiredScopes {
+								for _, perm := range admin.Permissions {
+									if perm == "*" || perm == reqScope || (strings.HasSuffix(perm, ":*") && strings.HasPrefix(reqScope, strings.TrimSuffix(perm, ":*")+":")) {
+										hasPermission = true
+										break
+									}
+								}
+								if hasPermission {
+									break
+								}
+							}
+							if !hasPermission {
+								return handler.ErrorResponse(c, "Forbidden: account lacks required permission", http.StatusForbidden)
+							}
+						}
+						c.Locals("admin", admin)
+					}
+
 					c.Locals("user_claims", claims)
 					c.Locals("user_id", userID)
 					return c.Next()
