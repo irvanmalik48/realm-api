@@ -109,8 +109,42 @@ func FetchAndProcessImage(ctx context.Context, targetURL string) (*ImageMetadata
 		return nil, err
 	}
 
+	dialer := &net.Dialer{
+		Timeout: 5 * time.Second,
+	}
+
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, err
+			}
+
+			ips, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve host %q: %w", host, err)
+			}
+
+			var safeIP net.IP
+			for _, ip := range ips {
+				if !isPrivateOrLocalIP(ip) {
+					safeIP = ip
+					break
+				}
+			}
+
+			if safeIP == nil {
+				return nil, fmt.Errorf("%w: host %q resolved only to restricted addresses", ErrSSRFForbidden, host)
+			}
+
+			return dialer.DialContext(ctx, network, net.JoinHostPort(safeIP.String(), port))
+		},
+		ResponseHeaderTimeout: 5 * time.Second,
+	}
+
 	client := &http.Client{
-		Timeout: FetchTimeout,
+		Transport: transport,
+		Timeout:   FetchTimeout,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 5 {
 				return errors.New("too many redirects (max 5)")
