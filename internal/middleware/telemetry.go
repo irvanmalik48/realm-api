@@ -2,17 +2,51 @@ package middleware
 
 import (
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/irvanmalik48/realm-api/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.30.0"
+	"go.opentelemetry.io/otel/metric"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
-// fiberHeaderCarrier adapts fasthttp/fiber headers to OpenTelemetry TextMapCarrier
+var (
+	httpRequestsTotal   metric.Int64Counter
+	httpRequestDuration metric.Float64Histogram
+	metricsOnce         sync.Once
+)
+
+func getHTTPMetrics() (metric.Int64Counter, metric.Float64Histogram) {
+	metricsOnce.Do(func() {
+		m := telemetry.Meter()
+		var err error
+		httpRequestsTotal, err = m.Int64Counter(
+			"http.server.request.total",
+			metric.WithDescription("Total number of HTTP requests processed"),
+			metric.WithUnit("{request}"),
+		)
+		if err != nil {
+			httpRequestsTotal = nil
+		}
+
+		httpRequestDuration, err = m.Float64Histogram(
+			"http.server.request.duration",
+			metric.WithDescription("Duration of HTTP requests in seconds"),
+			metric.WithUnit("s"),
+		)
+		if err != nil {
+			httpRequestDuration = nil
+		}
+	})
+	return httpRequestsTotal, httpRequestDuration
+}
+
+// fiberHeaderCarrier adapts fasthttp/fiber headers to OpenTelemetry TextMapCarrier.
 type fiberHeaderCarrier struct {
 	ctx *fiber.Ctx
 }
@@ -33,12 +67,15 @@ func (c fiberHeaderCarrier) Keys() []string {
 	return keys
 }
 
-// OpenTelemetryTracing middleware instruments each incoming HTTP request with OpenTelemetry spans
+// OpenTelemetryTracing middleware instruments each incoming HTTP request with OpenTelemetry spans and metrics.
 func OpenTelemetryTracing() fiber.Handler {
 	propagator := otel.GetTextMapPropagator()
 	tracer := telemetry.Tracer()
+	requestsCounter, durationHistogram := getHTTPMetrics()
 
 	return func(c *fiber.Ctx) error {
+		start := time.Now()
+
 		// Extract trace context from incoming HTTP headers
 		ctx := propagator.Extract(c.Context(), fiberHeaderCarrier{ctx: c})
 
@@ -73,6 +110,7 @@ func OpenTelemetryTracing() fiber.Handler {
 
 		// Execute downstream handlers
 		err := c.Next()
+		durationSec := time.Since(start).Seconds()
 
 		statusCode := c.Response().StatusCode()
 		span.SetAttributes(semconv.HTTPResponseStatusCode(statusCode))
@@ -86,6 +124,19 @@ func OpenTelemetryTracing() fiber.Handler {
 			}
 		} else {
 			span.SetStatus(codes.Ok, "")
+		}
+
+		// Record HTTP request metrics
+		metricAttrs := metric.WithAttributes(
+			semconv.HTTPRequestMethodKey.String(c.Method()),
+			semconv.HTTPResponseStatusCode(statusCode),
+			attribute.String("http.route", routePath),
+		)
+		if requestsCounter != nil {
+			requestsCounter.Add(ctx, 1, metricAttrs)
+		}
+		if durationHistogram != nil {
+			durationHistogram.Record(ctx, durationSec, metricAttrs)
 		}
 
 		return err
