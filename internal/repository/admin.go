@@ -135,6 +135,7 @@ func (r *adminRepository) AddAdmin(ctx context.Context, email string, permission
 		INSERT INTO admin_users (user_id, is_superadmin, permissions, created_by)
 		VALUES ($1, false, $2, $3)
 		ON CONFLICT (user_id) DO UPDATE SET permissions = EXCLUDED.permissions, updated_at = NOW()
+		WHERE admin_users.is_superadmin = false
 		RETURNING id, user_id, is_superadmin, permissions, created_by, created_at, updated_at
 	`
 	var a model.AdminUser
