@@ -90,6 +90,36 @@ paths:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
 
+  /telemetry:
+    get:
+      summary: Realtime system telemetry and performance metrics
+      description: Detailed system observability metrics including realtime CPU utilization, per-core utilization, clock frequencies, load averages, memory allocation, and database connection pool statistics.
+      operationId: getTelemetry
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Detailed telemetry status and hardware metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailedTelemetryResponse'
+
+  /v1/telemetry:
+    get:
+      summary: Versioned realtime system telemetry
+      description: Detailed system observability metrics including realtime CPU utilization, per-core utilization, clock frequencies, load averages, memory allocation, and database connection pool statistics.
+      operationId: getV1Telemetry
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Detailed telemetry status and hardware metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailedTelemetryResponse'
+
   /v1/auth/check:
     get:
       summary: Check username and email availability
@@ -1419,6 +1449,177 @@ components:
         database:
           type: string
           example: connected
+
+    DBPoolStats:
+      type: object
+      required:
+        - acquired_conns
+        - idle_conns
+        - total_conns
+        - max_conns
+      properties:
+        acquired_conns:
+          type: integer
+          description: Current number of database connections actively leased by queries.
+          example: 3
+        idle_conns:
+          type: integer
+          description: Current number of idle connections waiting in the pool.
+          example: 7
+        total_conns:
+          type: integer
+          description: Total open connections in the pool.
+          example: 10
+        max_conns:
+          type: integer
+          description: Configured maximum connection limit for the pool.
+          example: 25
+
+    RuntimeStats:
+      type: object
+      required:
+        - goroutines
+        - alloc_bytes
+        - total_alloc_bytes
+        - sys_bytes
+        - gc_cycles
+      properties:
+        goroutines:
+          type: integer
+          description: Number of active Go goroutines.
+          example: 42
+        alloc_bytes:
+          type: integer
+          format: int64
+          description: Current heap allocation in bytes.
+          example: 18454912
+        total_alloc_bytes:
+          type: integer
+          format: int64
+          description: Cumulative bytes allocated throughout process lifetime.
+          example: 128459200
+        sys_bytes:
+          type: integer
+          format: int64
+          description: Total virtual memory obtained from operating system in bytes.
+          example: 45088768
+        gc_cycles:
+          type: integer
+          description: Completed garbage collection cycles.
+          example: 15
+
+    CPUStats:
+      type: object
+      required:
+        - usage_percent
+        - core_usage_percent
+        - avg_frequency_mhz
+        - core_frequency_mhz
+        - min_frequency_mhz
+        - max_frequency_mhz
+        - load_1m
+        - load_5m
+        - load_15m
+        - model_name
+        - core_count
+      properties:
+        usage_percent:
+          type: number
+          format: double
+          description: Realtime overall CPU utilization percentage.
+          example: 12.5
+        core_usage_percent:
+          type: array
+          items:
+            type: number
+            format: double
+          description: Per-core CPU utilization percentage.
+          example: [14.2, 10.8, 15.0, 10.0]
+        avg_frequency_mhz:
+          type: number
+          format: double
+          description: Average CPU clock speed across all online cores in MHz.
+          example: 3200.5
+        core_frequency_mhz:
+          type: array
+          items:
+            type: number
+            format: double
+          description: Per-core active CPU clock speed in MHz.
+          example: [3200.0, 3198.5, 3205.0, 3199.0]
+        min_frequency_mhz:
+          type: number
+          format: double
+          description: Minimum CPU clock frequency capability reported by sysfs in MHz.
+          example: 800.0
+        max_frequency_mhz:
+          type: number
+          format: double
+          description: Maximum CPU clock frequency capability reported by sysfs in MHz.
+          example: 4500.0
+        load_1m:
+          type: number
+          format: double
+          description: Operating system load average over 1 minute.
+          example: 0.85
+        load_5m:
+          type: number
+          format: double
+          description: Operating system load average over 5 minutes.
+          example: 0.62
+        load_15m:
+          type: number
+          format: double
+          description: Operating system load average over 15 minutes.
+          example: 0.45
+        model_name:
+          type: string
+          description: Processor model description detected from /proc/cpuinfo.
+          example: AMD Ryzen 9 7950X 16-Core Processor
+        core_count:
+          type: integer
+          description: Total count of online logical CPU cores.
+          example: 32
+
+    DetailedTelemetryResponse:
+      type: object
+      required:
+        - status
+        - service
+        - version
+        - uptime_seconds
+        - timestamp
+        - database
+        - db_pool
+        - runtime
+        - cpu
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: healthy
+        service:
+          type: string
+          example: realm-api
+        version:
+          type: string
+          example: 1.0.0
+        uptime_seconds:
+          type: integer
+          example: 86400
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-08-20T13:18:31Z'
+        database:
+          type: string
+          example: connected
+        db_pool:
+          $ref: '#/components/schemas/DBPoolStats'
+        runtime:
+          $ref: '#/components/schemas/RuntimeStats'
+        cpu:
+          $ref: '#/components/schemas/CPUStats'
 
     ErrorResponse:
       type: object
