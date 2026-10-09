@@ -3,6 +3,7 @@ package telemetry
 import (
 	"bufio"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -48,16 +49,19 @@ func (s cpuSample) idleTotal() uint64 {
 
 // CPUMonitor continuously tracks real-time CPU utilization and frequency.
 type CPUMonitor struct {
-	mu          sync.RWMutex
-	stats       CPUStats
-	prevTotal   cpuSample
-	prevCores   []cpuSample
-	modelName   string
-	coreCount   int32
-	minFreqMHz  float64
-	maxFreqMHz  float64
-	stopCh      chan struct{}
-	stopped     bool
+	mu             sync.RWMutex
+	stats          CPUStats
+	prevTotal      cpuSample
+	prevCores      []cpuSample
+	prevCgroupUsec uint64
+	prevCgroupTime time.Time
+	modelName      string
+	coreCount      int32
+	baseFreqMHz    float64
+	minFreqMHz     float64
+	maxFreqMHz     float64
+	stopCh         chan struct{}
+	stopped        bool
 }
 
 var (
@@ -100,11 +104,15 @@ func (m *CPUMonitor) initStaticInfo() {
 		scanner := bufio.NewScanner(file)
 		for scanner.Scan() {
 			line := scanner.Text()
-			if strings.HasPrefix(line, "model name") {
+			lower := strings.ToLower(line)
+			if strings.HasPrefix(lower, "model name") || strings.HasPrefix(lower, "hardware") || strings.HasPrefix(lower, "processor") {
 				parts := strings.SplitN(line, ":", 2)
 				if len(parts) == 2 {
-					m.modelName = strings.TrimSpace(parts[1])
-					break
+					val := strings.TrimSpace(parts[1])
+					if _, parseErr := strconv.Atoi(val); parseErr != nil && val != "" {
+						m.modelName = val
+						break
+					}
 				}
 			}
 		}
@@ -114,6 +122,9 @@ func (m *CPUMonitor) initStaticInfo() {
 	if m.modelName == "" {
 		m.modelName = fmt.Sprintf("Generic CPU (%s)", runtime.GOARCH)
 	}
+
+	// Extract base frequency from model name if available (e.g. "@ 2.40GHz")
+	m.baseFreqMHz = extractFreqFromModel(m.modelName)
 
 	// 2. Detect Min & Max Frequency from sysfs cpufreq paths
 	minPaths := []string{
@@ -146,6 +157,13 @@ func (m *CPUMonitor) initStaticInfo() {
 			}
 		}
 	}
+
+	if m.minFreqMHz <= 0 && m.baseFreqMHz > 0 {
+		m.minFreqMHz = m.baseFreqMHz * 0.5
+	}
+	if m.maxFreqMHz <= 0 && m.baseFreqMHz > 0 {
+		m.maxFreqMHz = m.baseFreqMHz * 1.5
+	}
 }
 
 func (m *CPUMonitor) run(interval time.Duration) {
@@ -163,56 +181,80 @@ func (m *CPUMonitor) run(interval time.Duration) {
 }
 
 func (m *CPUMonitor) sample() {
-	currTotal, currCores, err := readProcStat()
-	if err != nil {
-		// Fallback for non-procfs platforms
-		m.mu.Lock()
-		m.stats = CPUStats{
-			ModelName: m.modelName,
-			CoreCount: m.coreCount,
-		}
-		m.mu.Unlock()
-		return
+	currTotal, currCores, procErr := readProcStat()
+	coreCount := int(m.coreCount)
+	if len(currCores) > 0 {
+		coreCount = len(currCores)
 	}
 
-	// Calculate overall CPU utilization
 	var overallUsage float64
-	if m.prevTotal.total() > 0 {
-		deltaTotal := currTotal.total() - m.prevTotal.total()
-		deltaIdle := currTotal.idleTotal() - m.prevTotal.idleTotal()
-		if deltaTotal > 0 && deltaTotal >= deltaIdle {
-			overallUsage = (1.0 - float64(deltaIdle)/float64(deltaTotal)) * 100.0
+	var coreUsages []float64
+
+	if procErr == nil {
+		if m.prevTotal.total() > 0 {
+			deltaTotal := currTotal.total() - m.prevTotal.total()
+			deltaIdle := currTotal.idleTotal() - m.prevTotal.idleTotal()
+			if deltaTotal > 0 && deltaTotal >= deltaIdle {
+				overallUsage = (1.0 - float64(deltaIdle)/float64(deltaTotal)) * 100.0
+			}
+		}
+
+		coreUsages = make([]float64, len(currCores))
+		if len(m.prevCores) == len(currCores) {
+			for i := range currCores {
+				deltaTotal := currCores[i].total() - m.prevCores[i].total()
+				deltaIdle := currCores[i].idleTotal() - m.prevCores[i].idleTotal()
+				if deltaTotal > 0 && deltaTotal >= deltaIdle {
+					usage := (1.0 - float64(deltaIdle)/float64(deltaTotal)) * 100.0
+					if usage < 0 {
+						usage = 0
+					} else if usage > 100 {
+						usage = 100
+					}
+					coreUsages[i] = usage
+				}
+			}
+		}
+
+		m.prevTotal = currTotal
+		m.prevCores = currCores
+	} else {
+		// Fallback for non-procfs / container environments: try cgroup v2
+		if cgroupUsage, cErr := m.readCgroupCPUUsage(); cErr == nil && cgroupUsage > 0 {
+			overallUsage = cgroupUsage
 		}
 	}
 
-	// Calculate per-core CPU utilization
-	coreUsages := make([]float64, len(currCores))
-	if len(m.prevCores) == len(currCores) {
-		for i := range currCores {
-			deltaTotal := currCores[i].total() - m.prevCores[i].total()
-			deltaIdle := currCores[i].idleTotal() - m.prevCores[i].idleTotal()
-			if deltaTotal > 0 && deltaTotal >= deltaIdle {
-				usage := (1.0 - float64(deltaIdle)/float64(deltaTotal)) * 100.0
-				if usage < 0 {
-					usage = 0
-				} else if usage > 100 {
-					usage = 100
-				}
-				coreUsages[i] = usage
+	// Always read CPU frequencies
+	coreFreqs, avgFreq := readCPUFrequencies(coreCount)
+
+	// If dynamic frequencies not found, fallback to static bounds or model clock
+	if avgFreq <= 0 {
+		if m.maxFreqMHz > 0 {
+			avgFreq = m.maxFreqMHz
+		} else if m.baseFreqMHz > 0 {
+			avgFreq = m.baseFreqMHz
+		} else if m.minFreqMHz > 0 {
+			avgFreq = m.minFreqMHz
+		}
+		if avgFreq > 0 {
+			if len(coreFreqs) == 0 {
+				coreFreqs = make([]float64, coreCount)
+			}
+			for i := range coreFreqs {
+				coreFreqs[i] = avgFreq
 			}
 		}
 	}
 
-	m.prevTotal = currTotal
-	m.prevCores = currCores
-
-	// Read CPU Frequencies
-	coreFreqs, avgFreq := readCPUFrequencies(len(currCores))
-
-	// Read System Load Average
+	// Always read System Load Average
 	load1, load5, load15 := readLoadAvg()
 
-	// Derive min/max frequency if not populated from sysfs static info
+	// If overallUsage is 0 and load1 > 0, estimate utilization if procstat was unavailable
+	if overallUsage == 0 && procErr != nil && load1 > 0 && coreCount > 0 {
+		overallUsage = math.Min(100.0, (load1/float64(coreCount))*100.0)
+	}
+
 	minFreq := m.minFreqMHz
 	maxFreq := m.maxFreqMHz
 	if (minFreq <= 0 || maxFreq <= 0) && len(coreFreqs) > 0 {
@@ -247,9 +289,51 @@ func (m *CPUMonitor) sample() {
 		Load5m:           load5,
 		Load15m:          load15,
 		ModelName:        m.modelName,
-		CoreCount:        int32(len(currCores)),
+		CoreCount:        int32(coreCount),
 	}
 	m.mu.Unlock()
+}
+
+// readCgroupCPUUsage measures container CPU utilization from cgroup v2 cpu.stat.
+func (m *CPUMonitor) readCgroupCPUUsage() (float64, error) {
+	data, err := os.ReadFile("/sys/fs/cgroup/cpu.stat")
+	if err != nil {
+		return 0, err
+	}
+	scanner := bufio.NewScanner(strings.NewReader(string(data)))
+	var usec uint64
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "usage_usec") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				usec, _ = strconv.ParseUint(fields[1], 10, 64)
+				break
+			}
+		}
+	}
+	if usec == 0 {
+		return 0, fmt.Errorf("usage_usec not found")
+	}
+
+	now := time.Now()
+	if m.prevCgroupUsec > 0 && !m.prevCgroupTime.IsZero() {
+		deltaUsec := usec - m.prevCgroupUsec
+		deltaDuration := now.Sub(m.prevCgroupTime).Microseconds()
+		if deltaDuration > 0 && deltaUsec > 0 {
+			numCPU := float64(runtime.NumCPU())
+			usage := (float64(deltaUsec) / (float64(deltaDuration) * numCPU)) * 100.0
+			if usage > 100.0 {
+				usage = 100.0
+			}
+			m.prevCgroupUsec = usec
+			m.prevCgroupTime = now
+			return usage, nil
+		}
+	}
+	m.prevCgroupUsec = usec
+	m.prevCgroupTime = now
+	return 0, nil
 }
 
 // GetStats returns the latest measured CPU stats.
@@ -323,8 +407,7 @@ func readCPUFrequencies(coreCount int) ([]float64, float64) {
 	var sum float64
 	var counted int
 
-	// 1. Try sysfs scaling_cur_freq or policy
-	hasSysfs := false
+	// 1. Try sysfs per-cpu or policy directories
 	for i := 0; i < coreCount; i++ {
 		paths := []string{
 			filepath.Join("/sys/devices/system/cpu", fmt.Sprintf("cpu%d", i), "cpufreq/scaling_cur_freq"),
@@ -339,48 +422,77 @@ func readCPUFrequencies(coreCount int) ([]float64, float64) {
 					freqs[i] = mhz
 					sum += mhz
 					counted++
-					hasSysfs = true
 					break
 				}
 			}
 		}
 	}
 
-	if hasSysfs && counted > 0 {
-		return freqs, sum / float64(counted)
-	}
-
-	// 2. Fallback to /proc/cpuinfo
-	if file, err := os.Open("/proc/cpuinfo"); err == nil {
-		defer file.Close()
-		scanner := bufio.NewScanner(file)
-		coreIdx := 0
-		for scanner.Scan() && coreIdx < coreCount {
-			line := scanner.Text()
-			lower := strings.ToLower(line)
-			if strings.Contains(lower, "cpu mhz") || strings.Contains(lower, "clock") {
-				parts := strings.SplitN(line, ":", 2)
-				if len(parts) == 2 {
-					valStr := strings.TrimSpace(parts[1])
-					valStr = strings.TrimSuffix(valStr, "MHz")
-					valStr = strings.TrimSuffix(valStr, "mhz")
-					valStr = strings.TrimSpace(valStr)
-					if mhz, parseErr := strconv.ParseFloat(valStr, 64); parseErr == nil && mhz > 0 {
-						freqs[coreIdx] = mhz
-						sum += mhz
-						counted++
-						coreIdx++
+	// 2. Fallback to /proc/cpuinfo if sysfs didn't find all cores
+	if counted < coreCount {
+		if file, err := os.Open("/proc/cpuinfo"); err == nil {
+			scanner := bufio.NewScanner(file)
+			coreIdx := 0
+			for scanner.Scan() && coreIdx < coreCount {
+				line := scanner.Text()
+				lower := strings.ToLower(line)
+				if strings.Contains(lower, "cpu mhz") || strings.Contains(lower, "clock") {
+					parts := strings.SplitN(line, ":", 2)
+					if len(parts) == 2 {
+						valStr := strings.TrimSpace(parts[1])
+						valStr = strings.TrimSuffix(valStr, "MHz")
+						valStr = strings.TrimSuffix(valStr, "mhz")
+						valStr = strings.TrimSpace(valStr)
+						if mhz, parseErr := strconv.ParseFloat(valStr, 64); parseErr == nil && mhz > 0 {
+							if freqs[coreIdx] <= 0 {
+								freqs[coreIdx] = mhz
+								sum += mhz
+								counted++
+							}
+							coreIdx++
+						}
 					}
 				}
 			}
+			_ = file.Close()
 		}
 	}
 
 	if counted > 0 {
-		return freqs, sum / float64(counted)
+		avg := sum / float64(counted)
+		// Propagate average frequency to any cores that lacked direct sensors
+		for i := range freqs {
+			if freqs[i] <= 0 {
+				freqs[i] = avg
+			}
+		}
+		return freqs, avg
 	}
 
 	return freqs, 0
+}
+
+func extractFreqFromModel(model string) float64 {
+	lower := strings.ToLower(model)
+	if idx := strings.Index(lower, "@"); idx != -1 {
+		part := strings.TrimSpace(lower[idx+1:])
+		fields := strings.Fields(part)
+		if len(fields) > 0 {
+			target := fields[0]
+			if strings.HasSuffix(target, "ghz") {
+				numStr := strings.TrimSuffix(target, "ghz")
+				if val, err := strconv.ParseFloat(numStr, 64); err == nil && val > 0 {
+					return val * 1000.0
+				}
+			} else if strings.HasSuffix(target, "mhz") {
+				numStr := strings.TrimSuffix(target, "mhz")
+				if val, err := strconv.ParseFloat(numStr, 64); err == nil && val > 0 {
+					return val
+				}
+			}
+		}
+	}
+	return 0
 }
 
 func readLoadAvg() (float64, float64, float64) {
