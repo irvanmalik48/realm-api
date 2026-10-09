@@ -43,6 +43,13 @@ func ApplyLandlockSandbox(storageDir string) error {
 		{"/dev/urandom", "r", false},
 		{"/usr/share/zoneinfo", "r", true},
 		{"/proc/self/cmdline", "r", false},
+		{"/proc/stat", "r", false},
+		{"/proc/loadavg", "r", false},
+		{"/proc/cpuinfo", "r", false},
+		{"/proc/meminfo", "r", false},
+		{"/sys/devices/system/cpu", "r", true},
+		{"/sys/devices/system/cpu/cpufreq", "r", true},
+		{"/sys/fs/cgroup", "r", true},
 	}
 
 	for _, op := range optionalPaths {
