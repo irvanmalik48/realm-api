@@ -90,10 +90,10 @@ func Load() *Config {
 	}
 
 	storageDir := getEnv("STORAGE_DIR", "./data/storage")
-	maxUploadMBStr := getEnv("MAX_UPLOAD_SIZE_MB", "10")
+	maxUploadMBStr := getEnv("MAX_UPLOAD_SIZE_MB", "50")
 	maxUploadMB, err := strconv.Atoi(maxUploadMBStr)
 	if err != nil || maxUploadMB <= 0 {
-		maxUploadMB = 10
+		maxUploadMB = 50
 	}
 
 	smtpPortStr := getEnv("SMTP_PORT", "587")
