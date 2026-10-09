@@ -97,7 +97,7 @@ func NewServer(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *grpc.S
 	// Create gRPC Server with OpenTelemetry tracing and interceptors
 	maxMsgSize := (cfg.MaxUploadSizeMB + 2) * 1024 * 1024
 	if maxMsgSize <= 0 {
-		maxMsgSize = 12 * 1024 * 1024
+		maxMsgSize = 52 * 1024 * 1024
 	}
 
 	server := grpc.NewServer(
