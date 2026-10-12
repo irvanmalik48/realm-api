@@ -249,6 +249,25 @@ func (db *DB) migrate(ctx context.Context) error {
 	CREATE INDEX IF NOT EXISTS idx_page_views_path ON page_views (path);
 	CREATE INDEX IF NOT EXISTS idx_page_views_post_slug ON page_views (post_slug) WHERE post_slug IS NOT NULL;
 	CREATE INDEX IF NOT EXISTS idx_page_views_session ON page_views (session_id);
+
+	-- Dedicated Pastebin Service Table
+	CREATE TABLE IF NOT EXISTS pastes (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		slug VARCHAR(20) UNIQUE NOT NULL,
+		title VARCHAR(255) NOT NULL DEFAULT '',
+		content TEXT NOT NULL,
+		syntax VARCHAR(50) NOT NULL DEFAULT 'plaintext',
+		user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+		is_public BOOLEAN NOT NULL DEFAULT true,
+		views INT NOT NULL DEFAULT 0,
+		expires_at TIMESTAMP WITH TIME ZONE,
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+		updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+	);
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_pastes_slug ON pastes(slug);
+	CREATE INDEX IF NOT EXISTS idx_pastes_created_at ON pastes(created_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_pastes_user_id ON pastes(user_id);
+	CREATE INDEX IF NOT EXISTS idx_pastes_expires_at ON pastes(expires_at) WHERE expires_at IS NOT NULL;
 	`
 
 	_, err := db.Pool.Exec(ctx, query)
@@ -287,4 +306,3 @@ func (db *DB) BootstrapSuperadmins(ctx context.Context, superadminEmails []strin
 	}
 	return nil
 }
-
