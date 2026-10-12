@@ -146,6 +146,10 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	postSvc := service.NewPostService(postRepo)
 	postHdlr := handler.NewPostHandler(cfg, postSvc)
 
+	pasteRepo := repository.NewPasteRepository(db)
+	pasteSvc := service.NewPasteService(pasteRepo)
+	pasteHdlr := handler.NewPasteHandler(cfg, pasteSvc)
+
 	analyticsRepo := repository.NewAnalyticsRepository(db)
 	analyticsSvc := service.NewAnalyticsService(analyticsRepo)
 	analyticsHdlr := handler.NewAnalyticsHandler(cfg, analyticsSvc)
@@ -225,6 +229,14 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	postsGroup.Patch("/:slug", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, adminRepo, tokenLimiter, "posts:write"), postHdlr.UpdatePost)
 	postsGroup.Put("/:slug", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, adminRepo, tokenLimiter, "posts:write"), postHdlr.UpdatePost)
 	postsGroup.Delete("/:slug", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, adminRepo, tokenLimiter, "posts:delete"), postHdlr.DeletePost)
+
+	// Pastebin endpoints (Dedicated pastebin service with 7-letter slugs)
+	pastesGroup := v1.Group("/pastes")
+	pastesGroup.Get("/", middleware.OptionalUserAuth(pasetoSvc), pasteHdlr.ListPastes)
+	pastesGroup.Post("/", middleware.OptionalUserAuth(pasetoSvc), pasteHdlr.CreatePaste)
+	pastesGroup.Get("/:slug", pasteHdlr.GetPaste)
+	pastesGroup.Get("/:slug/raw", pasteHdlr.GetRawPaste)
+	pastesGroup.Delete("/:slug", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, adminRepo, tokenLimiter, "pastes:delete"), pasteHdlr.DeletePaste)
 
 	// Analytics / Page Views endpoints
 	analyticsGroup := v1.Group("/analytics")
