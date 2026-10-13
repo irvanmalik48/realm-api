@@ -82,18 +82,6 @@ func (s *authService) getConnectedAccounts(ctx context.Context, userID uuid.UUID
 	return accts
 }
 
-func (s *authService) getConnectedProviders(ctx context.Context, userID uuid.UUID) []string {
-	accts := s.getConnectedAccounts(ctx, userID)
-	if accts == nil {
-		return nil
-	}
-	providers := make([]string, 0, len(accts))
-	for _, a := range accts {
-		providers = append(providers, a.Provider)
-	}
-	return providers
-}
-
 func (s *authService) Register(ctx context.Context, input model.RegisterInput) (*model.AuthResponse, error) {
 	if s.userRepo == nil {
 		return nil, ErrDatabaseUnavailable
