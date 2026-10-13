@@ -46,6 +46,9 @@ tags:
   - name: Analytics
     summary: Web Analytics & Visitor Telemetry
     description: Ingestion and aggregate analytics query endpoints for visitor page views, referrers, and user agents.
+  - name: Pastebin
+    summary: Encrypted Pastebin Service
+    description: Text snippet sharing with 7-letter slugs, optional TTL expiration, and Argon2id + XChaCha20-Poly1305 authenticated password encryption.
 
 paths:
   /:
@@ -1387,6 +1390,298 @@ paths:
               schema:
                 $ref: '#/components/schemas/AnalyticsStatsResponse'
 
+  /v1/pastes:
+    get:
+      summary: List pastebin snippets
+      operationId: listPastes
+      tags:
+        - Pastebin
+      parameters:
+        - name: search
+          in: query
+          required: false
+          description: Search term matching paste title or slug
+          schema:
+            type: string
+            example: config
+        - name: syntax
+          in: query
+          required: false
+          description: Filter by syntax language
+          schema:
+            type: string
+            example: typescript
+        - name: public
+          in: query
+          required: false
+          description: Filter by public visibility (true or false)
+          schema:
+            type: boolean
+        - name: user_id
+          in: query
+          required: false
+          description: Filter by creator user UUID
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of pastes to return (default 50, max 100)
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          description: Number of records to skip
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of pastes matching the query criteria
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PastesListResponse'
+        '500':
+          description: Failed to retrieve pastes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a new paste
+      operationId: createPaste
+      tags:
+        - Pastebin
+      requestBody:
+        required: true
+        description: Paste payload including optional passphrase for Argon2id + XChaCha20-Poly1305 authenticated encryption
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePasteRequest'
+      responses:
+        '201':
+          description: Paste successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasteDetail'
+        '400':
+          description: Content cannot be empty or invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Paste content exceeds maximum size limit (512 KB)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/pastes/{slug}:
+    get:
+      summary: Retrieve a paste by slug
+      description: >-
+        Fetches paste metadata and content. If the paste is encrypted with Argon2id + XChaCha20-Poly1305, omitting the password returns metadata with content empty and is_encrypted true. Supplying the correct password via X-Paste-Password header or password query parameter returns the decrypted plaintext content.
+      operationId: getPaste
+      tags:
+        - Pastebin
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: 7-letter unique paste slug identifier
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{7}$'
+            example: K9xQm2v
+        - name: X-Paste-Password
+          in: header
+          required: false
+          description: Decryption passphrase for password-protected pastes (Argon2id + XChaCha20-Poly1305)
+          schema:
+            type: string
+            format: password
+        - name: password
+          in: query
+          required: false
+          description: Optional decryption passphrase query parameter (alternative to X-Paste-Password header)
+          schema:
+            type: string
+            format: password
+      responses:
+        '200':
+          description: Paste details and decrypted content (or metadata-only if encrypted without password)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasteDetail'
+        '400':
+          description: Paste slug is required or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid password for encrypted paste
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Paste not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '410':
+          description: Paste has expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete a paste
+      operationId: deletePaste
+      tags:
+        - Pastebin
+      security:
+        - PasetoAuth: []
+        - ApiTokenAuth: []
+        - ApiTokenHeader: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: 7-letter unique paste slug identifier
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{7}$'
+            example: K9xQm2v
+      responses:
+        '200':
+          description: Paste deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSuccessResponse'
+        '400':
+          description: Paste slug is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Paste not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/pastes/{slug}/raw:
+    get:
+      summary: Retrieve raw plaintext paste content
+      description: >-
+        Returns raw plaintext content with Content-Type text/plain; charset=utf-8 and X-Content-Type-Options nosniff. If the paste is encrypted, the correct password must be supplied via X-Paste-Password header or password query parameter.
+      operationId: getRawPaste
+      tags:
+        - Pastebin
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: 7-letter unique paste slug identifier
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{7}$'
+            example: K9xQm2v
+        - name: X-Paste-Password
+          in: header
+          required: false
+          description: Decryption passphrase for encrypted pastes
+          schema:
+            type: string
+            format: password
+        - name: password
+          in: query
+          required: false
+          description: Decryption passphrase query parameter
+          schema:
+            type: string
+            format: password
+      responses:
+        '200':
+          description: Raw plaintext content of the paste
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "fmt.Println(\"Hello, World!\")"
+        '400':
+          description: Paste slug is required
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Paste slug is required
+        '401':
+          description: Password required or invalid password for encrypted paste
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Password required for encrypted paste
+        '404':
+          description: Paste not found
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Paste not found
+        '410':
+          description: Paste has expired
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Paste has expired
+        '500':
+          description: Internal server error
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Failed to retrieve paste content
+
 components:
   securitySchemes:
     PasetoAuth:
@@ -2662,6 +2957,193 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RecentPageView'
+
+    PasteSummary:
+      type: object
+      required:
+        - id
+        - slug
+        - title
+        - syntax
+        - is_public
+        - is_encrypted
+        - views
+        - size
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 7b35f62e-3d84-4b53-a5c3-2d2745cfd39c
+        slug:
+          type: string
+          example: K9xQm2v
+          description: Unique 7-character alphanumeric slug identifier
+        title:
+          type: string
+          example: Nginx Reverse Proxy Config
+        syntax:
+          type: string
+          example: nginx
+          description: Code syntax highlighting language
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+          example: 9a78e71b-366a-4a8f-a9cb-562a14603ee9
+          description: Creator user UUID, or null for anonymous pastes
+        is_public:
+          type: boolean
+          example: true
+          description: Whether the paste is indexed in public listings
+        is_encrypted:
+          type: boolean
+          example: false
+          description: Whether the paste payload is encrypted with Argon2id and XChaCha20-Poly1305
+        views:
+          type: integer
+          example: 18
+          description: Total access view counter
+        size:
+          type: integer
+          example: 1024
+          description: Content size in bytes
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-11-01T00:00:00Z'
+          description: Expiration timestamp, or null if the paste never expires
+        created_at:
+          type: string
+          format: date-time
+          example: '2026-10-13T12:00:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          example: '2026-10-13T12:00:00Z'
+
+    PasteDetail:
+      type: object
+      required:
+        - id
+        - slug
+        - title
+        - content
+        - syntax
+        - is_public
+        - is_encrypted
+        - views
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 7b35f62e-3d84-4b53-a5c3-2d2745cfd39c
+        slug:
+          type: string
+          example: K9xQm2v
+          description: Unique 7-character alphanumeric slug identifier
+        title:
+          type: string
+          example: Nginx Reverse Proxy Config
+        content:
+          type: string
+          example: server { listen 80; server_name example.com; }
+          description: Plaintext content. If is_encrypted is true and no valid password was supplied, this field returns an empty string.
+        syntax:
+          type: string
+          example: nginx
+          description: Code syntax highlighting language
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+          example: 9a78e71b-366a-4a8f-a9cb-562a14603ee9
+          description: Creator user UUID, or null for anonymous pastes
+        is_public:
+          type: boolean
+          example: true
+          description: Whether the paste is indexed in public listings
+        is_encrypted:
+          type: boolean
+          example: true
+          description: Whether the paste payload is encrypted with Argon2id and XChaCha20-Poly1305
+        views:
+          type: integer
+          example: 19
+          description: Total access view counter
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-11-01T00:00:00Z'
+          description: Expiration timestamp, or null if the paste never expires
+        created_at:
+          type: string
+          format: date-time
+          example: '2026-10-13T12:00:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          example: '2026-10-13T12:00:00Z'
+
+    CreatePasteRequest:
+      type: object
+      required:
+        - content
+      properties:
+        title:
+          type: string
+          example: Deployment Script
+          description: Optional title for the paste (defaults to 'Untitled Paste' if empty)
+        content:
+          type: string
+          example: "#!/usr/bin/env bash\necho 'deploying...'\n"
+          description: Snippet body text or code (maximum size 512 KB)
+        syntax:
+          type: string
+          example: bash
+          description: Syntax highlighting identifier (defaults to plaintext)
+        password:
+          type: string
+          format: password
+          example: MySecretPassphrase!
+          description: Optional passphrase to encrypt the paste using Argon2id key derivation and XChaCha20-Poly1305 AEAD cipher
+        is_public:
+          type: boolean
+          example: true
+          default: true
+          description: Whether the paste is visible in the public directory
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-10-20T00:00:00Z'
+          description: Specific expiration date-time
+        ttl:
+          type: string
+          example: 7d
+          enum: [1h, 1d, 7d, 30d, never]
+          description: Relative time-to-live string shorthand (1h, 1d, 7d, 30d, never)
+
+    PastesListResponse:
+      type: object
+      required:
+        - total
+        - pastes
+      properties:
+        total:
+          type: integer
+          example: 24
+          description: Total number of matching pastes
+        pastes:
+          type: array
+          items:
+            $ref: '#/components/schemas/PasteSummary'
+
 
 
 
