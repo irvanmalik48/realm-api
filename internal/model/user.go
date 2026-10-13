@@ -105,9 +105,7 @@ func (u *User) ToDTOWithAccounts(oauthAccounts []OAuthAccount) *UserDTO {
 			providers = append(providers, p)
 		}
 	}
-	for _, a := range dto.ConnectedAccounts {
-		accounts = append(accounts, a)
-	}
+	accounts = append(accounts, dto.ConnectedAccounts...)
 
 	for _, a := range oauthAccounts {
 		if !seenProviders[a.Provider] {
