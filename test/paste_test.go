@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,8 +43,10 @@ func (m *mockPasteRepository) CreatePaste(ctx context.Context, paste *model.Past
 	paste.CreatedAt = time.Now()
 	paste.UpdatedAt = time.Now()
 	paste.Views = 0
-	m.pastes[paste.Slug] = paste
-	return paste, nil
+	saved := *paste
+	m.pastes[paste.Slug] = &saved
+	ret := *paste
+	return &ret, nil
 }
 
 func (m *mockPasteRepository) GetPasteBySlug(ctx context.Context, slug string) (*model.Paste, error) {
@@ -54,7 +57,8 @@ func (m *mockPasteRepository) GetPasteBySlug(ctx context.Context, slug string) (
 	if p.ExpiresAt != nil && p.ExpiresAt.Before(time.Now()) {
 		return nil, repository.ErrPasteExpired
 	}
-	return p, nil
+	ret := *p
+	return &ret, nil
 }
 
 func (m *mockPasteRepository) IncrementViews(ctx context.Context, slug string) error {
@@ -74,17 +78,18 @@ func (m *mockPasteRepository) ListPastes(ctx context.Context, search, syntax str
 			continue
 		}
 		list = append(list, model.PasteSummaryDTO{
-			ID:        p.ID,
-			Slug:      p.Slug,
-			Title:     p.Title,
-			Syntax:    p.Syntax,
-			UserID:    p.UserID,
-			IsPublic:  p.IsPublic,
-			Views:     p.Views,
-			Size:      len(p.Content),
-			ExpiresAt: p.ExpiresAt,
-			CreatedAt: p.CreatedAt,
-			UpdatedAt: p.UpdatedAt,
+			ID:          p.ID,
+			Slug:        p.Slug,
+			Title:       p.Title,
+			Syntax:      p.Syntax,
+			UserID:      p.UserID,
+			IsPublic:    p.IsPublic,
+			IsEncrypted: p.IsEncrypted,
+			Views:       p.Views,
+			Size:        len(p.Content),
+			ExpiresAt:   p.ExpiresAt,
+			CreatedAt:   p.CreatedAt,
+			UpdatedAt:   p.UpdatedAt,
 		})
 	}
 	return &model.PastesListResponse{
@@ -161,7 +166,7 @@ func TestPasteService_CreateAndGet(t *testing.T) {
 	}
 
 	// 3. Test get paste
-	fetched, err := svc.GetPasteBySlug(ctx, paste.Slug)
+	fetched, err := svc.GetPasteBySlug(ctx, paste.Slug, "")
 	if err != nil {
 		t.Fatalf("unexpected error getting paste: %v", err)
 	}
@@ -170,7 +175,7 @@ func TestPasteService_CreateAndGet(t *testing.T) {
 	}
 
 	// 4. Test raw content
-	raw, err := svc.GetRawContent(ctx, paste.Slug)
+	raw, err := svc.GetRawContent(ctx, paste.Slug, "")
 	if err != nil {
 		t.Fatalf("unexpected error getting raw content: %v", err)
 	}
@@ -181,9 +186,95 @@ func TestPasteService_CreateAndGet(t *testing.T) {
 	// 5. Test expired paste
 	expiredTime := time.Now().Add(-1 * time.Minute)
 	repo.pastes[paste.Slug].ExpiresAt = &expiredTime
-	_, err = svc.GetPasteBySlug(ctx, paste.Slug)
+	_, err = svc.GetPasteBySlug(ctx, paste.Slug, "")
 	if err != repository.ErrPasteExpired {
 		t.Errorf("expected ErrPasteExpired for past expires_at, got %v", err)
+	}
+}
+
+func TestPasteService_PasswordEncryption(t *testing.T) {
+	repo := newMockPasteRepository()
+	svc := service.NewPasteService(repo)
+	ctx := context.Background()
+
+	originalContent := "Top secret server password = hunter2"
+	correctPassword := "p@ssw0rd!42"
+
+	// 1. Create encrypted paste
+	paste, err := svc.CreatePaste(ctx, &model.CreatePasteRequest{
+		Title:    "secret.txt",
+		Content:  originalContent,
+		Syntax:   "plaintext",
+		Password: correctPassword,
+	}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error creating encrypted paste: %v", err)
+	}
+
+	if !paste.IsEncrypted {
+		t.Errorf("expected paste.IsEncrypted to be true")
+	}
+
+	// Creator gets plaintext back on creation
+	if paste.Content != originalContent {
+		t.Errorf("expected creator response content to be plaintext %q, got %q", originalContent, paste.Content)
+	}
+
+	// In repository, content must be encrypted with $paste_v1$
+	storedInRepo := repo.pastes[paste.Slug]
+	if storedInRepo.Content == originalContent {
+		t.Errorf("stored content in repository must not be plaintext!")
+	}
+	if !strings.HasPrefix(storedInRepo.Content, "$paste_v1$") {
+		t.Errorf("stored content in repository should have $paste_v1$ prefix, got %q", storedInRepo.Content)
+	}
+
+	// 2. Get paste without password -> should return empty content and IsEncrypted = true
+	locked, err := svc.GetPasteBySlug(ctx, paste.Slug, "")
+	if err != nil {
+		t.Fatalf("unexpected error getting paste without password: %v", err)
+	}
+	if locked.Content != "" {
+		t.Errorf("expected empty content when password is omitted, got %q", locked.Content)
+	}
+	if !locked.IsEncrypted {
+		t.Errorf("expected locked.IsEncrypted to be true")
+	}
+
+	// 3. Get raw paste without password -> should return ErrPasswordRequired
+	_, err = svc.GetRawContent(ctx, paste.Slug, "")
+	if err != service.ErrPasswordRequired {
+		t.Errorf("expected ErrPasswordRequired, got %v", err)
+	}
+
+	// 4. Get paste with wrong password -> should return ErrInvalidPassword
+	_, err = svc.GetPasteBySlug(ctx, paste.Slug, "wrong-password")
+	if err != service.ErrInvalidPassword {
+		t.Errorf("expected ErrInvalidPassword, got %v", err)
+	}
+
+	// 5. Get raw paste with wrong password -> should return ErrInvalidPassword
+	_, err = svc.GetRawContent(ctx, paste.Slug, "wrong-password")
+	if err != service.ErrInvalidPassword {
+		t.Errorf("expected ErrInvalidPassword, got %v", err)
+	}
+
+	// 6. Get paste with correct password -> successfully decrypted!
+	unlocked, err := svc.GetPasteBySlug(ctx, paste.Slug, correctPassword)
+	if err != nil {
+		t.Fatalf("failed to decrypt paste with correct password: %v", err)
+	}
+	if unlocked.Content != originalContent {
+		t.Errorf("decrypted content mismatch: expected %q, got %q", originalContent, unlocked.Content)
+	}
+
+	// 7. Get raw paste with correct password -> successfully decrypted!
+	rawUnlocked, err := svc.GetRawContent(ctx, paste.Slug, correctPassword)
+	if err != nil {
+		t.Fatalf("failed to decrypt raw paste with correct password: %v", err)
+	}
+	if rawUnlocked != originalContent {
+		t.Errorf("raw decrypted content mismatch: expected %q, got %q", originalContent, rawUnlocked)
 	}
 }
 
