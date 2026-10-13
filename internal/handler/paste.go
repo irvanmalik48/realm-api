@@ -53,19 +53,30 @@ func (h *PasteHandler) CreatePaste(c *fiber.Ctx) error {
 	return JSONResponse(c, paste, http.StatusCreated, 0)
 }
 
+func getPastePassword(c *fiber.Ctx) string {
+	if pass := c.Get("X-Paste-Password"); pass != "" {
+		return pass
+	}
+	return c.Query("password")
+}
+
 func (h *PasteHandler) GetPaste(c *fiber.Ctx) error {
 	slug := c.Params("slug")
 	if slug == "" {
 		return ErrorResponse(c, "Paste slug is required", http.StatusBadRequest)
 	}
 
-	paste, err := h.svc.GetPasteBySlug(c.Context(), slug)
+	password := getPastePassword(c)
+	paste, err := h.svc.GetPasteBySlug(c.Context(), slug, password)
 	if err != nil {
 		if errors.Is(err, repository.ErrPasteNotFound) {
 			return ErrorResponse(c, "Paste not found", http.StatusNotFound)
 		}
 		if errors.Is(err, repository.ErrPasteExpired) {
 			return ErrorResponse(c, "Paste has expired", http.StatusGone)
+		}
+		if errors.Is(err, service.ErrInvalidPassword) {
+			return ErrorResponse(c, "Invalid password for encrypted paste", http.StatusUnauthorized)
 		}
 		log.Printf("[Pastebin] GetPaste error for slug %q: %v\n", slug, err)
 		return ErrorResponse(c, "Failed to retrieve paste", http.StatusInternalServerError)
@@ -80,13 +91,20 @@ func (h *PasteHandler) GetRawPaste(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).SendString("Paste slug is required")
 	}
 
-	content, err := h.svc.GetRawContent(c.Context(), slug)
+	password := getPastePassword(c)
+	content, err := h.svc.GetRawContent(c.Context(), slug, password)
 	if err != nil {
 		if errors.Is(err, repository.ErrPasteNotFound) {
 			return c.Status(http.StatusNotFound).SendString("Paste not found")
 		}
 		if errors.Is(err, repository.ErrPasteExpired) {
 			return c.Status(http.StatusGone).SendString("Paste has expired")
+		}
+		if errors.Is(err, service.ErrPasswordRequired) {
+			return c.Status(http.StatusUnauthorized).SendString("Password required for encrypted paste")
+		}
+		if errors.Is(err, service.ErrInvalidPassword) {
+			return c.Status(http.StatusUnauthorized).SendString("Invalid password for encrypted paste")
 		}
 		log.Printf("[Pastebin] GetRawPaste error for slug %q: %v\n", slug, err)
 		return c.Status(http.StatusInternalServerError).SendString("Failed to retrieve paste content")
