@@ -17,6 +17,7 @@ OpenAPI 3.2.0 compliant specification and route documentation for Realm API.
   - [LastFM](#lastfm)
   - [Contact](#contact)
   - [Storage](#storage)
+  - [Pastebin](#pastebin)
 - [Live OpenAPI 3.2.0 Specification & Documentation](#live-openapi-320-specification--documentation)
 
 ---
@@ -657,6 +658,85 @@ Fetches an image from a URL, validates it against SSRF attacks, computes image d
   ```
 
 ---
+
+## Pastebin
+
+Dedicated pastebin service featuring 7-letter alphanumeric slugs, optional expiration, and modern password protection powered by **Argon2id (RFC 9106)** key derivation and **XChaCha20-Poly1305** authenticated encryption with associated data (AEAD).
+
+### `GET /v1/pastes`
+Lists public paste snippets with optional filtering.
+
+- **Query Parameters**:
+  - `search` (string): Search filter matching title or slug.
+  - `syntax` (string): Filter by language (e.g. `javascript`, `go`, `markdown`).
+  - `public` (boolean): Filter by public indexation.
+  - `user_id` (uuid): Filter by creator user UUID.
+  - `limit` (integer, default `50`): Max results (max `100`).
+  - `offset` (integer, default `0`): Pagination offset.
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "total": 1,
+    "pastes": [
+      {
+        "id": "7b35f62e-3d84-4b53-a5c3-2d2745cfd39c",
+        "slug": "K9xQm2v",
+        "title": "Nginx Config",
+        "syntax": "nginx",
+        "is_public": true,
+        "is_encrypted": false,
+        "views": 18,
+        "size": 1024,
+        "created_at": "2026-10-13T12:00:00Z",
+        "updated_at": "2026-10-13T12:00:00Z"
+      }
+    ]
+  }
+  ```
+
+### `POST /v1/pastes`
+Creates a new paste snippet. If `password` is provided, the plaintext is encrypted with Argon2id + XChaCha20-Poly1305 before persisting to PostgreSQL.
+
+- **Request Body**:
+  ```json
+  {
+    "title": "Secret Config",
+    "content": "API_KEY=xyz123...",
+    "syntax": "env",
+    "password": "mySecurePassphrase!",
+    "is_public": false,
+    "ttl": "7d"
+  }
+  ```
+- **Response (`201 Created`)**:
+  ```json
+  {
+    "id": "7b35f62e-3d84-4b53-a5c3-2d2745cfd39c",
+    "slug": "K9xQm2v",
+    "title": "Secret Config",
+    "content": "API_KEY=xyz123...",
+    "syntax": "env",
+    "is_public": false,
+    "is_encrypted": true,
+    "views": 0,
+    "created_at": "2026-10-13T12:00:00Z",
+    "updated_at": "2026-10-13T12:00:00Z"
+  }
+  ```
+
+### `GET /v1/pastes/:slug`
+Fetches paste metadata and content.
+- If the paste is encrypted and no password is provided, returns metadata with `content: ""` and `is_encrypted: true`.
+- Supply password via header `X-Paste-Password: <passphrase>` or query `?password=<passphrase>`.
+- Returns `401 Unauthorized` if an incorrect password is provided.
+- Returns `410 Gone` if the paste has expired.
+
+### `GET /v1/pastes/:slug/raw`
+Returns raw plaintext with `Content-Type: text/plain; charset=utf-8` and `X-Content-Type-Options: nosniff`.
+- For encrypted pastes, header `X-Paste-Password` or query `?password=` is required.
+
+### `DELETE /v1/pastes/:slug`
+Deletes a paste by slug. Requires `PasetoAuth` or `ApiTokenAuth` / `ApiTokenHeader` with `pastes:delete` scope.
 
 ---
 
