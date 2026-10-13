@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"log"
 	"net/http"
@@ -24,27 +22,6 @@ func NewReactionHandler(cfg *config.Config, svc service.ReactionService) *Reacti
 		cfg: cfg,
 		svc: svc,
 	}
-}
-
-func getClientIdentifier(c *fiber.Ctx) string {
-	// If user is authenticated via token
-	if val := c.Locals("user_id"); val != nil {
-		if uid, ok := val.(uuid.UUID); ok && uid != uuid.Nil {
-			return "user:" + uid.String()
-		}
-	}
-
-	// If explicit client ID header provided by frontend
-	if clientID := c.Get("X-Client-ID"); clientID != "" {
-		h := sha256.Sum256([]byte(clientID))
-		return "client:" + hex.EncodeToString(h[:16])
-	}
-
-	// Fallback to IP + User Agent hash
-	ip := c.IP()
-	ua := c.Get("User-Agent")
-	h := sha256.Sum256([]byte(ip + ":" + ua))
-	return "ip:" + hex.EncodeToString(h[:16])
 }
 
 func (h *ReactionHandler) GetReactions(c *fiber.Ctx) error {
