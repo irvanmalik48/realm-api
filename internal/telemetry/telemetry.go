@@ -1,6 +1,7 @@
 package telemetry
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -352,9 +353,10 @@ func InitProfiler(serviceName, environment string) (*pyroscope.Profiler, error) 
 	}
 
 	return pyroscope.Start(pyroscope.Config{
-		ApplicationName: serviceName,
-		ServerAddress:   serverAddress,
-		AuthToken:       os.Getenv("PYROSCOPE_AUTH_TOKEN"),
+		ApplicationName:   serviceName,
+		ServerAddress:     serverAddress,
+		BasicAuthUser:     os.Getenv("PYROSCOPE_BASIC_AUTH_USER"),
+		BasicAuthPassword: cmp.Or(os.Getenv("PYROSCOPE_BASIC_AUTH_PASSWORD"), os.Getenv("PYROSCOPE_AUTH_TOKEN")),
 		Tags: map[string]string{
 			"env": environment,
 		},
