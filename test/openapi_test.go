@@ -68,8 +68,13 @@ func TestOpenAPI_Endpoints(t *testing.T) {
 	if _, found := paths["/v1/telemetry"]; !found {
 		t.Errorf("expected /v1/telemetry path in openapi specification")
 	}
+	for _, pastePath := range []string{"/v1/pastes", "/v1/pastes/{slug}", "/v1/pastes/{slug}/raw"} {
+		if _, found := paths[pastePath]; !found {
+			t.Errorf("expected %s path in openapi specification", pastePath)
+		}
+	}
 
-	// Verify telemetry schemas exist in components
+	// Verify telemetry & pastebin schemas exist in components
 	components, ok := jsonMap["components"].(map[string]interface{})
 	if !ok {
 		t.Fatal("expected components object in openapi.json")
@@ -78,7 +83,7 @@ func TestOpenAPI_Endpoints(t *testing.T) {
 	if !ok {
 		t.Fatal("expected schemas object in openapi.json")
 	}
-	for _, schemaName := range []string{"CPUStats", "DetailedTelemetryResponse", "DBPoolStats", "RuntimeStats"} {
+	for _, schemaName := range []string{"CPUStats", "DetailedTelemetryResponse", "DBPoolStats", "RuntimeStats", "PasteSummary", "PasteDetail", "CreatePasteRequest", "PastesListResponse"} {
 		if _, found := schemas[schemaName]; !found {
 			t.Errorf("expected schema %s to be defined in openapi components", schemaName)
 		}
