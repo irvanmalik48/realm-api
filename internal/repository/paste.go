@@ -59,9 +59,9 @@ func NewPasteRepository(db *database.DB) PasteRepository {
 func (r *pasteRepository) CreatePaste(ctx context.Context, paste *model.Paste) (*model.Paste, error) {
 	const maxRetries = 5
 	query := `
-		INSERT INTO pastes (slug, title, content, syntax, user_id, is_public, expires_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id, slug, title, content, syntax, user_id, is_public, views, expires_at, created_at, updated_at
+		INSERT INTO pastes (slug, title, content, syntax, user_id, is_public, is_encrypted, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id, slug, title, content, syntax, user_id, is_public, is_encrypted, views, expires_at, created_at, updated_at
 	`
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
@@ -75,9 +75,9 @@ func (r *pasteRepository) CreatePaste(ctx context.Context, paste *model.Paste) (
 
 		var p model.Paste
 		err := r.db.Pool.QueryRow(ctx, query,
-			paste.Slug, paste.Title, paste.Content, paste.Syntax, paste.UserID, paste.IsPublic, paste.ExpiresAt,
+			paste.Slug, paste.Title, paste.Content, paste.Syntax, paste.UserID, paste.IsPublic, paste.IsEncrypted, paste.ExpiresAt,
 		).Scan(
-			&p.ID, &p.Slug, &p.Title, &p.Content, &p.Syntax, &p.UserID, &p.IsPublic, &p.Views, &p.ExpiresAt, &p.CreatedAt, &p.UpdatedAt,
+			&p.ID, &p.Slug, &p.Title, &p.Content, &p.Syntax, &p.UserID, &p.IsPublic, &p.IsEncrypted, &p.Views, &p.ExpiresAt, &p.CreatedAt, &p.UpdatedAt,
 		)
 
 		if err == nil {
@@ -99,14 +99,14 @@ func (r *pasteRepository) CreatePaste(ctx context.Context, paste *model.Paste) (
 func (r *pasteRepository) GetPasteBySlug(ctx context.Context, slug string) (*model.Paste, error) {
 	query := `
 		SELECT 
-			id, slug, title, content, syntax, user_id, is_public, views, expires_at, created_at, updated_at
+			id, slug, title, content, syntax, user_id, is_public, is_encrypted, views, expires_at, created_at, updated_at
 		FROM pastes
 		WHERE slug = $1
 	`
 
 	var p model.Paste
 	err := r.db.Pool.QueryRow(ctx, query, slug).Scan(
-		&p.ID, &p.Slug, &p.Title, &p.Content, &p.Syntax, &p.UserID, &p.IsPublic, &p.Views, &p.ExpiresAt, &p.CreatedAt, &p.UpdatedAt,
+		&p.ID, &p.Slug, &p.Title, &p.Content, &p.Syntax, &p.UserID, &p.IsPublic, &p.IsEncrypted, &p.Views, &p.ExpiresAt, &p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -175,7 +175,7 @@ func (r *pasteRepository) ListPastes(ctx context.Context, search, syntax string,
 
 	dataQuery := fmt.Sprintf(`
 		SELECT 
-			id, slug, title, syntax, user_id, is_public, views, OCTET_LENGTH(content) AS size, expires_at, created_at, updated_at
+			id, slug, title, syntax, user_id, is_public, is_encrypted, views, OCTET_LENGTH(content) AS size, expires_at, created_at, updated_at
 		FROM pastes
 		%s
 		ORDER BY created_at DESC
@@ -194,7 +194,7 @@ func (r *pasteRepository) ListPastes(ctx context.Context, search, syntax string,
 	for rows.Next() {
 		var p model.PasteSummaryDTO
 		if err := rows.Scan(
-			&p.ID, &p.Slug, &p.Title, &p.Syntax, &p.UserID, &p.IsPublic, &p.Views, &p.Size, &p.ExpiresAt, &p.CreatedAt, &p.UpdatedAt,
+			&p.ID, &p.Slug, &p.Title, &p.Syntax, &p.UserID, &p.IsPublic, &p.IsEncrypted, &p.Views, &p.Size, &p.ExpiresAt, &p.CreatedAt, &p.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan paste summary: %w", err)
 		}
