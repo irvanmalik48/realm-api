@@ -259,11 +259,13 @@ func (db *DB) migrate(ctx context.Context) error {
 		syntax VARCHAR(50) NOT NULL DEFAULT 'plaintext',
 		user_id UUID REFERENCES users(id) ON DELETE SET NULL,
 		is_public BOOLEAN NOT NULL DEFAULT true,
+		is_encrypted BOOLEAN NOT NULL DEFAULT false,
 		views INT NOT NULL DEFAULT 0,
 		expires_at TIMESTAMP WITH TIME ZONE,
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 		updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 	);
+	ALTER TABLE pastes ADD COLUMN IF NOT EXISTS is_encrypted BOOLEAN NOT NULL DEFAULT false;
 	CREATE UNIQUE INDEX IF NOT EXISTS idx_pastes_slug ON pastes(slug);
 	CREATE INDEX IF NOT EXISTS idx_pastes_created_at ON pastes(created_at DESC);
 	CREATE INDEX IF NOT EXISTS idx_pastes_user_id ON pastes(user_id);
