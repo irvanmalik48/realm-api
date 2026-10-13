@@ -9,19 +9,22 @@ import (
 	"github.com/google/uuid"
 	"github.com/irvanmalik48/realm-api/internal/model"
 	"github.com/irvanmalik48/realm-api/internal/repository"
+	"github.com/irvanmalik48/realm-api/internal/security"
 )
 
 var (
 	ErrEmptyPasteContent = errors.New("paste content cannot be empty")
 	ErrPasteTooLarge     = errors.New("paste content exceeds maximum allowed size (10MB)")
+	ErrPasswordRequired  = security.ErrPasswordRequired
+	ErrInvalidPassword   = security.ErrInvalidPassword
 )
 
 const maxPasteSizeBytes = 10 * 1024 * 1024 // 10MB limit for text snippet
 
 type PasteService interface {
 	CreatePaste(ctx context.Context, req *model.CreatePasteRequest, userID *uuid.UUID) (*model.Paste, error)
-	GetPasteBySlug(ctx context.Context, slug string) (*model.Paste, error)
-	GetRawContent(ctx context.Context, slug string) (string, error)
+	GetPasteBySlug(ctx context.Context, slug string, password string) (*model.Paste, error)
+	GetRawContent(ctx context.Context, slug string, password string) (string, error)
 	ListPastes(ctx context.Context, search, syntax string, isPublicOnly *bool, userID *uuid.UUID, limit, offset int) (*model.PastesListResponse, error)
 	DeletePaste(ctx context.Context, slug string) error
 }
@@ -95,19 +98,41 @@ func (s *pasteService) CreatePaste(ctx context.Context, req *model.CreatePasteRe
 		expiresAt = parseTTL(req.TTL)
 	}
 
-	paste := &model.Paste{
-		Title:     title,
-		Content:   content,
-		Syntax:    syntax,
-		UserID:    userID,
-		IsPublic:  isPublic,
-		ExpiresAt: expiresAt,
+	isEncrypted := false
+	storedContent := content
+	if password := strings.TrimSpace(req.Password); password != "" {
+		encryptedPayload, err := security.EncryptPaste(content, password)
+		if err != nil {
+			return nil, err
+		}
+		storedContent = encryptedPayload
+		isEncrypted = true
 	}
 
-	return s.repo.CreatePaste(ctx, paste)
+	paste := &model.Paste{
+		Title:       title,
+		Content:     storedContent,
+		Syntax:      syntax,
+		UserID:      userID,
+		IsPublic:    isPublic,
+		IsEncrypted: isEncrypted,
+		ExpiresAt:   expiresAt,
+	}
+
+	created, err := s.repo.CreatePaste(ctx, paste)
+	if err != nil {
+		return nil, err
+	}
+
+	// For the creator upon creation, return the original content
+	if isEncrypted {
+		created.Content = content
+	}
+
+	return created, nil
 }
 
-func (s *pasteService) GetPasteBySlug(ctx context.Context, slug string) (*model.Paste, error) {
+func (s *pasteService) GetPasteBySlug(ctx context.Context, slug string, password string) (*model.Paste, error) {
 	slug = strings.TrimSpace(slug)
 	if slug == "" {
 		return nil, repository.ErrPasteNotFound
@@ -118,6 +143,21 @@ func (s *pasteService) GetPasteBySlug(ctx context.Context, slug string) (*model.
 		return nil, err
 	}
 
+	if p.IsEncrypted {
+		if password == "" {
+			// Password not supplied: return empty content to signal lock without exposing raw ciphertext
+			lockedPaste := *p
+			lockedPaste.Content = ""
+			return &lockedPaste, nil
+		}
+
+		decrypted, err := security.DecryptPaste(p.Content, password)
+		if err != nil {
+			return nil, err
+		}
+		p.Content = decrypted
+	}
+
 	// Increment view count asynchronously
 	go func() {
 		_ = s.repo.IncrementViews(context.Background(), slug)
@@ -126,7 +166,7 @@ func (s *pasteService) GetPasteBySlug(ctx context.Context, slug string) (*model.
 	return p, nil
 }
 
-func (s *pasteService) GetRawContent(ctx context.Context, slug string) (string, error) {
+func (s *pasteService) GetRawContent(ctx context.Context, slug string, password string) (string, error) {
 	slug = strings.TrimSpace(slug)
 	if slug == "" {
 		return "", repository.ErrPasteNotFound
@@ -137,12 +177,24 @@ func (s *pasteService) GetRawContent(ctx context.Context, slug string) (string, 
 		return "", err
 	}
 
+	content := p.Content
+	if p.IsEncrypted {
+		if password == "" {
+			return "", ErrPasswordRequired
+		}
+		decrypted, err := security.DecryptPaste(p.Content, password)
+		if err != nil {
+			return "", err
+		}
+		content = decrypted
+	}
+
 	// Increment view count asynchronously
 	go func() {
 		_ = s.repo.IncrementViews(context.Background(), slug)
 	}()
 
-	return p.Content, nil
+	return content, nil
 }
 
 func (s *pasteService) ListPastes(ctx context.Context, search, syntax string, isPublicOnly *bool, userID *uuid.UUID, limit, offset int) (*model.PastesListResponse, error) {
