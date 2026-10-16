@@ -23,8 +23,8 @@ var (
 )
 
 type UpstreamError struct {
-	StatusCode int
 	Message    string
+	StatusCode int
 }
 
 func (e *UpstreamError) Error() string {
@@ -42,13 +42,13 @@ type lastFMCacheItem struct {
 }
 
 type lastFMService struct {
+	httpClient *http.Client
+	cb         *gobreaker.CircuitBreaker
+	cache      map[string]lastFMCacheItem
 	apiKey     string
 	apiSecret  string
 	baseURL    string
-	httpClient *http.Client
-	cb         *gobreaker.CircuitBreaker
 	cacheMu    sync.RWMutex
-	cache      map[string]lastFMCacheItem
 }
 
 func NewLastFMService(apiKey, apiSecret string) LastFMService {
