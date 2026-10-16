@@ -10,10 +10,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/irvanmalik48/realm-api/internal/config"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 	"golang.org/x/oauth2/google"
-	"github.com/irvanmalik48/realm-api/internal/config"
 )
 
 var (
@@ -26,10 +26,10 @@ type OAuthUserInfo struct {
 	Provider      string
 	ProviderID    string
 	Email         string
-	EmailVerified bool
 	Username      string
 	FullName      string
 	AvatarURL     string
+	EmailVerified bool
 }
 
 type OAuthService interface {
@@ -122,9 +122,9 @@ func (s *oauthService) HandleGoogleCallback(ctx context.Context, code string) (*
 	var gUser struct {
 		Sub           string `json:"sub"`
 		Email         string `json:"email"`
-		EmailVerified bool   `json:"email_verified"`
 		Name          string `json:"name"`
 		Picture       string `json:"picture"`
+		EmailVerified bool   `json:"email_verified"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&gUser); err != nil {
@@ -183,11 +183,11 @@ func (s *oauthService) HandleGitHubCallback(ctx context.Context, code string) (*
 	}
 
 	var ghUser struct {
-		ID        int64  `json:"id"`
 		Login     string `json:"login"`
 		Name      string `json:"name"`
 		Email     string `json:"email"`
 		AvatarURL string `json:"avatar_url"`
+		ID        int64  `json:"id"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&ghUser); err != nil {
