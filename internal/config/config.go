@@ -10,55 +10,41 @@ import (
 )
 
 type Config struct {
-	Port                   string
-	GRPCPort               string
+	GitHubClientID         string
+	GitHubClientSecret     string
 	Environment            string
 	AllowedOrigins         string
 	LastFMAPIKey           string
 	LastFMAPISecret        string
+	SMTPPass               string
+	DatabaseURL            string
+	SMTPUser               string
+	StorageBackend         string
+	StorageDir             string
+	SMTPHost               string
+	S3Endpoint             string
+	S3Region               string
+	S3Bucket               string
+	S3AccessKeyID          string
+	GRPCPort               string
+	ContactReceiverEmail   string
+	S3PublicDomain         string
+	PASETOSymmetricKey     string
+	FrontendURL            string
+	GoogleClientID         string
+	GoogleClientSecret     string
+	GoogleRedirectURL      string
+	Port                   string
+	S3SecretAccessKey      string
+	GitHubRedirectURL      string
+	DiscordWebhookURL      string
+	TelegramBotToken       string
+	TelegramChatID         string
+	SuperadminEmails       []string
+	MaxUploadSizeMB        int
+	SMTPPort               int
 	CacheRevalidateSeconds int
-
-	// Database Settings
-	DatabaseURL string
-
-	// Superadmin & RBAC Settings
-	SuperadminEmails []string
-
-	// Storage Settings
-	StorageBackend  string
-	StorageDir      string
-	MaxUploadSizeMB int
-	S3Endpoint      string
-	S3Region        string
-	S3Bucket        string
-	S3AccessKeyID   string
-	S3SecretAccessKey string
-	S3UsePathStyle  bool
-	S3PublicDomain  string
-
-	// Authentication & PASETO Settings
-	PASETOSymmetricKey string
-	FrontendURL        string
-
-	// Google OIDC / OAuth2 Settings
-	GoogleClientID     string
-	GoogleClientSecret string
-	GoogleRedirectURL  string
-
-	// GitHub OAuth2 Settings
-	GitHubClientID     string
-	GitHubClientSecret string
-	GitHubRedirectURL  string
-
-	// Contact Form Integration Settings
-	DiscordWebhookURL    string
-	TelegramBotToken     string
-	TelegramChatID       string
-	ContactReceiverEmail string
-	SMTPHost             string
-	SMTPPort             int
-	SMTPUser             string
-	SMTPPass             string
+	S3UsePathStyle         bool
 }
 
 func Load() *Config {
@@ -102,7 +88,7 @@ func Load() *Config {
 		smtpPort = 587
 	}
 
-const DefaultDevPASETOKey = "707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f"
+	const DefaultDevPASETOKey = "707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f"
 
 	pasetoKey := getEnv("PASETO_SYMMETRIC_KEY", "")
 	if env == "production" {
