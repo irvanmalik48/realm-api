@@ -15,9 +15,10 @@ type TrackEventRequest struct {
 
 // PageView represents an individual pageview record in the database.
 type PageView struct {
+	CreatedAt        time.Time `json:"created_at"`
+	PostSlug         *string   `json:"post_slug,omitempty"`
 	ID               string    `json:"id"`
 	Path             string    `json:"path"`
-	PostSlug         *string   `json:"post_slug,omitempty"`
 	Referrer         string    `json:"referrer,omitempty"`
 	UserAgent        string    `json:"user_agent,omitempty"`
 	Browser          string    `json:"browser,omitempty"`
@@ -26,7 +27,6 @@ type PageView struct {
 	SessionID        string    `json:"session_id,omitempty"`
 	ScreenResolution string    `json:"screen_resolution,omitempty"`
 	IPHash           string    `json:"ip_hash,omitempty"`
-	CreatedAt        time.Time `json:"created_at"`
 }
 
 // TrendPoint represents pageviews aggregated by date or hour.
@@ -71,20 +71,17 @@ type BrowserStat struct {
 
 // RecentPageView represents an individual recent visit for live feeds.
 type RecentPageView struct {
+	CreatedAt time.Time `json:"created_at"`
+	PostSlug  *string   `json:"post_slug,omitempty"`
 	ID        string    `json:"id"`
 	Path      string    `json:"path"`
-	PostSlug  *string   `json:"post_slug,omitempty"`
 	Referrer  string    `json:"referrer,omitempty"`
 	Browser   string    `json:"browser,omitempty"`
 	OS        string    `json:"os,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
 }
 
 // AnalyticsStatsResponse contains aggregated analytics metrics for dashboards.
 type AnalyticsStatsResponse struct {
-	TotalViews     int64            `json:"total_views"`
-	UniqueVisitors int64            `json:"unique_visitors"`
-	ViewsToday     int64            `json:"views_today"`
 	ViewsTrend     []TrendPoint     `json:"views_trend"`
 	TopPages       []PageStat       `json:"top_pages"`
 	TopPosts       []PostStat       `json:"top_posts"`
@@ -92,4 +89,7 @@ type AnalyticsStatsResponse struct {
 	DeviceStats    []DeviceStat     `json:"device_stats"`
 	BrowserStats   []BrowserStat    `json:"browser_stats"`
 	RecentViews    []RecentPageView `json:"recent_views"`
+	TotalViews     int64            `json:"total_views"`
+	UniqueVisitors int64            `json:"unique_visitors"`
+	ViewsToday     int64            `json:"views_today"`
 }
