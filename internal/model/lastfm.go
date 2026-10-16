@@ -25,15 +25,15 @@ type TrackDate struct {
 }
 
 type Track struct {
-	Artist     TrackArtist `json:"artist"`
 	Attr       *TrackAttr  `json:"@attr,omitempty"`
-	Mbid       string      `json:"mbid"`
+	Date       *TrackDate  `json:"date,omitempty"`
+	Artist     TrackArtist `json:"artist"`
 	Album      TrackAlbum  `json:"album"`
+	Mbid       string      `json:"mbid"`
 	Streamable string      `json:"streamable"`
 	Url        string      `json:"url"`
 	Name       string      `json:"name"`
 	Image      []Image     `json:"image"`
-	Date       *TrackDate  `json:"date,omitempty"`
 }
 
 type RecentTracksAttr struct {
@@ -54,27 +54,27 @@ type LastFMTrackResponseBody struct {
 }
 
 type LastFMUserRegistered struct {
-	UnixTime string      `json:"unixtime"`
 	Text     interface{} `json:"#text"`
+	UnixTime string      `json:"unixtime"`
 }
 
 type LastFMUser struct {
-	Name        string               `json:"name"`
+	Registered  LastFMUserRegistered `json:"registered"`
+	TrackCount  string               `json:"track_count"`
 	Age         string               `json:"age"`
-	Subscriber  string               `json:"subscriber"`
 	RealName    string               `json:"realname"`
 	Bootstrap   string               `json:"bootstrap"`
 	PlayCount   string               `json:"playcount"`
 	ArtistCount string               `json:"artist_count"`
-	Playlists   string               `json:"playlists"`
-	TrackCount  string               `json:"track_count"`
+	Subscriber  string               `json:"subscriber"`
 	AlbumCount  string               `json:"album_count"`
-	Image       []Image              `json:"image"`
-	Registered  LastFMUserRegistered `json:"registered"`
+	Playlists   string               `json:"playlists"`
+	Type        string               `json:"type"`
+	Name        string               `json:"name"`
 	Country     string               `json:"country"`
 	Gender      string               `json:"gender"`
 	Url         string               `json:"url"`
-	Type        string               `json:"type"`
+	Image       []Image              `json:"image"`
 }
 
 type LastFMUserResponseBody struct {
