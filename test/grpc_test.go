@@ -40,9 +40,11 @@ func setupGRPCTestServer(t *testing.T) (*grpc.ClientConn, func(), string) {
 		t.Fatalf("Failed to create test token: %v", err)
 	}
 
+	pasteRepo := newMockPasteRepository()
 	lis := bufconn.Listen(bufSize)
 	server := internalGRPC.NewServer(cfg, nil, &internalGRPC.ServerDeps{
 		TokenRepo: tokenRepo,
+		PasteRepo: pasteRepo,
 	})
 
 	go func() {
@@ -212,3 +214,82 @@ func TestGRPCStorageService_UploadAndInfo(t *testing.T) {
 		t.Errorf("Downloaded data mismatch.\nExpected: %s\nGot: %s", string(payload), string(downloadedData))
 	}
 }
+
+func TestGRPCPasteService(t *testing.T) {
+	conn, cleanup, _ := setupGRPCTestServer(t)
+	defer cleanup()
+
+	client := realmv1.NewPasteServiceClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// 1. Create a public paste
+	createResp, err := client.CreatePaste(ctx, &realmv1.CreatePasteRequest{
+		Title:   "gRPC Test Snippet",
+		Content: "fmt.Println(\"Hello from gRPC!\")",
+		Syntax:  "go",
+	})
+	if err != nil {
+		t.Fatalf("CreatePaste failed: %v", err)
+	}
+
+	if createResp.GetTitle() != "gRPC Test Snippet" {
+		t.Errorf("Expected title 'gRPC Test Snippet', got %q", createResp.GetTitle())
+	}
+	if createResp.GetSlug() == "" {
+		t.Errorf("Expected non-empty slug")
+	}
+	if createResp.GetContent() != "fmt.Println(\"Hello from gRPC!\")" {
+		t.Errorf("Content mismatch: got %q", createResp.GetContent())
+	}
+	if !createResp.GetIsPublic() {
+		t.Errorf("Expected paste to be public")
+	}
+
+	slug := createResp.GetSlug()
+
+	// 2. Get paste by slug
+	getResp, err := client.GetPaste(ctx, &realmv1.GetPasteRequest{
+		Slug: slug,
+	})
+	if err != nil {
+		t.Fatalf("GetPaste failed: %v", err)
+	}
+	if getResp.GetSlug() != slug {
+		t.Errorf("Expected slug %q, got %q", slug, getResp.GetSlug())
+	}
+
+	// 3. Get raw paste content
+	rawResp, err := client.GetRawPaste(ctx, &realmv1.GetRawPasteRequest{
+		Slug: slug,
+	})
+	if err != nil {
+		t.Fatalf("GetRawPaste failed: %v", err)
+	}
+	if rawResp.GetContent() != "fmt.Println(\"Hello from gRPC!\")" {
+		t.Errorf("Raw content mismatch: got %q", rawResp.GetContent())
+	}
+
+	// 4. List pastes
+	listResp, err := client.ListPastes(ctx, &realmv1.ListPastesRequest{
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("ListPastes failed: %v", err)
+	}
+	if listResp.GetTotal() < 1 {
+		t.Errorf("Expected total >= 1, got %d", listResp.GetTotal())
+	}
+	found := false
+	for _, p := range listResp.GetPastes() {
+		if p.GetSlug() == slug {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Expected paste %q to be in list response", slug)
+	}
+}
+
