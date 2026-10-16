@@ -25,6 +25,7 @@ type ServerDeps struct {
 	StorageEngine storage.Engine
 	TokenRepo     repository.TokenRepository
 	AdminRepo     repository.AdminRepository
+	PasteRepo     repository.PasteRepository
 }
 
 // NewServer creates and configures a new gRPC server with all services and interceptors registered.
@@ -38,6 +39,7 @@ func NewServer(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *grpc.S
 	var commentRepo repository.CommentRepository
 	var adminRepo repository.AdminRepository
 	var logRepo repository.LogRepository
+	var pasteRepo repository.PasteRepository
 
 	if db != nil {
 		contactRepo = repository.NewContactRepository(db)
@@ -48,6 +50,7 @@ func NewServer(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *grpc.S
 		commentRepo = repository.NewCommentRepository(db)
 		adminRepo = repository.NewAdminRepository(db)
 		logRepo = repository.NewLogRepository(db)
+		pasteRepo = repository.NewPasteRepository(db)
 	}
 
 	var storageEngine storage.Engine
@@ -63,6 +66,9 @@ func NewServer(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *grpc.S
 		}
 		if deps[0].AdminRepo != nil {
 			adminRepo = deps[0].AdminRepo
+		}
+		if deps[0].PasteRepo != nil {
+			pasteRepo = deps[0].PasteRepo
 		}
 	}
 
@@ -93,6 +99,7 @@ func NewServer(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *grpc.S
 	authSvc := service.NewAuthService(userRepo, pasetoSvc)
 	reactionSvc := service.NewReactionService(reactionRepo)
 	commentSvc := service.NewCommentService(commentRepo)
+	pasteSvc := service.NewPasteService(pasteRepo)
 
 	// Create gRPC Server with OpenTelemetry tracing and interceptors
 	maxMsgSize := (cfg.MaxUploadSizeMB + 2) * 1024 * 1024
@@ -124,6 +131,7 @@ func NewServer(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *grpc.S
 	realmv1.RegisterAdminRBACServiceServer(server, grpcServer.NewAdminServer(adminRepo))
 	realmv1.RegisterLogServiceServer(server, grpcServer.NewLogServer(logRepo, adminRepo))
 	realmv1.RegisterTokenServiceServer(server, grpcServer.NewTokenServer(tokenSvc, adminRepo))
+	realmv1.RegisterPasteServiceServer(server, grpcServer.NewPasteServer(pasteSvc, adminRepo))
 
 	// Register standard gRPC Health Checking Protocol (grpc.health.v1)
 	standardHealthServer := health.NewServer()
@@ -139,6 +147,7 @@ func NewServer(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *grpc.S
 	standardHealthServer.SetServingStatus("realm.v1.AdminRBACService", healthpb.HealthCheckResponse_SERVING)
 	standardHealthServer.SetServingStatus("realm.v1.LogService", healthpb.HealthCheckResponse_SERVING)
 	standardHealthServer.SetServingStatus("realm.v1.TokenService", healthpb.HealthCheckResponse_SERVING)
+	standardHealthServer.SetServingStatus("realm.v1.PasteService", healthpb.HealthCheckResponse_SERVING)
 
 	// Enable gRPC Server Reflection for debugging and developer tooling
 	reflection.Register(server)
