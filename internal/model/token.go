@@ -7,33 +7,33 @@ import (
 )
 
 type APIToken struct {
-	ID           uuid.UUID  `json:"id"`
+	CreatedAt    time.Time  `json:"created_at"`
+	LastUsedAt   *time.Time `json:"last_used_at,omitempty"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
 	Name         string     `json:"name"`
 	TokenPrefix  string     `json:"token_prefix"`
 	TokenHash    string     `json:"token_hash"`
 	Scopes       []string   `json:"scopes"`
 	RateLimitRPM int        `json:"rate_limit_rpm"`
-	LastUsedAt   *time.Time `json:"last_used_at,omitempty"`
-	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+	ID           uuid.UUID  `json:"id"`
 	IsRevoked    bool       `json:"is_revoked"`
-	CreatedAt    time.Time  `json:"created_at"`
 }
 
 type TokenDTO struct {
-	ID           uuid.UUID  `json:"id"`
+	CreatedAt    time.Time  `json:"created_at"`
+	LastUsedAt   *time.Time `json:"last_used_at,omitempty"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
 	Name         string     `json:"name"`
 	TokenPrefix  string     `json:"token_prefix"`
 	Scopes       []string   `json:"scopes"`
 	RateLimitRPM int        `json:"rate_limit_rpm"`
-	LastUsedAt   *time.Time `json:"last_used_at,omitempty"`
-	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+	ID           uuid.UUID  `json:"id"`
 	IsRevoked    bool       `json:"is_revoked"`
-	CreatedAt    time.Time  `json:"created_at"`
 }
 
 type TokenCreateResult struct {
-	Token TokenDTO `json:"token"`
 	Raw   string   `json:"raw_token"`
+	Token TokenDTO `json:"token"`
 }
 
 type TokenCreateInput struct {
