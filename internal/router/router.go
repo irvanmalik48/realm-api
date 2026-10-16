@@ -202,6 +202,13 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 			return handler.ErrorResponse(c, "Too many reaction requests. Please slow down.", http.StatusTooManyRequests)
 		},
 	})
+	pasteCreateLimiter := limiter.New(limiter.Config{
+		Max:        20,
+		Expiration: 1 * time.Minute,
+		LimitReached: func(c *fiber.Ctx) error {
+			return handler.ErrorResponse(c, "Too many pastes created. Please slow down.", http.StatusTooManyRequests)
+		},
+	})
 
 	// User Auth endpoints (Traditional & OIDC/OAuth2 with PASETO tokens)
 	authGroup := v1.Group("/auth")
@@ -233,7 +240,7 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	// Pastebin endpoints (Dedicated pastebin service with 7-letter slugs)
 	pastesGroup := v1.Group("/pastes")
 	pastesGroup.Get("/", middleware.OptionalUserAuth(pasetoSvc), pasteHdlr.ListPastes)
-	pastesGroup.Post("/", middleware.OptionalUserAuth(pasetoSvc), pasteHdlr.CreatePaste)
+	pastesGroup.Post("/", pasteCreateLimiter, middleware.OptionalUserAuth(pasetoSvc), pasteHdlr.CreatePaste)
 	pastesGroup.Get("/:slug", pasteHdlr.GetPaste)
 	pastesGroup.Get("/:slug/raw", pasteHdlr.GetRawPaste)
 	pastesGroup.Delete("/:slug", middleware.RequireTokenOrUserAuth(tokenSvc, pasetoSvc, adminRepo, tokenLimiter, "pastes:delete"), pasteHdlr.DeletePaste)
