@@ -7,42 +7,42 @@ import (
 )
 
 type FileRecord struct {
-	ID                   uuid.UUID  `json:"id"`
-	Filename             string     `json:"filename"`
-	ContentType          string     `json:"content_type"`
-	OriginalSize         int64      `json:"original_size"`
-	CompressedSize       int64      `json:"compressed_size"`
-	CompressionAlgorithm string     `json:"compression_algorithm"`
-	SHA256               string     `json:"sha256"`
-	Blurhash             *string    `json:"blurhash,omitempty"`
-	Width                *int       `json:"width,omitempty"`
-	Height               *int       `json:"height,omitempty"`
-	IsPublic             bool       `json:"is_public"`
-	StorageBackend       string     `json:"storage_backend"`
-	S3Bucket             *string    `json:"s3_bucket,omitempty"`
-	S3Key                *string    `json:"s3_key,omitempty"`
-	S3ETag               *string    `json:"s3_etag,omitempty"`
-	CreatedAt            time.Time  `json:"created_at"`
+	CreatedAt            time.Time `json:"created_at"`
+	S3Bucket             *string   `json:"s3_bucket,omitempty"`
+	Blurhash             *string   `json:"blurhash,omitempty"`
+	S3ETag               *string   `json:"s3_etag,omitempty"`
+	S3Key                *string   `json:"s3_key,omitempty"`
+	Height               *int      `json:"height,omitempty"`
+	Width                *int      `json:"width,omitempty"`
+	CompressionAlgorithm string    `json:"compression_algorithm"`
+	StorageBackend       string    `json:"storage_backend"`
+	ContentType          string    `json:"content_type"`
+	SHA256               string    `json:"sha256"`
+	Filename             string    `json:"filename"`
+	CompressedSize       int64     `json:"compressed_size"`
+	OriginalSize         int64     `json:"original_size"`
+	ID                   uuid.UUID `json:"id"`
+	IsPublic             bool      `json:"is_public"`
 }
 
 type FileDTO struct {
-	ID             uuid.UUID `json:"id"`
-	Filename       string    `json:"filename"`
-	ContentType    string    `json:"content_type"`
-	OriginalSize   int64     `json:"original_size"`
-	CompressedSize int64     `json:"compressed_size"`
-	SavingsPercent float64   `json:"savings_percent"`
-	SHA256         string    `json:"sha256"`
-	Blurhash       *string   `json:"blurhash,omitempty"`
-	Width          *int      `json:"width,omitempty"`
-	Height         *int      `json:"height,omitempty"`
-	URL            string    `json:"url"`
-	WebPURL        *string   `json:"webp_url,omitempty"`
-	StorageBackend string    `json:"storage_backend"`
-	S3Bucket       *string   `json:"s3_bucket,omitempty"`
-	S3Key          *string   `json:"s3_key,omitempty"`
-	S3ETag         *string   `json:"s3_etag,omitempty"`
 	CreatedAt      time.Time `json:"created_at"`
+	Width          *int      `json:"width,omitempty"`
+	S3ETag         *string   `json:"s3_etag,omitempty"`
+	S3Key          *string   `json:"s3_key,omitempty"`
+	S3Bucket       *string   `json:"s3_bucket,omitempty"`
+	WebPURL        *string   `json:"webp_url,omitempty"`
+	Height         *int      `json:"height,omitempty"`
+	Blurhash       *string   `json:"blurhash,omitempty"`
+	StorageBackend string    `json:"storage_backend"`
+	SHA256         string    `json:"sha256"`
+	URL            string    `json:"url"`
+	ContentType    string    `json:"content_type"`
+	Filename       string    `json:"filename"`
+	SavingsPercent float64   `json:"savings_percent"`
+	CompressedSize int64     `json:"compressed_size"`
+	OriginalSize   int64     `json:"original_size"`
+	ID             uuid.UUID `json:"id"`
 }
 
 type FileUploadResponse struct {
@@ -57,10 +57,10 @@ type FileInfoResponse struct {
 }
 
 type StorageStatsDTO struct {
+	S3BucketName          *string `json:"s3_bucket_name,omitempty"`
 	ActiveBackend         string  `json:"active_backend"`
 	TotalFiles            int64   `json:"total_files"`
 	TotalOriginalBytes    int64   `json:"total_original_bytes"`
 	TotalCompressedBytes  int64   `json:"total_compressed_bytes"`
 	AverageSavingsPercent float64 `json:"average_savings_percent"`
-	S3BucketName          *string `json:"s3_bucket_name,omitempty"`
 }
