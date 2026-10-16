@@ -25,20 +25,20 @@ const (
 	argonTime    = 3
 	argonMemory  = 64 * 1024 // 64 MB
 	argonThreads = 4
-	argonKeyLen  = 32        // 256-bit key for XChaCha20-Poly1305
+	argonKeyLen  = 32 // 256-bit key for XChaCha20-Poly1305
 )
 
 // EncryptedEnvelope is the self-describing cryptographic container for password-encrypted pastes.
 type EncryptedEnvelope struct {
-	Version int    `json:"v"`
 	KDF     string `json:"kdf"`
 	Cipher  string `json:"cipher"`
 	Salt    string `json:"salt"`
 	Nonce   string `json:"nonce"`
+	Data    string `json:"data"`
+	Version int    `json:"v"`
 	Time    uint32 `json:"t"`
 	Memory  uint32 `json:"m"`
 	Threads uint8  `json:"p"`
-	Data    string `json:"data"`
 }
 
 // EncryptPaste encrypts plaintext using Argon2id key derivation and XChaCha20-Poly1305 AEAD.
