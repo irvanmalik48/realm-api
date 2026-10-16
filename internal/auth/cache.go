@@ -18,10 +18,10 @@ type cachedToken struct {
 }
 
 type TokenCache struct {
-	mu     sync.RWMutex
 	items  map[string]cachedToken
-	ttl    time.Duration
 	stopCh chan struct{}
+	ttl    time.Duration
+	mu     sync.RWMutex
 }
 
 func NewTokenCache(ttl time.Duration) *TokenCache {
