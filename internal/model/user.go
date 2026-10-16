@@ -7,52 +7,52 @@ import (
 )
 
 type User struct {
-	ID                     uuid.UUID `json:"id"`
-	Email                  string    `json:"email"`
-	Username               string    `json:"username"`
-	FullName               string    `json:"full_name"`
+	UpdatedAt              time.Time `json:"updated_at"`
+	CreatedAt              time.Time `json:"created_at"`
+	ProviderID             *string   `json:"provider_id,omitempty"`
+	TwoFactorSecret        *string   `json:"-"`
 	PasswordHash           *string   `json:"-"`
 	AvatarURL              *string   `json:"avatar_url,omitempty"`
+	FullName               string    `json:"full_name"`
 	Provider               string    `json:"provider"`
-	ProviderID             *string   `json:"provider_id,omitempty"`
-	TwoFactorEnabled       bool      `json:"two_factor_enabled"`
-	TwoFactorSecret        *string   `json:"-"`
+	Username               string    `json:"username"`
+	Email                  string    `json:"email"`
 	TwoFactorRecoveryCodes []string  `json:"-"`
+	ID                     uuid.UUID `json:"id"`
+	TwoFactorEnabled       bool      `json:"two_factor_enabled"`
 	IsActive               bool      `json:"is_active"`
-	CreatedAt              time.Time `json:"created_at"`
-	UpdatedAt              time.Time `json:"updated_at"`
 }
 
 type OAuthAccount struct {
-	ID         uuid.UUID `json:"id"`
-	UserID     uuid.UUID `json:"user_id"`
-	Provider   string    `json:"provider"`
-	ProviderID string    `json:"provider_id"`
+	CreatedAt  time.Time `json:"created_at"`
 	Email      *string   `json:"email,omitempty"`
 	AvatarURL  *string   `json:"avatar_url,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
+	Provider   string    `json:"provider"`
+	ProviderID string    `json:"provider_id"`
+	ID         uuid.UUID `json:"id"`
+	UserID     uuid.UUID `json:"user_id"`
 }
 
 type OAuthAccountDTO struct {
-	Provider  string  `json:"provider"`
 	Email     *string `json:"email,omitempty"`
 	AvatarURL *string `json:"avatar_url,omitempty"`
+	Provider  string  `json:"provider"`
 }
 
 type UserDTO struct {
-	ID                 uuid.UUID         `json:"id"`
+	CreatedAt          time.Time         `json:"created_at"`
+	UpdatedAt          time.Time         `json:"updated_at"`
+	AvatarURL          *string           `json:"avatar_url,omitempty"`
 	Email              string            `json:"email"`
 	Username           string            `json:"username"`
 	FullName           string            `json:"full_name"`
-	AvatarURL          *string           `json:"avatar_url,omitempty"`
 	Provider           string            `json:"provider"`
-	TwoFactorEnabled   bool              `json:"two_factor_enabled"`
-	HasPassword        bool              `json:"has_password"`
-	IsActive           bool              `json:"is_active"`
 	ConnectedProviders []string          `json:"connected_providers"`
 	ConnectedAccounts  []OAuthAccountDTO `json:"connected_accounts"`
-	CreatedAt          time.Time         `json:"created_at"`
-	UpdatedAt          time.Time         `json:"updated_at"`
+	ID                 uuid.UUID         `json:"id"`
+	IsActive           bool              `json:"is_active"`
+	HasPassword        bool              `json:"has_password"`
+	TwoFactorEnabled   bool              `json:"two_factor_enabled"`
 }
 
 func (u *User) ToDTO() *UserDTO {
@@ -165,11 +165,11 @@ func (u *User) ToDTOWithProviders(connectedProviders []string) *UserDTO {
 }
 
 type RegisterInput struct {
+	AvatarURL *string `json:"avatar_url,omitempty"`
 	Email     string  `json:"email"`
 	Username  string  `json:"username"`
 	Password  string  `json:"password"`
 	FullName  string  `json:"full_name"`
-	AvatarURL *string `json:"avatar_url,omitempty"`
 }
 
 type LoginInput struct {
@@ -189,12 +189,12 @@ type UpdateProfileInput struct {
 }
 
 type AuthResponse struct {
+	User              *UserDTO `json:"user,omitempty"`
 	Status            string   `json:"status"`
 	Message           string   `json:"message,omitempty"`
 	Token             string   `json:"token,omitempty"`
-	TwoFactorRequired bool     `json:"two_factor_required,omitempty"`
 	TempToken         string   `json:"temp_token,omitempty"`
-	User              *UserDTO `json:"user,omitempty"`
+	TwoFactorRequired bool     `json:"two_factor_required,omitempty"`
 }
 
 type Setup2FAResponse struct {
@@ -230,6 +230,8 @@ type Disable2FAResponse struct {
 }
 
 type UserClaims struct {
+	IssuedAt  time.Time `json:"iat"`
+	ExpiresAt time.Time `json:"exp"`
 	ID        string    `json:"id"`
 	Email     string    `json:"email"`
 	Username  string    `json:"username"`
@@ -240,8 +242,6 @@ type UserClaims struct {
 	Issuer    string    `json:"iss"`
 	Subject   string    `json:"sub"`
 	Audience  string    `json:"aud"`
-	IssuedAt  time.Time `json:"iat"`
-	ExpiresAt time.Time `json:"exp"`
 }
 
 type CheckAvailabilityResponse struct {
