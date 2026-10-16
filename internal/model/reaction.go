@@ -18,20 +18,20 @@ var AllowedReactionTypes = map[string]bool{
 
 // PostReaction represents the database row for a post reaction
 type PostReaction struct {
-	ID           uuid.UUID `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
 	PostSlug     string    `json:"post_slug"`
 	ReactionType string    `json:"reaction_type"`
+	ID           uuid.UUID `json:"id"`
 	UserID       uuid.UUID `json:"user_id"`
-	CreatedAt    time.Time `json:"created_at"`
 }
 
 // PostReactionsResponse represents the summary of reactions for a blog post
 type PostReactionsResponse struct {
-	Slug          string         `json:"slug"`
-	TotalCount    int            `json:"total_count"`
 	Reactions     map[string]int `json:"reactions"`
 	UserReaction  *string        `json:"user_reaction"`
+	Slug          string         `json:"slug"`
 	UserReactions []string       `json:"user_reactions"`
+	TotalCount    int            `json:"total_count"`
 }
 
 // ToggleReactionRequest is the payload sent by client to toggle a reaction
@@ -41,17 +41,17 @@ type ToggleReactionRequest struct {
 
 // ToggleReactionResponse is the response returned after toggling a reaction
 type ToggleReactionResponse struct {
-	Slug          string         `json:"slug"`
-	Reaction      string         `json:"reaction"`
-	Active        bool           `json:"active"`
-	TotalCount    int            `json:"total_count"`
 	Reactions     map[string]int `json:"reactions"`
 	UserReaction  *string        `json:"user_reaction"`
+	Slug          string         `json:"slug"`
+	Reaction      string         `json:"reaction"`
 	UserReactions []string       `json:"user_reactions"`
+	TotalCount    int            `json:"total_count"`
+	Active        bool           `json:"active"`
 }
 
 type ReactionSummaryDTO struct {
+	Reactions  map[string]int `json:"reactions"`
 	Slug       string         `json:"slug"`
 	TotalCount int            `json:"total_count"`
-	Reactions  map[string]int `json:"reactions"`
 }
