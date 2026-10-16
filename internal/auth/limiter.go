@@ -16,14 +16,14 @@ const (
 )
 
 type limiterEntry struct {
+	lastSeen time.Time
 	limiter  *rate.Limiter
 	limitRPM int
-	lastSeen time.Time
 }
 
 type limiterShard struct {
-	mu      sync.RWMutex
 	entries map[string]*limiterEntry
+	mu      sync.RWMutex
 }
 
 type TokenRateLimiter struct {
