@@ -28,8 +28,8 @@ type contactIPLimiter struct {
 type ContactServer struct {
 	realmv1.UnimplementedContactServiceServer
 	contactSvc service.ContactService
-	mu         sync.Mutex
 	limiters   map[string]*contactIPLimiter
+	mu         sync.Mutex
 }
 
 func NewContactServer(contactSvc service.ContactService) *ContactServer {
@@ -168,4 +168,3 @@ func (s *ContactServer) DeleteSubmission(ctx context.Context, req *realmv1.Delet
 		Message: "Submission deleted successfully",
 	}, nil
 }
-
