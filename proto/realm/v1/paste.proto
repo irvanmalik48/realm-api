@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package realm.v1;
+
+option go_package = "github.com/irvanmalik48/realm-api/pkg/pb/realm/v1;realmv1";
+
+message PasteSummary {
+  string id = 1;
+  string slug = 2;
+  string title = 3;
+  string syntax = 4;
+  int32 views = 5;
+  int32 size = 6;
+  bool is_public = 7;
+  bool is_encrypted = 8;
+  optional string user_id = 9;
+  optional string expires_at = 10;
+  string created_at = 11;
+  string updated_at = 12;
+}
+
+message Paste {
+  string id = 1;
+  string slug = 2;
+  string title = 3;
+  string content = 4;
+  string syntax = 5;
+  int32 views = 6;
+  bool is_public = 7;
+  bool is_encrypted = 8;
+  optional string user_id = 9;
+  optional string expires_at = 10;
+  string created_at = 11;
+  string updated_at = 12;
+}
+
+message CreatePasteRequest {
+  string content = 1;
+  string title = 2;
+  string syntax = 3;
+  optional string password = 4;
+  optional bool is_public = 5;
+  optional string expires_at = 6;
+  optional string ttl = 7;
+}
+
+message GetPasteRequest {
+  string slug = 1;
+  optional string password = 2;
+}
+
+message GetRawPasteRequest {
+  string slug = 1;
+  optional string password = 2;
+}
+
+message GetRawPasteResponse {
+  string content = 1;
+}
+
+message ListPastesRequest {
+  optional string search = 1;
+  optional string syntax = 2;
+  optional bool is_public_only = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+message ListPastesResponse {
+  repeated PasteSummary pastes = 1;
+  int32 total = 2;
+}
+
+message DeletePasteRequest {
+  string slug = 1;
+}
+
+message DeletePasteResponse {
+  string status = 1;
+  string message = 2;
+}
+
+service PasteService {
+  rpc CreatePaste(CreatePasteRequest) returns (Paste);
+  rpc GetPaste(GetPasteRequest) returns (Paste);
+  rpc GetRawPaste(GetRawPasteRequest) returns (GetRawPasteResponse);
+  rpc ListPastes(ListPastesRequest) returns (ListPastesResponse);
+  rpc DeletePaste(DeletePasteRequest) returns (DeletePasteResponse);
+}
