@@ -26,9 +26,9 @@ var (
 )
 
 type ImageInfo struct {
+	Blurhash string
 	Width    int
 	Height   int
-	Blurhash string
 }
 
 // IsImageMime returns true if the content type is a safe image format we can parse.
