@@ -8,34 +8,34 @@ import (
 
 // Paste represents the database row for a pastebin entry
 type Paste struct {
-	ID        uuid.UUID  `json:"id"`
-	Slug      string     `json:"slug"`
-	Title     string     `json:"title"`
-	Content   string     `json:"content"`
-	Syntax    string     `json:"syntax"`
-	UserID      *uuid.UUID `json:"user_id,omitempty"`
-	IsPublic    bool       `json:"is_public"`
-	IsEncrypted bool       `json:"is_encrypted"`
-	Views       int        `json:"views"`
-	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
+	UserID      *uuid.UUID `json:"user_id,omitempty"`
+	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
+	Slug        string     `json:"slug"`
+	Title       string     `json:"title"`
+	Content     string     `json:"content"`
+	Syntax      string     `json:"syntax"`
+	Views       int        `json:"views"`
+	ID          uuid.UUID  `json:"id"`
+	IsPublic    bool       `json:"is_public"`
+	IsEncrypted bool       `json:"is_encrypted"`
 }
 
 // PasteSummaryDTO represents a lightweight representation of a paste for listing
 type PasteSummaryDTO struct {
-	ID          uuid.UUID  `json:"id"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	UserID      *uuid.UUID `json:"user_id,omitempty"`
+	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
 	Slug        string     `json:"slug"`
 	Title       string     `json:"title"`
 	Syntax      string     `json:"syntax"`
-	UserID      *uuid.UUID `json:"user_id,omitempty"`
-	IsPublic    bool       `json:"is_public"`
-	IsEncrypted bool       `json:"is_encrypted"`
 	Views       int        `json:"views"`
 	Size        int        `json:"size"`
-	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID          uuid.UUID  `json:"id"`
+	IsPublic    bool       `json:"is_public"`
+	IsEncrypted bool       `json:"is_encrypted"`
 }
 
 // CreatePasteRequest is the payload to create a new paste
@@ -51,6 +51,6 @@ type CreatePasteRequest struct {
 
 // PastesListResponse is the response structure for listing pastes
 type PastesListResponse struct {
-	Total  int               `json:"total"`
 	Pastes []PasteSummaryDTO `json:"pastes"`
+	Total  int               `json:"total"`
 }
