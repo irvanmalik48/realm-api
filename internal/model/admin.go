@@ -7,18 +7,17 @@ import (
 )
 
 type AdminUser struct {
-	ID           uuid.UUID `json:"id"`
-	UserID       uuid.UUID `json:"user_id"`
-	User         User      `json:"user"`
-	IsSuperadmin bool      `json:"is_superadmin"`
-	Permissions  []string  `json:"permissions"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 	CreatedBy    *uuid.UUID `json:"created_by,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	Permissions  []string   `json:"permissions"`
+	User         User       `json:"user"`
+	ID           uuid.UUID  `json:"id"`
+	UserID       uuid.UUID  `json:"user_id"`
+	IsSuperadmin bool       `json:"is_superadmin"`
 }
 
 type SystemLog struct {
-	ID             uuid.UUID `json:"id"`
 	Timestamp      time.Time `json:"timestamp"`
 	Level          string    `json:"level"`
 	Message        string    `json:"message"`
@@ -26,4 +25,5 @@ type SystemLog struct {
 	TraceID        string    `json:"trace_id"`
 	SpanID         string    `json:"span_id"`
 	AttributesJSON string    `json:"attributes_json"`
+	ID             uuid.UUID `json:"id"`
 }
