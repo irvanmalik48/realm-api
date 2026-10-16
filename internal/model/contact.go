@@ -20,12 +20,12 @@ type ContactResponse struct {
 }
 
 type ContactSubmission struct {
-	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
 	Name      string    `json:"name"`
 	Email     string    `json:"email"`
 	Subject   string    `json:"subject"`
 	Message   string    `json:"message"`
 	IPAddress string    `json:"ip_address,omitempty"`
 	UserAgent string    `json:"user_agent,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        uuid.UUID `json:"id"`
 }
