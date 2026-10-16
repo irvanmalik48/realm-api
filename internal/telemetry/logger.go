@@ -49,11 +49,11 @@ type DBLogSink struct {
 
 type dbLogItem struct {
 	timestamp  time.Time
+	attributes map[string]interface{}
 	level      string
 	message    string
 	traceID    string
 	spanID     string
-	attributes map[string]interface{}
 }
 
 func NewDBLogSink(base slog.Handler, db *database.DB) *DBLogSink {
