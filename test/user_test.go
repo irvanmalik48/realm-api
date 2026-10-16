@@ -174,4 +174,3 @@ func TestUserHandler_UpdateAndDeactivate(t *testing.T) {
 		t.Fatalf("expected user to be reactivated (is_active = true)")
 	}
 }
-
