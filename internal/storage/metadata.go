@@ -37,13 +37,13 @@ var (
 // ImageMetadata represents the analyzed properties of an image formatted for Next/Image compatibility.
 type ImageMetadata struct {
 	Src         string  `json:"src"`
+	Format      string  `json:"format"`
+	Blurhash    string  `json:"blurhash"`
+	BlurDataURL string  `json:"blurDataURL"`
 	Width       int     `json:"width"`
 	Height      int     `json:"height"`
 	AspectRatio float64 `json:"aspectRatio"`
-	Format      string  `json:"format"`
 	Size        int64   `json:"size"`
-	Blurhash    string  `json:"blurhash"`
-	BlurDataURL string  `json:"blurDataURL"`
 	BlurWidth   int     `json:"blurWidth,omitempty"`
 	BlurHeight  int     `json:"blurHeight,omitempty"`
 }
