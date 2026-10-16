@@ -15,16 +15,16 @@ import (
 
 // CPUStats contains real-time CPU utilization, frequencies, and load averages.
 type CPUStats struct {
-	UsagePercent     float64   `json:"usage_percent"`
+	ModelName        string    `json:"model_name"`
 	CoreUsagePercent []float64 `json:"core_usage_percent"`
-	AvgFrequencyMHz  float64   `json:"avg_frequency_mhz"`
 	CoreFrequencyMHz []float64 `json:"core_frequency_mhz"`
+	UsagePercent     float64   `json:"usage_percent"`
+	AvgFrequencyMHz  float64   `json:"avg_frequency_mhz"`
 	MinFrequencyMHz  float64   `json:"min_frequency_mhz"`
 	MaxFrequencyMHz  float64   `json:"max_frequency_mhz"`
 	Load1m           float64   `json:"load_1m"`
 	Load5m           float64   `json:"load_5m"`
 	Load15m          float64   `json:"load_15m"`
-	ModelName        string    `json:"model_name"`
 	CoreCount        int32     `json:"core_count"`
 }
 
@@ -49,18 +49,18 @@ func (s cpuSample) idleTotal() uint64 {
 
 // CPUMonitor continuously tracks real-time CPU utilization and frequency.
 type CPUMonitor struct {
-	mu             sync.RWMutex
+	prevCgroupTime time.Time
+	stopCh         chan struct{}
+	modelName      string
+	prevCores      []cpuSample
 	stats          CPUStats
 	prevTotal      cpuSample
-	prevCores      []cpuSample
 	prevCgroupUsec uint64
-	prevCgroupTime time.Time
-	modelName      string
-	coreCount      int32
 	baseFreqMHz    float64
 	minFreqMHz     float64
 	maxFreqMHz     float64
-	stopCh         chan struct{}
+	mu             sync.RWMutex
+	coreCount      int32
 	stopped        bool
 }
 
