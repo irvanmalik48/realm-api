@@ -17,9 +17,9 @@ type HealthResponse struct {
 	Status        string `json:"status"`
 	Service       string `json:"service"`
 	Version       string `json:"version"`
-	UptimeSeconds int64  `json:"uptime_seconds"`
 	Timestamp     string `json:"timestamp"`
 	Database      string `json:"database"`
+	UptimeSeconds int64  `json:"uptime_seconds"`
 }
 
 type DBPoolStats struct {
@@ -30,10 +30,10 @@ type DBPoolStats struct {
 }
 
 type RuntimeStats struct {
-	Goroutines      int32  `json:"goroutines"`
 	AllocBytes      uint64 `json:"alloc_bytes"`
 	TotalAllocBytes uint64 `json:"total_alloc_bytes"`
 	SysBytes        uint64 `json:"sys_bytes"`
+	Goroutines      int32  `json:"goroutines"`
 	GCCycles        uint32 `json:"gc_cycles"`
 }
 
@@ -41,12 +41,12 @@ type DetailedTelemetryResponse struct {
 	Status        string             `json:"status"`
 	Service       string             `json:"service"`
 	Version       string             `json:"version"`
-	UptimeSeconds int64              `json:"uptime_seconds"`
 	Timestamp     string             `json:"timestamp"`
 	Database      string             `json:"database"`
-	DBPool        DBPoolStats        `json:"db_pool"`
-	Runtime       RuntimeStats       `json:"runtime"`
 	CPU           telemetry.CPUStats `json:"cpu"`
+	Runtime       RuntimeStats       `json:"runtime"`
+	UptimeSeconds int64              `json:"uptime_seconds"`
+	DBPool        DBPoolStats        `json:"db_pool"`
 }
 
 type HealthHandler struct {
