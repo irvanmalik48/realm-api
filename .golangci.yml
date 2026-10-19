@@ -1,0 +1,54 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - staticcheck
+    - govet
+    - gosec
+    - bodyclose
+    - sqlclosecheck
+    - fatcontext
+    - prealloc
+    - perfsprint
+    - gocritic
+    - nilaway
+  settings:
+    govet:
+      enable:
+        - fieldalignment
+    gocritic:
+      enabled-checks:
+        - hugeParam
+    custom:
+      nilaway:
+        type: module
+        description: "Static analysis tool to detect potential nil panics in Go code"
+        settings:
+          include-pkgs: "github.com/irvanmalik48/realm-api"
+  exclusions:
+    paths:
+      - "pkg/pb/"
+      - ".*\\.pb\\.go$"
+    rules:
+      - path: ".*_test\\.go$"
+        linters:
+          - gosec
+          - bodyclose
+          - prealloc
+      - path: "internal/telemetry/logger\\.go$"
+        text: "hugeParam: r is heavy"
+        linters:
+          - gocritic
+      - linters:
+          - gosec
+        text: "G115"
+      - linters:
+          - gosec
+        text: "G304"
+      - linters:
+          - gosec
+        text: "G118"
