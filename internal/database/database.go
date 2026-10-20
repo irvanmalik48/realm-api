@@ -233,6 +233,9 @@ func (db *DB) migrate(ctx context.Context) error {
 	-- Analytics / Page Views Table
 	CREATE TABLE IF NOT EXISTS page_views (
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		site VARCHAR(100) NOT NULL DEFAULT 'irvanma.eu.org',
+		country_code VARCHAR(10),
+		country VARCHAR(100),
 		path VARCHAR(512) NOT NULL,
 		post_slug VARCHAR(255),
 		referrer VARCHAR(1024),
@@ -245,10 +248,15 @@ func (db *DB) migrate(ctx context.Context) error {
 		ip_hash VARCHAR(64),
 		created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 	);
+	ALTER TABLE page_views ADD COLUMN IF NOT EXISTS site VARCHAR(100) DEFAULT 'irvanma.eu.org';
+	ALTER TABLE page_views ADD COLUMN IF NOT EXISTS country_code VARCHAR(10);
+	ALTER TABLE page_views ADD COLUMN IF NOT EXISTS country VARCHAR(100);
 	CREATE INDEX IF NOT EXISTS idx_page_views_created_at ON page_views (created_at DESC);
 	CREATE INDEX IF NOT EXISTS idx_page_views_path ON page_views (path);
 	CREATE INDEX IF NOT EXISTS idx_page_views_post_slug ON page_views (post_slug) WHERE post_slug IS NOT NULL;
 	CREATE INDEX IF NOT EXISTS idx_page_views_session ON page_views (session_id);
+	CREATE INDEX IF NOT EXISTS idx_page_views_site ON page_views (site);
+	CREATE INDEX IF NOT EXISTS idx_page_views_country_code ON page_views (country_code);
 
 	-- Dedicated Pastebin Service Table
 	CREATE TABLE IF NOT EXISTS pastes (
