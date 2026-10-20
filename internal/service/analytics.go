@@ -76,23 +76,13 @@ func (s *AnalyticsService) GetStats(ctx context.Context, period string, site str
 	return s.repo.GetAnalyticsStats(ctx, period, site)
 }
 
-// normalizeSite standardizes site identifiers across the ecosystem.
+// normalizeSite standardizes site hostnames without hardcoding any specific domain.
 func normalizeSite(raw string) string {
 	cleaned := strings.TrimSpace(strings.ToLower(raw))
 	cleaned = strings.TrimPrefix(cleaned, "https://")
 	cleaned = strings.TrimPrefix(cleaned, "http://")
 	cleaned = strings.Split(cleaned, "/")[0]
 	cleaned = strings.Split(cleaned, ":")[0]
-
-	if strings.Contains(cleaned, "bin.irvanma.eu.org") {
-		return "bin.irvanma.eu.org"
-	}
-	if strings.Contains(cleaned, "irvanma.eu.org") {
-		return "irvanma.eu.org"
-	}
-	if cleaned == "" {
-		return "irvanma.eu.org"
-	}
 	return cleaned
 }
 
