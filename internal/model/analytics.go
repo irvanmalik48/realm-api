@@ -4,6 +4,9 @@ import "time"
 
 // TrackEventRequest represents the incoming pageview telemetry payload from client web pages.
 type TrackEventRequest struct {
+	Site             string `json:"site,omitempty"`
+	CountryCode      string `json:"country_code,omitempty"`
+	Country          string `json:"country,omitempty"`
 	Path             string `json:"path"`
 	PostSlug         string `json:"post_slug,omitempty"`
 	Referrer         string `json:"referrer,omitempty"`
@@ -18,6 +21,9 @@ type PageView struct {
 	CreatedAt        time.Time `json:"created_at"`
 	PostSlug         *string   `json:"post_slug,omitempty"`
 	ID               string    `json:"id"`
+	Site             string    `json:"site"`
+	CountryCode      string    `json:"country_code,omitempty"`
+	Country          string    `json:"country,omitempty"`
 	Path             string    `json:"path"`
 	Referrer         string    `json:"referrer,omitempty"`
 	UserAgent        string    `json:"user_agent,omitempty"`
@@ -69,15 +75,34 @@ type BrowserStat struct {
 	Count   int64  `json:"count"`
 }
 
+// CountryStat represents geographical traffic distribution by country.
+type CountryStat struct {
+	CountryCode string  `json:"country_code"`
+	Country     string  `json:"country"`
+	Views       int64   `json:"views"`
+	Unique      int64   `json:"unique"`
+	Percentage  float64 `json:"percentage"`
+}
+
+// SiteStat represents traffic distribution across tracked sites.
+type SiteStat struct {
+	Site   string `json:"site"`
+	Views  int64  `json:"views"`
+	Unique int64  `json:"unique"`
+}
+
 // RecentPageView represents an individual recent visit for live feeds.
 type RecentPageView struct {
-	CreatedAt time.Time `json:"created_at"`
-	PostSlug  *string   `json:"post_slug,omitempty"`
-	ID        string    `json:"id"`
-	Path      string    `json:"path"`
-	Referrer  string    `json:"referrer,omitempty"`
-	Browser   string    `json:"browser,omitempty"`
-	OS        string    `json:"os,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	PostSlug    *string   `json:"post_slug,omitempty"`
+	ID          string    `json:"id"`
+	Site        string    `json:"site,omitempty"`
+	CountryCode string    `json:"country_code,omitempty"`
+	Country     string    `json:"country,omitempty"`
+	Path        string    `json:"path"`
+	Referrer    string    `json:"referrer,omitempty"`
+	Browser     string    `json:"browser,omitempty"`
+	OS          string    `json:"os,omitempty"`
 }
 
 // AnalyticsStatsResponse contains aggregated analytics metrics for dashboards.
@@ -88,6 +113,8 @@ type AnalyticsStatsResponse struct {
 	TopReferrers   []ReferrerStat   `json:"top_referrers"`
 	DeviceStats    []DeviceStat     `json:"device_stats"`
 	BrowserStats   []BrowserStat    `json:"browser_stats"`
+	CountryStats   []CountryStat    `json:"country_stats"`
+	SiteStats      []SiteStat       `json:"site_stats"`
 	RecentViews    []RecentPageView `json:"recent_views"`
 	TotalViews     int64            `json:"total_views"`
 	UniqueVisitors int64            `json:"unique_visitors"`
