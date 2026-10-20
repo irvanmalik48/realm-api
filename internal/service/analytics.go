@@ -46,7 +46,13 @@ func (s *AnalyticsService) TrackEvent(ctx context.Context, req *model.TrackEvent
 		ipHash = hex.EncodeToString(h[:16]) // 32 hex chars
 	}
 
+	site := normalizeSite(req.Site)
+	countryCode, countryName := resolveCountry(req.CountryCode, req.Country)
+
 	pv := &model.PageView{
+		Site:             site,
+		CountryCode:      countryCode,
+		Country:          countryName,
 		Path:             path,
 		Referrer:         strings.TrimSpace(req.Referrer),
 		UserAgent:        strings.TrimSpace(req.UserAgent),
@@ -65,9 +71,103 @@ func (s *AnalyticsService) TrackEvent(ctx context.Context, req *model.TrackEvent
 	return s.repo.RecordPageView(ctx, pv)
 }
 
-// GetStats returns aggregated analytics over the requested time period.
-func (s *AnalyticsService) GetStats(ctx context.Context, period string) (*model.AnalyticsStatsResponse, error) {
-	return s.repo.GetAnalyticsStats(ctx, period)
+// GetStats returns aggregated analytics over the requested time period and site filter.
+func (s *AnalyticsService) GetStats(ctx context.Context, period string, site string) (*model.AnalyticsStatsResponse, error) {
+	return s.repo.GetAnalyticsStats(ctx, period, site)
+}
+
+// normalizeSite standardizes site identifiers across the ecosystem.
+func normalizeSite(raw string) string {
+	cleaned := strings.TrimSpace(strings.ToLower(raw))
+	cleaned = strings.TrimPrefix(cleaned, "https://")
+	cleaned = strings.TrimPrefix(cleaned, "http://")
+	cleaned = strings.Split(cleaned, "/")[0]
+	cleaned = strings.Split(cleaned, ":")[0]
+
+	if strings.Contains(cleaned, "bin.irvanma.eu.org") {
+		return "bin.irvanma.eu.org"
+	}
+	if strings.Contains(cleaned, "irvanma.eu.org") {
+		return "irvanma.eu.org"
+	}
+	if cleaned == "" {
+		return "irvanma.eu.org"
+	}
+	return cleaned
+}
+
+var countryNames = map[string]string{
+	"US": "United States",
+	"ID": "Indonesia",
+	"SG": "Singapore",
+	"JP": "Japan",
+	"DE": "Germany",
+	"GB": "United Kingdom",
+	"CA": "Canada",
+	"AU": "Australia",
+	"FR": "France",
+	"IN": "India",
+	"NL": "Netherlands",
+	"BR": "Brazil",
+	"KR": "South Korea",
+	"SE": "Sweden",
+	"CH": "Switzerland",
+	"IT": "Italy",
+	"ES": "Spain",
+	"RU": "Russia",
+	"VN": "Vietnam",
+	"MY": "Malaysia",
+	"PH": "Philippines",
+	"TH": "Thailand",
+	"NZ": "New Zealand",
+	"MX": "Mexico",
+	"AR": "Argentina",
+	"ZA": "South Africa",
+	"PL": "Poland",
+	"TR": "Turkey",
+	"UA": "Ukraine",
+	"NO": "Norway",
+	"DK": "Denmark",
+	"FI": "Finland",
+	"IE": "Ireland",
+	"AT": "Austria",
+	"BE": "Belgium",
+	"CZ": "Czech Republic",
+	"PT": "Portugal",
+	"RO": "Romania",
+	"HU": "Hungary",
+	"GR": "Greece",
+	"IL": "Israel",
+	"AE": "United Arab Emirates",
+	"SA": "Saudi Arabia",
+	"EG": "Egypt",
+	"NG": "Nigeria",
+	"KE": "Kenya",
+	"CL": "Chile",
+	"CO": "Colombia",
+	"PE": "Peru",
+	"PK": "Pakistan",
+	"BD": "Bangladesh",
+	"HK": "Hong Kong",
+	"TW": "Taiwan",
+}
+
+// resolveCountry maps country code to standard country name.
+func resolveCountry(code string, providedName string) (string, string) {
+	cCode := strings.ToUpper(strings.TrimSpace(code))
+	if cCode == "" || cCode == "XX" || cCode == "T1" {
+		if strings.TrimSpace(providedName) != "" {
+			return "", strings.TrimSpace(providedName)
+		}
+		return "", "Unknown"
+	}
+	if name, ok := countryNames[cCode]; ok {
+		return cCode, name
+	}
+	if strings.TrimSpace(providedName) != "" {
+		return cCode, strings.TrimSpace(providedName)
+	}
+	return cCode, cCode
 }
 
 // parseUserAgent extracts human-readable browser, OS, and device type.
