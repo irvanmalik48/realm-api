@@ -34,6 +34,15 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 	if req.Referrer == "" {
 		req.Referrer = string(c.Request().Header.Referer())
 	}
+	if req.CountryCode == "" {
+		req.CountryCode = c.Get("CF-IPCountry")
+		if req.CountryCode == "" {
+			req.CountryCode = c.Get("X-Country-Code")
+		}
+	}
+	if req.Site == "" {
+		req.Site = c.Get("X-Site")
+	}
 
 	clientIP := c.IP()
 	if err := h.svc.TrackEvent(c.Context(), &req, clientIP); err != nil {
@@ -46,7 +55,8 @@ func (h *AnalyticsHandler) TrackEvent(c *fiber.Ctx) error {
 // GetStats handles GET /v1/analytics/stats.
 func (h *AnalyticsHandler) GetStats(c *fiber.Ctx) error {
 	period := c.Query("period", "30d")
-	stats, err := h.svc.GetStats(c.Context(), period)
+	site := c.Query("site", "all")
+	stats, err := h.svc.GetStats(c.Context(), period, site)
 	if err != nil {
 		return ErrorResponse(c, "Failed to retrieve analytics stats: "+err.Error(), http.StatusInternalServerError)
 	}
