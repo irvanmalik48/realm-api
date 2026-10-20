@@ -324,7 +324,7 @@ func (r *AnalyticsRepository) GetAnalyticsStats(ctx context.Context, period stri
 
 	siteQuery := fmt.Sprintf(`
 		SELECT 
-			COALESCE(NULLIF(site, ''), 'irvanma.eu.org') as s_name,
+			COALESCE(NULLIF(site, ''), 'unknown') as s_name,
 			COUNT(*) as views,
 			COUNT(DISTINCT COALESCE(NULLIF(session_id, ''), NULLIF(ip_hash, ''), id::text)) as unq
 		FROM page_views
@@ -352,7 +352,7 @@ func (r *AnalyticsRepository) GetAnalyticsStats(ctx context.Context, period stri
 			COALESCE(NULLIF(browser, ''), 'Unknown') as browser,
 			COALESCE(NULLIF(os, ''), 'Unknown') as os,
 			created_at,
-			COALESCE(NULLIF(site, ''), 'irvanma.eu.org') as site,
+			COALESCE(site, '') as site,
 			COALESCE(country_code, '') as country_code,
 			COALESCE(country, '') as country
 		FROM page_views
