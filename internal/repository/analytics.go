@@ -24,11 +24,15 @@ func NewAnalyticsRepository(db *database.DB) *AnalyticsRepository {
 func (r *AnalyticsRepository) RecordPageView(ctx context.Context, pv *model.PageView) error {
 	query := `
 		INSERT INTO page_views (
-			path, post_slug, referrer, user_agent, browser, os,
-			device_type, session_id, screen_resolution, ip_hash
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			site, country_code, country, path, post_slug, referrer,
+			user_agent, browser, os, device_type, session_id,
+			screen_resolution, ip_hash
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	`
 	_, err := r.db.Pool.Exec(ctx, query,
+		pv.Site,
+		pv.CountryCode,
+		pv.Country,
 		pv.Path,
 		pv.PostSlug,
 		pv.Referrer,
@@ -43,8 +47,8 @@ func (r *AnalyticsRepository) RecordPageView(ctx context.Context, pv *model.Page
 	return err
 }
 
-// GetAnalyticsStats computes aggregate metrics over the specified period ("24h", "7d", "30d", "all").
-func (r *AnalyticsRepository) GetAnalyticsStats(ctx context.Context, period string) (*model.AnalyticsStatsResponse, error) {
+// GetAnalyticsStats computes aggregate metrics over the specified period ("24h", "7d", "30d", "all") and site filter.
+func (r *AnalyticsRepository) GetAnalyticsStats(ctx context.Context, period string, site string) (*model.AnalyticsStatsResponse, error) {
 	var since time.Time
 	var timeBucket string
 	var timeFormat string
@@ -78,14 +82,31 @@ func (r *AnalyticsRepository) GetAnalyticsStats(ctx context.Context, period stri
 		TopReferrers: make([]model.ReferrerStat, 0),
 		DeviceStats:  make([]model.DeviceStat, 0),
 		BrowserStats: make([]model.BrowserStat, 0),
+		CountryStats: make([]model.CountryStat, 0),
+		SiteStats:    make([]model.SiteStat, 0),
 		RecentViews:  make([]model.RecentPageView, 0),
 	}
 
-	whereClause := ""
+	whereParts := []string{}
 	args := []any{}
+	argIdx := 1
+
 	if !since.IsZero() {
-		whereClause = "WHERE created_at >= $1"
+		whereParts = append(whereParts, fmt.Sprintf("created_at >= $%d", argIdx))
 		args = append(args, since)
+		argIdx++
+	}
+
+	filterSite := strings.TrimSpace(strings.ToLower(site))
+	if filterSite != "" && filterSite != "all" {
+		whereParts = append(whereParts, fmt.Sprintf("site = $%d", argIdx))
+		args = append(args, filterSite)
+		argIdx++
+	}
+
+	whereClause := ""
+	if len(whereParts) > 0 {
+		whereClause = "WHERE " + strings.Join(whereParts, " AND ")
 	}
 
 	// 1. Total views & Unique visitors
@@ -103,7 +124,11 @@ func (r *AnalyticsRepository) GetAnalyticsStats(ctx context.Context, period stri
 
 	// 2. Views today
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	_ = r.db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM page_views WHERE created_at >= $1`, todayStart).Scan(&res.ViewsToday)
+	if filterSite != "" && filterSite != "all" {
+		_ = r.db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM page_views WHERE created_at >= $1 AND site = $2`, todayStart, filterSite).Scan(&res.ViewsToday)
+	} else {
+		_ = r.db.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM page_views WHERE created_at >= $1`, todayStart).Scan(&res.ViewsToday)
+	}
 
 	// 3. Views Trend
 	trendQuery := fmt.Sprintf(`
@@ -153,6 +178,21 @@ func (r *AnalyticsRepository) GetAnalyticsStats(ctx context.Context, period stri
 	}
 
 	// 5. Top Posts
+	postsWhere := []string{"pv.post_slug IS NOT NULL AND pv.post_slug != ''"}
+	postArgs := []any{}
+	pIdx := 1
+	if !since.IsZero() {
+		postsWhere = append(postsWhere, fmt.Sprintf("pv.created_at >= $%d", pIdx))
+		postArgs = append(postArgs, since)
+		pIdx++
+	}
+	if filterSite != "" && filterSite != "all" {
+		postsWhere = append(postsWhere, fmt.Sprintf("pv.site = $%d", pIdx))
+		postArgs = append(postArgs, filterSite)
+		pIdx++
+	}
+	postsWhereClause := "WHERE " + strings.Join(postsWhere, " AND ")
+
 	postsQuery := fmt.Sprintf(`
 		SELECT 
 			pv.post_slug,
@@ -161,19 +201,13 @@ func (r *AnalyticsRepository) GetAnalyticsStats(ctx context.Context, period stri
 			COUNT(DISTINCT COALESCE(NULLIF(pv.session_id, ''), NULLIF(pv.ip_hash, ''), pv.id::text)) as unq
 		FROM page_views pv
 		LEFT JOIN posts p ON p.slug = pv.post_slug
-		WHERE pv.post_slug IS NOT NULL AND pv.post_slug != ''
 		%s
 		GROUP BY pv.post_slug, p.title
 		ORDER BY views DESC
 		LIMIT 10
-	`, func() string {
-		if !since.IsZero() {
-			return "AND pv.created_at >= $1"
-		}
-		return ""
-	}())
+	`, postsWhereClause)
 
-	postRows, err := r.db.Pool.Query(ctx, postsQuery, args...)
+	postRows, err := r.db.Pool.Query(ctx, postsQuery, postArgs...)
 	if err == nil {
 		defer postRows.Close()
 		for postRows.Next() {
@@ -252,24 +286,91 @@ func (r *AnalyticsRepository) GetAnalyticsStats(ctx context.Context, period stri
 		}
 	}
 
-	// 9. Recent Views (last 15)
-	recentQuery := `
+	// 9. Country Stats
+	countryQuery := fmt.Sprintf(`
+		SELECT 
+			COALESCE(NULLIF(country_code, ''), 'XX') as c_code,
+			COALESCE(NULLIF(country, ''), 'Unknown') as c_name,
+			COUNT(*) as views,
+			COUNT(DISTINCT COALESCE(NULLIF(session_id, ''), NULLIF(ip_hash, ''), id::text)) as unq
+		FROM page_views
+		%s
+		GROUP BY c_code, c_name
+		ORDER BY views DESC
+		LIMIT 30
+	`, whereClause)
+
+	cRows, err := r.db.Pool.Query(ctx, countryQuery, args...)
+	if err == nil {
+		defer cRows.Close()
+		for cRows.Next() {
+			var cs model.CountryStat
+			if err := cRows.Scan(&cs.CountryCode, &cs.Country, &cs.Views, &cs.Unique); err == nil {
+				if res.TotalViews > 0 {
+					cs.Percentage = (float64(cs.Views) / float64(res.TotalViews)) * 100.0
+				}
+				res.CountryStats = append(res.CountryStats, cs)
+			}
+		}
+	}
+
+	// 10. Site Stats (aggregated over the time window)
+	siteWhereClause := ""
+	siteArgs := []any{}
+	if !since.IsZero() {
+		siteWhereClause = "WHERE created_at >= $1"
+		siteArgs = append(siteArgs, since)
+	}
+
+	siteQuery := fmt.Sprintf(`
+		SELECT 
+			COALESCE(NULLIF(site, ''), 'irvanma.eu.org') as s_name,
+			COUNT(*) as views,
+			COUNT(DISTINCT COALESCE(NULLIF(session_id, ''), NULLIF(ip_hash, ''), id::text)) as unq
+		FROM page_views
+		%s
+		GROUP BY s_name
+		ORDER BY views DESC
+	`, siteWhereClause)
+
+	sRows, err := r.db.Pool.Query(ctx, siteQuery, siteArgs...)
+	if err == nil {
+		defer sRows.Close()
+		for sRows.Next() {
+			var ss model.SiteStat
+			if err := sRows.Scan(&ss.Site, &ss.Views, &ss.Unique); err == nil {
+				res.SiteStats = append(res.SiteStats, ss)
+			}
+		}
+	}
+
+	// 11. Recent Views (last 15 matching the filter)
+	recentQuery := fmt.Sprintf(`
 		SELECT 
 			id, path, post_slug,
 			COALESCE(NULLIF(referrer, ''), 'Direct') as referrer,
 			COALESCE(NULLIF(browser, ''), 'Unknown') as browser,
 			COALESCE(NULLIF(os, ''), 'Unknown') as os,
-			created_at
+			created_at,
+			COALESCE(NULLIF(site, ''), 'irvanma.eu.org') as site,
+			COALESCE(country_code, '') as country_code,
+			COALESCE(country, '') as country
 		FROM page_views
+		%s
 		ORDER BY created_at DESC
 		LIMIT 15
-	`
-	recentRows, err := r.db.Pool.Query(ctx, recentQuery)
+	`, whereClause)
+
+	recentRows, err := r.db.Pool.Query(ctx, recentQuery, args...)
 	if err == nil {
 		defer recentRows.Close()
 		for recentRows.Next() {
 			var rv model.RecentPageView
-			if err := recentRows.Scan(&rv.ID, &rv.Path, &rv.PostSlug, &rv.Referrer, &rv.Browser, &rv.OS, &rv.CreatedAt); err == nil {
+			if err := recentRows.Scan(
+				&rv.ID, &rv.Path, &rv.PostSlug, &rv.Referrer,
+				&rv.Browser, &rv.OS, &rv.CreatedAt,
+				&rv.Site, &rv.CountryCode, &rv.Country,
+			); err == nil {
 				res.RecentViews = append(res.RecentViews, rv)
 			}
 		}
