@@ -687,6 +687,11 @@ paths:
                   type: string
                   format: binary
                   description: The file to upload and compress with Zstd
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+              description: Raw binary payload of the file to upload and compress with Zstd
       responses:
         '201':
           description: File uploaded, compressed, and registered
