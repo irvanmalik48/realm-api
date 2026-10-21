@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -480,3 +481,89 @@ func TestStorage_WebPCache(t *testing.T) {
 		t.Errorf("cached webp size mismatch: %d vs %d", len(bytes1), len(bytes2))
 	}
 }
+
+func TestStorage_UploadBinaryDirect(t *testing.T) {
+	app, tempDir, _, validToken, _ := setupStorageTestApp(t, true)
+	defer os.RemoveAll(tempDir)
+
+	pngBytes := createTestPNG()
+
+	// Direct raw binary upload with Content-Type and X-Filename header
+	req := httptest.NewRequest(http.MethodPost, "/v1/storage/upload", bytes.NewReader(pngBytes))
+	req.Header.Set("Content-Type", "image/png")
+	req.Header.Set("X-Filename", "direct-binary.png")
+	req.Header.Set("Authorization", "Bearer "+validToken)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("upload request error: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d", resp.StatusCode)
+	}
+
+	var uploadResp model.FileUploadResponse
+	respBytes, _ := io.ReadAll(resp.Body)
+	if err := json.Unmarshal(respBytes, &uploadResp); err != nil {
+		t.Fatalf("failed to decode upload response: %v", err)
+	}
+
+	if uploadResp.Status != "success" {
+		t.Errorf("expected success status, got %s", uploadResp.Status)
+	}
+	if uploadResp.File.Filename != "direct-binary.png" {
+		t.Errorf("expected filename direct-binary.png, got %s", uploadResp.File.Filename)
+	}
+	if uploadResp.File.Width == nil || *uploadResp.File.Width != 100 {
+		t.Errorf("expected width 100, got %v", uploadResp.File.Width)
+	}
+}
+
+func TestStorage_UploadRejectJSON(t *testing.T) {
+	app, tempDir, _, validToken, _ := setupStorageTestApp(t, true)
+	defer os.RemoveAll(tempDir)
+
+	jsonBody := bytes.NewBufferString(`{"file":"dGVzdA==","filename":"test.png"}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/storage/upload", jsonBody)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+validToken)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("upload request error: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected status 400 Bad Request for JSON upload, got %d", resp.StatusCode)
+	}
+
+	respBytes, _ := io.ReadAll(resp.Body)
+	var errResp handler.ErrorResponsePayload
+	if err := json.Unmarshal(respBytes, &errResp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if !strings.Contains(errResp.Error, "binary") {
+		t.Errorf("expected error message to mention binary, got %s", errResp.Error)
+	}
+}
+
+func TestStorage_UploadRawBinaryEmptyBody(t *testing.T) {
+	app, tempDir, _, validToken, _ := setupStorageTestApp(t, true)
+	defer os.RemoveAll(tempDir)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/storage/upload", bytes.NewReader([]byte{}))
+	req.Header.Set("Content-Type", "application/octet-stream")
+	req.Header.Set("Authorization", "Bearer "+validToken)
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("upload request error: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected status 400 for empty body, got %d", resp.StatusCode)
+	}
+}
+
