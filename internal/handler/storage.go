@@ -1,10 +1,13 @@
 package handler
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -30,19 +33,65 @@ func NewStorageHandler(cfg *config.Config, svc service.StorageService) *StorageH
 }
 
 func (h *StorageHandler) Upload(c *fiber.Ctx) error {
-	fileHeader, err := c.FormFile("file")
-	if err != nil {
-		return ErrorResponse(c, "No file uploaded. Please provide a 'file' form field.", http.StatusBadRequest)
+	contentType := c.Get("Content-Type")
+	lowerContentType := strings.ToLower(contentType)
+
+	if strings.HasPrefix(lowerContentType, "application/json") || strings.Contains(lowerContentType, "json") {
+		return ErrorResponse(c, "Upload requests must be binary. JSON payloads are not allowed.", http.StatusBadRequest)
 	}
 
-	srcFile, err := fileHeader.Open()
-	if err != nil {
-		return ErrorResponse(c, "Failed to open uploaded file", http.StatusBadRequest)
-	}
-	defer srcFile.Close()
+	var (
+		filename     string
+		srcFile      io.Reader
+		explicitType string
+	)
 
-	explicitType := fileHeader.Header.Get("Content-Type")
-	fileDTO, err := h.service.Upload(c.Context(), fileHeader.Filename, srcFile, explicitType)
+	if strings.HasPrefix(lowerContentType, "multipart/form-data") {
+		fileHeader, err := c.FormFile("file")
+		if err != nil {
+			return ErrorResponse(c, "No file uploaded. Please provide a 'file' form field.", http.StatusBadRequest)
+		}
+
+		f, err := fileHeader.Open()
+		if err != nil {
+			return ErrorResponse(c, "Failed to open uploaded file", http.StatusBadRequest)
+		}
+		defer f.Close()
+
+		filename = fileHeader.Filename
+		srcFile = f
+		explicitType = fileHeader.Header.Get("Content-Type")
+	} else {
+		body := c.Body()
+		if len(body) == 0 {
+			return ErrorResponse(c, "No file uploaded. Request body is empty.", http.StatusBadRequest)
+		}
+		srcFile = bytes.NewReader(body)
+		explicitType = contentType
+
+		if disp := c.Get("Content-Disposition"); disp != "" {
+			if _, params, err := mime.ParseMediaType(disp); err == nil {
+				if fn, ok := params["filename"]; ok && fn != "" {
+					filename = filepath.Base(fn)
+				}
+			}
+		}
+		if filename == "" {
+			if xfn := c.Get("X-Filename"); xfn != "" {
+				filename = filepath.Base(xfn)
+			}
+		}
+		if filename == "" {
+			if qfn := c.Query("filename"); qfn != "" {
+				filename = filepath.Base(qfn)
+			}
+		}
+		if filename == "" {
+			filename = "upload.bin"
+		}
+	}
+
+	fileDTO, err := h.service.Upload(c.Context(), filename, srcFile, explicitType)
 	if err != nil {
 		if errors.Is(err, service.ErrFileTooLarge) {
 			return ErrorResponse(c, err.Error(), http.StatusRequestEntityTooLarge)
