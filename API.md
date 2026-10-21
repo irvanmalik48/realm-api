@@ -520,9 +520,11 @@ Uploads a binary file, compresses it with Zstandard on disk, and computes Blurha
 
 - **Authentication**: Required if `STORAGE_API_KEY` is configured (`X-API-Key` or `Authorization: Bearer <key>`).
 - **Headers**:
-  - `Content-Type`: `multipart/form-data`
-- **Form Data**:
-  - `file`: binary file payload (required).
+  - `Content-Type`: `multipart/form-data`, `application/octet-stream`, or specific media MIME type
+  - `Content-Disposition`: Optional attachment header for raw binary uploads (`attachment; filename="example.png"`)
+  - `X-Filename`: Optional header for raw binary uploads (`example.png`)
+- **Body**:
+  - Binary file payload or multipart form data (`file` field). Requests must be binary; JSON payloads are not accepted.
 - **Response (`201 Created`)**:
   ```json
   {
