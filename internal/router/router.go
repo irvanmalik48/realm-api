@@ -61,11 +61,15 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	if allowedOrigins == "" {
 		allowedOrigins = "*"
 	}
-	app.Use(cors.New(cors.Config{
+	corsConfig := cors.Config{
 		AllowOrigins: allowedOrigins,
 		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Realm-Request, X-Requested-With, X-API-Key, X-API-Token",
-	}))
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Realm-Request, X-Requested-With, X-API-Key, X-API-Token, X-Filename, Content-Disposition",
+	}
+	if allowedOrigins != "*" {
+		corsConfig.AllowCredentials = true
+	}
+	app.Use(cors.New(corsConfig))
 
 	// Repositories & Services
 	var contactRepo repository.ContactRepository
