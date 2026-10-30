@@ -163,6 +163,8 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	app.Get("/", rootHdlr.Handle)
 	app.Get("/health", healthHdlr.Handle)
 	app.Get("/telemetry", healthHdlr.Telemetry)
+	app.Get("/health/stream", healthHdlr.Stream)
+	app.Get("/telemetry/stream", healthHdlr.Stream)
 
 	// OpenAPI Specification and Interactive Docs
 	app.Get("/openapi.yaml", openapi.ServeYAML)
@@ -173,6 +175,8 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	v1 := app.Group("/v1")
 	v1.Get("/health", healthHdlr.Handle)
 	v1.Get("/telemetry", healthHdlr.Telemetry)
+	v1.Get("/health/stream", healthHdlr.Stream)
+	v1.Get("/telemetry/stream", healthHdlr.Stream)
 	v1.Get("/openapi.yaml", openapi.ServeYAML)
 	v1.Get("/openapi.json", openapi.ServeJSON)
 	v1.Get("/docs", openapi.ServeDocs)
