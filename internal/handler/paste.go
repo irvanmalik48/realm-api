@@ -2,8 +2,10 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -25,10 +27,52 @@ func NewPasteHandler(cfg *config.Config, svc service.PasteService) *PasteHandler
 	}
 }
 
+func isCLIClient(c *fiber.Ctx) bool {
+	ua := strings.ToLower(c.Get("User-Agent"))
+	if strings.HasPrefix(ua, "curl/") || strings.HasPrefix(ua, "wget/") || strings.HasPrefix(ua, "httpie/") {
+		return true
+	}
+	accept := c.Get("Accept")
+	return strings.Contains(accept, "text/plain") && !strings.Contains(accept, "text/html") && !strings.Contains(accept, "application/json")
+}
+
 func (h *PasteHandler) CreatePaste(c *fiber.Ctx) error {
 	var req model.CreatePasteRequest
-	if err := c.BodyParser(&req); err != nil {
-		return ErrorResponse(c, "Invalid request payload", http.StatusBadRequest)
+	contentType := c.Get("Content-Type")
+
+	if strings.Contains(contentType, "application/json") {
+		if err := c.BodyParser(&req); err != nil {
+			return ErrorResponse(c, "Invalid request payload", http.StatusBadRequest)
+		}
+	} else {
+		// Non-JSON input: CLI piping, plain text, or multipart form-data
+		_ = c.BodyParser(&req)
+		if formVal := c.FormValue("c"); formVal != "" {
+			req.Content = formVal
+		} else if formVal := c.FormValue("content"); formVal != "" {
+			req.Content = formVal
+		} else if formVal := c.FormValue("file"); formVal != "" {
+			req.Content = formVal
+		} else if req.Content == "" && len(c.Body()) > 0 {
+			req.Content = string(c.Body())
+		}
+
+		if t := c.FormValue("title"); t != "" {
+			req.Title = t
+		}
+		if s := c.FormValue("syntax"); s != "" {
+			req.Syntax = s
+		}
+		if ttl := c.FormValue("ttl"); ttl != "" {
+			req.TTL = ttl
+		}
+		if p := c.FormValue("password"); p != "" {
+			req.Password = p
+		}
+		if c.FormValue("burn") == "true" || c.Query("burn") == "true" {
+			burnTrue := true
+			req.BurnAfterRead = &burnTrue
+		}
 	}
 
 	var userID *uuid.UUID
@@ -50,6 +94,16 @@ func (h *PasteHandler) CreatePaste(c *fiber.Ctx) error {
 		return ErrorResponse(c, "Failed to create paste", http.StatusInternalServerError)
 	}
 
+	if isCLIClient(c) {
+		baseURL := h.cfg.FrontendURL
+		if baseURL == "" {
+			baseURL = c.BaseURL()
+		}
+		baseURL = strings.TrimRight(baseURL, "/")
+		c.Set("Content-Type", "text/plain; charset=utf-8")
+		return c.Status(http.StatusCreated).SendString(fmt.Sprintf("%s/%s\n", baseURL, paste.Slug))
+	}
+
 	return JSONResponse(c, paste, http.StatusCreated, 0)
 }
 
@@ -61,6 +115,10 @@ func getPastePassword(c *fiber.Ctx) string {
 }
 
 func (h *PasteHandler) GetPaste(c *fiber.Ctx) error {
+	if isCLIClient(c) {
+		return h.GetRawPaste(c)
+	}
+
 	slug := c.Params("slug")
 	if slug == "" {
 		return ErrorResponse(c, "Paste slug is required", http.StatusBadRequest)
