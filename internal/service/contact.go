@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -94,7 +95,7 @@ func (s *contactService) sendDiscordNotification(ctx context.Context, req *model
 	payload := map[string]interface{}{
 		"embeds": []map[string]interface{}{
 			{
-				"title": fmt.Sprintf("📬 New Contact Message: %s", req.Subject),
+				"title": "📬 New Contact Message: " + req.Subject,
 				"color": 3447003, // Blue
 				"fields": []map[string]interface{}{
 					{"name": "From", "value": req.Name, "inline": true},
@@ -169,14 +170,14 @@ func (s *contactService) sendTelegramNotification(ctx context.Context, req *mode
 
 func (s *contactService) ListSubmissions(ctx context.Context, limit, offset int, search string) ([]model.ContactSubmission, int, error) {
 	if s.repo == nil {
-		return nil, 0, fmt.Errorf("contact repository unavailable")
+		return nil, 0, errors.New("contact repository unavailable")
 	}
 	return s.repo.List(ctx, limit, offset, search)
 }
 
 func (s *contactService) DeleteSubmission(ctx context.Context, id uuid.UUID) error {
 	if s.repo == nil {
-		return fmt.Errorf("contact repository unavailable")
+		return errors.New("contact repository unavailable")
 	}
 	return s.repo.Delete(ctx, id)
 }
