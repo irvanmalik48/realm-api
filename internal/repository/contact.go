@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -63,7 +64,7 @@ func (r *contactRepository) List(ctx context.Context, limit, offset int, search 
 		argIdx++
 	}
 
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM contact_submissions %s", whereClause)
+	countQuery := "SELECT COUNT(*) FROM contact_submissions " + whereClause
 	var total int
 	if err := r.db.Pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("failed to count submissions: %w", err)
@@ -106,7 +107,7 @@ func (r *contactRepository) Delete(ctx context.Context, id uuid.UUID) error {
 		return fmt.Errorf("failed to delete submission: %w", err)
 	}
 	if cmdTag.RowsAffected() == 0 {
-		return fmt.Errorf("submission not found")
+		return errors.New("submission not found")
 	}
 	return nil
 }
