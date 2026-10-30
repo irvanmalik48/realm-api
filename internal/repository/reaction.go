@@ -184,18 +184,24 @@ func (r *reactionRepository) GetSummaries(ctx context.Context, limit, offset int
 	orderedSlugs := make([]string, 0)
 
 	for rows.Next() {
-		var slug, rType string
-		var count int
-		if err := rows.Scan(&slug, &rType, &count); err == nil {
-			if _, exists := summaryMap[slug]; !exists {
-				summaryMap[slug] = make(map[string]int)
-				for k := range model.AllowedReactionTypes {
-					summaryMap[slug][k] = 0
-				}
-				orderedSlugs = append(orderedSlugs, slug)
-			}
-			summaryMap[slug][rType] = count
+		slug := ""
+		rType := ""
+		count := 0
+		if err := rows.Scan(&slug, &rType, &count); err != nil {
+			return nil, fmt.Errorf("failed to scan reaction summary: %w", err)
 		}
+		if _, exists := summaryMap[slug]; !exists {
+			summaryMap[slug] = make(map[string]int)
+			for k := range model.AllowedReactionTypes {
+				summaryMap[slug][k] = 0
+			}
+			orderedSlugs = append(orderedSlugs, slug)
+		}
+		summaryMap[slug][rType] = count
+	}
+
+	if len(orderedSlugs) == 0 {
+		return []model.ReactionSummaryDTO{}, nil
 	}
 
 	// Apply pagination in memory over unique slugs
