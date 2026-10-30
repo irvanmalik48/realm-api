@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -208,7 +209,7 @@ func (r *commentRepository) DeleteComment(ctx context.Context, commentID, userID
 		return fmt.Errorf("failed to delete comment: %w", err)
 	}
 	if res.RowsAffected() == 0 {
-		return fmt.Errorf("comment not found or unauthorized")
+		return errors.New("comment not found or unauthorized")
 	}
 	return nil
 }
@@ -321,7 +322,7 @@ func (r *commentRepository) AdminDelete(ctx context.Context, commentID uuid.UUID
 		return fmt.Errorf("failed to delete comment: %w", err)
 	}
 	if cmdTag.RowsAffected() == 0 {
-		return fmt.Errorf("comment not found")
+		return errors.New("comment not found")
 	}
 	return nil
 }
