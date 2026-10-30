@@ -115,14 +115,15 @@ func OpenTelemetryTracing() fiber.Handler {
 		statusCode := c.Response().StatusCode()
 		span.SetAttributes(semconv.HTTPResponseStatusCode(statusCode))
 
-		if err != nil {
+		switch {
+		case err != nil:
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
-		} else if statusCode >= 400 && statusCode < 600 {
+		case statusCode >= 400 && statusCode < 600:
 			if statusCode >= 500 {
 				span.SetStatus(codes.Error, fmt.Sprintf("HTTP Error %d", statusCode))
 			}
-		} else {
+		default:
 			span.SetStatus(codes.Ok, "")
 		}
 
