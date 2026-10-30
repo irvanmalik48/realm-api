@@ -226,7 +226,7 @@ func (h *AuthHandler) GoogleCallback(c *fiber.Ctx) error {
 			if linkErr := h.authSvc.LinkOAuthAccount(c.Context(), linkUserID, userInfo); linkErr != nil {
 				return c.Redirect(fmt.Sprintf("%s/settings?error=%s", frontendURL, url.QueryEscape(linkErr.Error())), http.StatusTemporaryRedirect)
 			}
-			return c.Redirect(fmt.Sprintf("%s/settings?linked=google", frontendURL), http.StatusTemporaryRedirect)
+			return c.Redirect(frontendURL+"/settings?linked=google", http.StatusTemporaryRedirect)
 		}
 	}
 
@@ -333,7 +333,7 @@ func (h *AuthHandler) GitHubCallback(c *fiber.Ctx) error {
 			if linkErr := h.authSvc.LinkOAuthAccount(c.Context(), linkUserID, userInfo); linkErr != nil {
 				return c.Redirect(fmt.Sprintf("%s/settings?error=%s", frontendURL, url.QueryEscape(linkErr.Error())), http.StatusTemporaryRedirect)
 			}
-			return c.Redirect(fmt.Sprintf("%s/settings?linked=github", frontendURL), http.StatusTemporaryRedirect)
+			return c.Redirect(frontendURL+"/settings?linked=github", http.StatusTemporaryRedirect)
 		}
 	}
 
@@ -406,7 +406,7 @@ func (h *AuthHandler) UnlinkOAuth(c *fiber.Ctx) error {
 
 	return c.Status(http.StatusOK).JSON(fiber.Map{
 		"status":  "success",
-		"message": fmt.Sprintf("%s account unlinked successfully", provider),
+		"message": provider + " account unlinked successfully",
 	})
 }
 
