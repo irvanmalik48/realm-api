@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -58,7 +59,7 @@ func (db *DB) Close() {
 
 func (db *DB) Ping(ctx context.Context) error {
 	if db.Pool == nil {
-		return fmt.Errorf("database pool is nil")
+		return errors.New("database pool is nil")
 	}
 	return db.Pool.Ping(ctx)
 }
