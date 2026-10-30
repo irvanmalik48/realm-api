@@ -162,7 +162,7 @@ func (r *adminRepository) UpdatePermissions(ctx context.Context, adminID uuid.UU
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("admin not found or is superadmin")
+			return nil, errors.New("admin not found or is superadmin")
 		}
 		return nil, fmt.Errorf("failed to update admin permissions: %w", err)
 	}
@@ -182,7 +182,7 @@ func (r *adminRepository) RemoveAdmin(ctx context.Context, adminID uuid.UUID) er
 		return fmt.Errorf("failed to delete admin: %w", err)
 	}
 	if cmdTag.RowsAffected() == 0 {
-		return fmt.Errorf("admin not found or is superadmin")
+		return errors.New("admin not found or is superadmin")
 	}
 	return nil
 }
