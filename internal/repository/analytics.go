@@ -101,7 +101,6 @@ func (r *AnalyticsRepository) GetAnalyticsStats(ctx context.Context, period stri
 	if filterSite != "" && filterSite != "all" {
 		whereParts = append(whereParts, fmt.Sprintf("site = $%d", argIdx))
 		args = append(args, filterSite)
-		argIdx++
 	}
 
 	whereClause := ""
@@ -189,7 +188,6 @@ func (r *AnalyticsRepository) GetAnalyticsStats(ctx context.Context, period stri
 	if filterSite != "" && filterSite != "all" {
 		postsWhere = append(postsWhere, fmt.Sprintf("pv.site = $%d", pIdx))
 		postArgs = append(postArgs, filterSite)
-		pIdx++
 	}
 	postsWhereClause := "WHERE " + strings.Join(postsWhere, " AND ")
 
