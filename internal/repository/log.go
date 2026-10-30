@@ -78,7 +78,7 @@ func (r *logRepository) GetLogs(ctx context.Context, limit, offset int, level, s
 		argIdx++
 	}
 
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM system_logs %s", whereClause)
+	countQuery := "SELECT COUNT(*) FROM system_logs " + whereClause
 	var total int
 	if err := r.db.Pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("failed to count logs: %w", err)
@@ -100,7 +100,7 @@ func (r *logRepository) GetLogs(ctx context.Context, limit, offset int, level, s
 	}
 	defer rows.Close()
 
-	var logs []model.SystemLog
+	logs := make([]model.SystemLog, 0)
 	for rows.Next() {
 		var l model.SystemLog
 		if err := rows.Scan(
