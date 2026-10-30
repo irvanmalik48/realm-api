@@ -63,7 +63,7 @@ func (r *postRepository) ListPosts(ctx context.Context, isPublishedOnly *bool, t
 	}
 
 	// Count query
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM posts %s", whereClause)
+	countQuery := "SELECT COUNT(*) FROM posts " + whereClause
 	var total int
 	err := r.db.Pool.QueryRow(ctx, countQuery, args...).Scan(&total)
 	if err != nil {
