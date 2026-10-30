@@ -22,6 +22,13 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		slog.Error("Fatal server error", "error", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	cfg := config.Load()
 
 	// Initialize structured logging with OpenTelemetry trace correlation
@@ -82,15 +89,13 @@ func main() {
 	if cfg.StorageBackend == "s3" {
 		storageEngine, storageErr = storage.NewS3Engine(cfg)
 		if storageErr != nil {
-			slog.Error("Failed to initialize S3 storage engine", "error", storageErr)
-			os.Exit(1)
+			return fmt.Errorf("failed to initialize S3 storage engine: %w", storageErr)
 		}
 		slog.Info("Using S3 storage engine", "bucket", cfg.S3Bucket, "endpoint", cfg.S3Endpoint)
 	} else {
 		storageEngine, storageErr = storage.NewZstdEngine(cfg.StorageDir)
 		if storageErr != nil {
-			slog.Error("Failed to initialize local storage engine", "error", storageErr)
-			os.Exit(1)
+			return fmt.Errorf("failed to initialize local storage engine: %w", storageErr)
 		}
 		slog.Info("Using local Zstd storage engine", "dir", cfg.StorageDir)
 	}
@@ -108,7 +113,7 @@ func main() {
 		TokenLimiter:  tokenLimiter,
 		StorageEngine: storageEngine,
 	})
-	grpcAddr := fmt.Sprintf(":%s", cfg.GRPCPort)
+	grpcAddr := ":" + cfg.GRPCPort
 
 	listenConfig := &net.ListenConfig{
 		Control: func(network, address string, c syscall.RawConn) error {
@@ -125,8 +130,7 @@ func main() {
 
 	grpcListener, err := listenConfig.Listen(ctx, "tcp", grpcAddr)
 	if err != nil {
-		slog.Error("Failed to listen on gRPC port", "port", cfg.GRPCPort, "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to listen on gRPC port %s: %w", cfg.GRPCPort, err)
 	}
 
 	go func() {
@@ -142,7 +146,7 @@ func main() {
 		TokenLimiter:  tokenLimiter,
 		StorageEngine: storageEngine,
 	})
-	httpAddr := fmt.Sprintf(":%s", cfg.Port)
+	httpAddr := ":" + cfg.Port
 
 	// Channel for idle connections / graceful shutdown
 	idleConnsClosed := make(chan struct{})
@@ -172,5 +176,6 @@ func main() {
 
 	<-idleConnsClosed
 	slog.Info("Servers stopped cleanly")
+	return nil
 }
 
