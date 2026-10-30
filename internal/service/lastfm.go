@@ -157,7 +157,7 @@ func (s *lastFMService) GetUserInfo(ctx context.Context, username string) (*mode
 		return nil, ErrMissingAPIKey
 	}
 
-	cacheKey := fmt.Sprintf("user:%s", username)
+	cacheKey := "user:" + username
 	s.cacheMu.RLock()
 	item, ok := s.cache[cacheKey]
 	if ok && time.Now().Before(item.expiresAt) {
