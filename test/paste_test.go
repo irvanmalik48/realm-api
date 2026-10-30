@@ -12,8 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/irvanmalik48/realm-api/internal/config"
+	"github.com/irvanmalik48/realm-api/internal/handler"
 	"github.com/irvanmalik48/realm-api/internal/model"
 	"github.com/irvanmalik48/realm-api/internal/repository"
 	"github.com/irvanmalik48/realm-api/internal/router"
@@ -58,6 +60,9 @@ func (m *mockPasteRepository) GetPasteBySlug(ctx context.Context, slug string) (
 		return nil, repository.ErrPasteExpired
 	}
 	ret := *p
+	if p.BurnAfterRead {
+		delete(m.pastes, slug)
+	}
 	return &ret, nil
 }
 
@@ -74,20 +79,24 @@ func (m *mockPasteRepository) ListPastes(ctx context.Context, search, syntax str
 		if p.ExpiresAt != nil && p.ExpiresAt.Before(time.Now()) {
 			continue
 		}
+		if p.BurnAfterRead {
+			continue
+		}
 		if isPublicOnly != nil && *isPublicOnly && !p.IsPublic {
 			continue
 		}
 		list = append(list, model.PasteSummaryDTO{
-			ID:          p.ID,
-			Slug:        p.Slug,
-			Title:       p.Title,
-			Syntax:      p.Syntax,
-			UserID:      p.UserID,
-			IsPublic:    p.IsPublic,
-			IsEncrypted: p.IsEncrypted,
-			Views:       p.Views,
-			Size:        len(p.Content),
-			ExpiresAt:   p.ExpiresAt,
+			ID:            p.ID,
+			Slug:          p.Slug,
+			Title:         p.Title,
+			Syntax:        p.Syntax,
+			UserID:        p.UserID,
+			IsPublic:      p.IsPublic,
+			IsEncrypted:   p.IsEncrypted,
+			BurnAfterRead: p.BurnAfterRead,
+			Views:         p.Views,
+			Size:          len(p.Content),
+			ExpiresAt:     p.ExpiresAt,
 			CreatedAt:   p.CreatedAt,
 			UpdatedAt:   p.UpdatedAt,
 		})
@@ -313,5 +322,96 @@ func TestPasteEndpoints_Validation(t *testing.T) {
 	}
 	if errResp["status"] != "error" {
 		t.Errorf("expected status 'error', got %v", errResp["status"])
+	}
+}
+
+func TestPasteService_BurnAfterRead(t *testing.T) {
+	repo := newMockPasteRepository()
+	svc := service.NewPasteService(repo)
+	ctx := context.Background()
+
+	// Create a paste with TTL "burn"
+	created, err := svc.CreatePaste(ctx, &model.CreatePasteRequest{
+		Content: "Confidential credentials",
+		TTL:     "burn",
+	}, nil)
+	if err != nil {
+		t.Fatalf("failed to create burn paste: %v", err)
+	}
+	if !created.BurnAfterRead {
+		t.Errorf("expected BurnAfterRead to be true, got %v", created.BurnAfterRead)
+	}
+
+	// First fetch must succeed
+	p, err := svc.GetPasteBySlug(ctx, created.Slug, "")
+	if err != nil {
+		t.Fatalf("first fetch failed: %v", err)
+	}
+	if p.Content != "Confidential credentials" {
+		t.Errorf("unexpected content: %s", p.Content)
+	}
+
+	// Second fetch must fail because paste was burned
+	_, err = svc.GetPasteBySlug(ctx, created.Slug, "")
+	if err == nil {
+		t.Fatal("expected second fetch to fail with ErrPasteNotFound, but it succeeded")
+	}
+	if !strings.Contains(err.Error(), "paste not found") {
+		t.Errorf("expected paste not found error, got: %v", err)
+	}
+}
+
+func TestPasteHandler_CLICurl(t *testing.T) {
+	repo := newMockPasteRepository()
+	svc := service.NewPasteService(repo)
+	cfg := &config.Config{
+		Environment: "test",
+		FrontendURL: "https://paste.realm.dev",
+	}
+
+	app := fiber.New()
+	pasteHdlr := handler.NewPasteHandler(cfg, svc)
+	app.Post("/test/pastes", pasteHdlr.CreatePaste)
+	app.Get("/test/pastes/:slug", pasteHdlr.GetPaste)
+
+	// Simulate curl POST with raw plain text
+	body := bytes.NewBufferString("package main\n\nfunc main() {}\n")
+	req := httptest.NewRequest(http.MethodPost, "/test/pastes", body)
+	req.Header.Set("User-Agent", "curl/8.5.0")
+	req.Header.Set("Content-Type", "text/plain")
+
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("curl post error: %v", err)
+	}
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201 Created for curl, got %d", resp.StatusCode)
+	}
+
+	respBody, _ := io.ReadAll(resp.Body)
+	respStr := string(respBody)
+	if !strings.HasPrefix(respStr, "https://paste.realm.dev/") {
+		t.Fatalf("expected response starting with frontend URL, got: %s", respStr)
+	}
+	if !strings.HasSuffix(respStr, "\n") {
+		t.Fatalf("expected response to end with trailing newline for terminal friendly display, got: %q", respStr)
+	}
+
+	slug := strings.TrimSpace(strings.TrimPrefix(respStr, "https://paste.realm.dev/"))
+
+	// Simulate curl GET for raw paste
+	getReq := httptest.NewRequest(http.MethodGet, "/test/pastes/"+slug, nil)
+	getReq.Header.Set("User-Agent", "curl/8.5.0")
+	getResp, err := app.Test(getReq, -1)
+	if err != nil {
+		t.Fatalf("curl get error: %v", err)
+	}
+	if getResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK for curl get, got %d", getResp.StatusCode)
+	}
+
+	rawBody, _ := io.ReadAll(getResp.Body)
+	if string(rawBody) != "package main\n\nfunc main() {}\n" {
+		t.Fatalf("unexpected content returned to curl: %q", string(rawBody))
 	}
 }
