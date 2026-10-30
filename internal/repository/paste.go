@@ -167,7 +167,7 @@ func (r *pasteRepository) ListPastes(ctx context.Context, search, syntax string,
 
 	whereClause := "WHERE " + strings.Join(conditions, " AND ")
 
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM pastes %s", whereClause)
+	countQuery := "SELECT COUNT(*) FROM pastes " + whereClause
 	var total int
 	if err := r.db.Pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, fmt.Errorf("failed to count pastes: %w", err)
