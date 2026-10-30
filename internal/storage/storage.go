@@ -60,11 +60,11 @@ func NewZstdEngine(storageDir string) (Engine, error) {
 }
 
 func (e *zstdEngine) FilePath(id uuid.UUID) string {
-	return filepath.Join(e.storageDir, fmt.Sprintf("%s.zst", id.String()))
+	return filepath.Join(e.storageDir, id.String()+".zst")
 }
 
 func (e *zstdEngine) webpFilePath(id uuid.UUID) string {
-	return filepath.Join(e.storageDir, fmt.Sprintf("%s.webp.zst", id.String()))
+	return filepath.Join(e.storageDir, id.String()+".webp.zst")
 }
 
 func (e *zstdEngine) Save(reader io.Reader, id uuid.UUID) (int64, int64, string, error) {
