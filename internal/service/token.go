@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/google/uuid"
 	"github.com/irvanmalik48/realm-api/internal/auth"
@@ -48,8 +49,10 @@ func NewTokenService(repo repository.TokenRepository, cache *auth.TokenCache, li
 }
 
 func (s *tokenService) HashToken(rawToken string) string {
-	sum := sha256.Sum256([]byte(rawToken))
-	return hex.EncodeToString(sum[:])
+	sum := sha256.Sum256(unsafe.Slice(unsafe.StringData(rawToken), len(rawToken))) // #nosec G103
+	var dst [sha256.Size * 2]byte
+	hex.Encode(dst[:], sum[:])
+	return string(dst[:])
 }
 
 func (s *tokenService) Create(ctx context.Context, input model.TokenCreateInput) (*model.TokenCreateResult, error) {
