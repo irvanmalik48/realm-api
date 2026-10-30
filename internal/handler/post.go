@@ -52,10 +52,7 @@ func (h *PostHandler) GetPost(c *fiber.Ctx) error {
 	}
 
 	// If query param include_drafts is true and user is authenticated admin, allow drafts
-	isPublishedOnly := true
-	if c.Query("include_drafts") == "true" {
-		isPublishedOnly = false
-	}
+	isPublishedOnly := c.Query("include_drafts") != "true"
 
 	post, err := h.svc.GetPostBySlug(c.Context(), slug, isPublishedOnly)
 	if err != nil {
