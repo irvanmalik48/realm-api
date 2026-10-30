@@ -71,11 +71,12 @@ func (s *DBLogSink) Handle(ctx context.Context, r slog.Record) error {
 	attrs := make(map[string]interface{})
 
 	r.Attrs(func(a slog.Attr) bool {
-		if a.Key == "trace_id" {
+		switch a.Key {
+		case "trace_id":
 			traceID = a.Value.String()
-		} else if a.Key == "span_id" {
+		case "span_id":
 			spanID = a.Value.String()
-		} else {
+		default:
 			attrs[a.Key] = a.Value.Any()
 		}
 		return true
