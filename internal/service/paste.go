@@ -109,14 +109,22 @@ func (s *pasteService) CreatePaste(ctx context.Context, req *model.CreatePasteRe
 		isEncrypted = true
 	}
 
+	burnAfterRead := false
+	if req.BurnAfterRead != nil && *req.BurnAfterRead {
+		burnAfterRead = true
+	} else if strings.EqualFold(strings.TrimSpace(req.TTL), "burn") {
+		burnAfterRead = true
+	}
+
 	paste := &model.Paste{
-		Title:       title,
-		Content:     storedContent,
-		Syntax:      syntax,
-		UserID:      userID,
-		IsPublic:    isPublic,
-		IsEncrypted: isEncrypted,
-		ExpiresAt:   expiresAt,
+		Title:         title,
+		Content:       storedContent,
+		Syntax:        syntax,
+		UserID:        userID,
+		IsPublic:      isPublic,
+		IsEncrypted:   isEncrypted,
+		BurnAfterRead: burnAfterRead,
+		ExpiresAt:     expiresAt,
 	}
 
 	created, err := s.repo.CreatePaste(ctx, paste)
