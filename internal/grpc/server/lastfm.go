@@ -28,7 +28,7 @@ func NewLastFMServer(cfg *config.Config, lastFMSvc service.LastFMService) *LastF
 }
 
 func mapTrackImages(imgs []model.Image) []*realmv1.LastFMImage {
-	var res []*realmv1.LastFMImage
+	res := make([]*realmv1.LastFMImage, 0, len(imgs))
 	for _, img := range imgs {
 		res = append(res, &realmv1.LastFMImage{
 			Size: img.Size,
