@@ -123,12 +123,13 @@ func (h *StorageHandler) GetFile(c *fiber.Ctx) error {
 
 	if requestWebP {
 		rec, rdr, err := h.service.GetAsWebP(c.Context(), fileID)
-		if err == nil {
+		switch {
+		case err == nil:
 			record = rec
 			stream = rdr
-		} else if errors.Is(err, repository.ErrRecordNotFound) || errors.Is(err, storage.ErrFileNotFound) {
+		case errors.Is(err, repository.ErrRecordNotFound) || errors.Is(err, storage.ErrFileNotFound):
 			return ErrorResponse(c, "File not found", http.StatusNotFound)
-		} else if !errors.Is(err, service.ErrUnsupportedFormat) {
+		case !errors.Is(err, service.ErrUnsupportedFormat):
 			return ErrorResponse(c, fmt.Sprintf("Failed to convert image: %v", err), http.StatusInternalServerError)
 		}
 	}
