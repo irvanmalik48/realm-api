@@ -1,14 +1,19 @@
 package handler
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"runtime"
+	"runtime/metrics"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/irvanmalik48/realm-api/internal/database"
 	"github.com/irvanmalik48/realm-api/internal/telemetry"
+	"github.com/valyala/fasthttp"
 )
 
 var startTime = time.Now()
@@ -85,15 +90,15 @@ func (h *HealthHandler) Handle(c *fiber.Ctx) error {
 	})
 }
 
-func (h *HealthHandler) Telemetry(c *fiber.Ctx) error {
+func (h *HealthHandler) collectTelemetry(ctx context.Context) DetailedTelemetryResponse {
 	dbStatus := "connected"
 	overallStatus := "healthy"
 
 	var poolStats DBPoolStats
 	if h.db != nil && h.db.Pool != nil {
-		ctx, cancel := context.WithTimeout(c.Context(), 2*time.Second)
+		pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
-		if err := h.db.Pool.Ping(ctx); err != nil {
+		if err := h.db.Pool.Ping(pingCtx); err != nil {
 			dbStatus = "disconnected"
 			overallStatus = "degraded"
 		}
@@ -108,12 +113,14 @@ func (h *HealthHandler) Telemetry(c *fiber.Ctx) error {
 		dbStatus = "not_configured"
 	}
 
-	var mem runtime.MemStats
-	runtime.ReadMemStats(&mem)
+	samples := []metrics.Sample{
+		{Name: "/memory/classes/heap/objects:bytes"},
+		{Name: "/memory/classes/total:bytes"},
+		{Name: "/gc/cycles/total:gc-cycles"},
+	}
+	metrics.Read(samples)
 
-	c.Set("Cache-Control", "no-cache, no-store, must-revalidate")
-
-	return c.Status(http.StatusOK).JSON(DetailedTelemetryResponse{
+	return DetailedTelemetryResponse{
 		Status:        overallStatus,
 		Service:       "realm-api",
 		Version:       "1.0.0",
@@ -123,11 +130,56 @@ func (h *HealthHandler) Telemetry(c *fiber.Ctx) error {
 		DBPool:        poolStats,
 		Runtime: RuntimeStats{
 			Goroutines:      int32(runtime.NumGoroutine()),
-			AllocBytes:      mem.Alloc,
-			TotalAllocBytes: mem.TotalAlloc,
-			SysBytes:        mem.Sys,
-			GCCycles:        mem.NumGC,
+			AllocBytes:      samples[0].Value.Uint64(),
+			TotalAllocBytes: samples[1].Value.Uint64(),
+			SysBytes:        samples[1].Value.Uint64(),
+			GCCycles:        uint32(samples[2].Value.Uint64()),
 		},
 		CPU: telemetry.DefaultCPUMonitor().GetStats(),
-	})
+	}
+}
+
+func (h *HealthHandler) Telemetry(c *fiber.Ctx) error {
+	data := h.collectTelemetry(c.Context())
+	c.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	return c.Status(http.StatusOK).JSON(data)
+}
+
+func (h *HealthHandler) Stream(c *fiber.Ctx) error {
+	c.Set("Content-Type", "text/event-stream")
+	c.Set("Cache-Control", "no-cache, no-transform")
+	c.Set("Connection", "keep-alive")
+	c.Set("X-Accel-Buffering", "no")
+
+	c.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
+		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
+
+		// Send initial telemetry payload immediately
+		initial := h.collectTelemetry(context.Background())
+		if data, err := json.Marshal(initial); err == nil {
+			if _, err := fmt.Fprintf(w, "event: telemetry\ndata: %s\n\n", data); err != nil {
+				return
+			}
+			if err := w.Flush(); err != nil {
+				return
+			}
+		}
+
+		for range ticker.C {
+			current := h.collectTelemetry(context.Background())
+			data, err := json.Marshal(current)
+			if err != nil {
+				return
+			}
+			if _, err := fmt.Fprintf(w, "event: telemetry\ndata: %s\n\n", data); err != nil {
+				return
+			}
+			if err := w.Flush(); err != nil {
+				return
+			}
+		}
+	}))
+
+	return nil
 }
