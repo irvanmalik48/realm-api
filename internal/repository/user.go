@@ -478,9 +478,9 @@ func (r *userRepository) ConsumeRecoveryCode(ctx context.Context, userID uuid.UU
 		return false, nil
 	}
 
-	updatedCodes := append(user.TwoFactorRecoveryCodes[:foundIndex], user.TwoFactorRecoveryCodes[foundIndex+1:]...)
+	user.TwoFactorRecoveryCodes = append(user.TwoFactorRecoveryCodes[:foundIndex], user.TwoFactorRecoveryCodes[foundIndex+1:]...)
 	query := `UPDATE users SET two_factor_recovery_codes = $1, updated_at = NOW() WHERE id = $2`
-	_, err = r.db.Pool.Exec(ctx, query, updatedCodes, userID)
+	_, err = r.db.Pool.Exec(ctx, query, user.TwoFactorRecoveryCodes, userID)
 	if err != nil {
 		return false, err
 	}
@@ -518,7 +518,7 @@ func (r *userRepository) ListUsers(ctx context.Context, search, provider string,
 	whereSQL := strings.Join(whereClauses, " AND ")
 
 	var total int
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM users WHERE %s", whereSQL)
+	countQuery := "SELECT COUNT(*) FROM users WHERE " + whereSQL
 	if err := r.db.Pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("failed to count users: %w", err)
 	}
