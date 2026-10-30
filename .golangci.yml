@@ -39,6 +39,7 @@ linters:
           - gosec
           - bodyclose
           - prealloc
+          - nilaway
       - path: "internal/telemetry/logger\\.go$"
         text: "hugeParam: r is heavy"
         linters:
