@@ -39,6 +39,11 @@ var (
 // Precomputed valid bcrypt hash used to prevent timing attacks when a user is not found
 var dummyBcryptHash = []byte("$2a$10$wN9P321dKqM3gR13c8p2OeR5K3UqK9uRkR7c5c2Hqf7oW3h7aF3Ce")
 
+var (
+	boolTrue  = true
+	boolFalse = false
+)
+
 var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]{3,30}$`)
 
 type AuthService interface {
@@ -299,7 +304,7 @@ func (s *authService) HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserI
 	now := time.Now().UTC()
 	cleanUsername := strings.ToLower(strings.TrimSpace(userInfo.Username))
 	if !usernameRegex.MatchString(cleanUsername) {
-		cleanUsername = fmt.Sprintf("user_%s", uuid.New().String()[:8])
+		cleanUsername = "user_" + uuid.New().String()[:8]
 	}
 
 	// Ensure username uniqueness
@@ -313,7 +318,7 @@ func (s *authService) HandleOAuthLogin(ctx context.Context, userInfo *OAuthUserI
 		cleanUsername = fmt.Sprintf("%s_%d", originalUsername[:min(len(originalUsername), 20)], counter)
 		counter++
 		if counter > 50 {
-			cleanUsername = fmt.Sprintf("user_%s", uuid.New().String()[:8])
+			cleanUsername = "user_" + uuid.New().String()[:8]
 			break
 		}
 	}
@@ -500,25 +505,22 @@ func (s *authService) CheckAvailability(ctx context.Context, username, email str
 	resp := &model.CheckAvailabilityResponse{}
 
 	if s.userRepo == nil {
-		avail := true
 		if username != "" {
 			trimmedUsername := strings.TrimSpace(username)
 			if !usernameRegex.MatchString(trimmedUsername) {
-				avail = false
-				resp.UsernameAvailable = &avail
+				resp.UsernameAvailable = &boolFalse
 				resp.UsernameReason = "Username must be 3-30 characters (alphanumeric and underscores only)"
 			} else {
-				resp.UsernameAvailable = &avail
+				resp.UsernameAvailable = &boolTrue
 			}
 		}
 		if email != "" {
 			trimmedEmail := strings.TrimSpace(email)
 			if _, err := mail.ParseAddress(trimmedEmail); err != nil || !strings.Contains(trimmedEmail, "@") {
-				avail = false
-				resp.EmailAvailable = &avail
+				resp.EmailAvailable = &boolFalse
 				resp.EmailReason = "Invalid email format"
 			} else {
-				resp.EmailAvailable = &avail
+				resp.EmailAvailable = &boolTrue
 			}
 		}
 		return resp, nil
@@ -527,19 +529,17 @@ func (s *authService) CheckAvailability(ctx context.Context, username, email str
 	if username != "" {
 		trimmedUsername := strings.TrimSpace(username)
 		if !usernameRegex.MatchString(trimmedUsername) {
-			avail := false
-			resp.UsernameAvailable = &avail
+			resp.UsernameAvailable = &boolFalse
 			resp.UsernameReason = "Username must be 3-30 characters (alphanumeric and underscores only)"
 		} else {
 			_, err := s.userRepo.GetByUsername(ctx, trimmedUsername)
-			if errors.Is(err, repository.ErrUserNotFound) {
-				avail := true
-				resp.UsernameAvailable = &avail
-			} else if err == nil {
-				avail := false
-				resp.UsernameAvailable = &avail
+			switch {
+			case errors.Is(err, repository.ErrUserNotFound):
+				resp.UsernameAvailable = &boolTrue
+			case err == nil:
+				resp.UsernameAvailable = &boolFalse
 				resp.UsernameReason = "Username is already taken"
-			} else {
+			default:
 				return nil, err
 			}
 		}
@@ -548,19 +548,17 @@ func (s *authService) CheckAvailability(ctx context.Context, username, email str
 	if email != "" {
 		trimmedEmail := strings.TrimSpace(email)
 		if _, err := mail.ParseAddress(trimmedEmail); err != nil || !strings.Contains(trimmedEmail, "@") {
-			avail := false
-			resp.EmailAvailable = &avail
+			resp.EmailAvailable = &boolFalse
 			resp.EmailReason = "Invalid email format"
 		} else {
 			_, err := s.userRepo.GetByEmail(ctx, trimmedEmail)
-			if errors.Is(err, repository.ErrUserNotFound) {
-				avail := true
-				resp.EmailAvailable = &avail
-			} else if err == nil {
-				avail := false
-				resp.EmailAvailable = &avail
+			switch {
+			case errors.Is(err, repository.ErrUserNotFound):
+				resp.EmailAvailable = &boolTrue
+			case err == nil:
+				resp.EmailAvailable = &boolFalse
 				resp.EmailReason = "Email is already registered"
-			} else {
+			default:
 				return nil, err
 			}
 		}
@@ -733,12 +731,7 @@ func (s *authService) Verify2FA(ctx context.Context, tempToken, code string) (*m
 	}
 
 	trimmedCode := strings.TrimSpace(code)
-	valid := false
-
-	// 1. Try TOTP code validation
-	if len(trimmedCode) == 6 && totp.Validate(trimmedCode, *user.TwoFactorSecret) {
-		valid = true
-	}
+	valid := len(trimmedCode) == 6 && totp.Validate(trimmedCode, *user.TwoFactorSecret)
 
 	// 2. Try recovery code validation
 	if !valid {
