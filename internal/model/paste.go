@@ -20,6 +20,7 @@ type Paste struct {
 	ID          uuid.UUID  `json:"id"`
 	IsPublic    bool       `json:"is_public"`
 	IsEncrypted bool       `json:"is_encrypted"`
+	BurnAfterRead bool     `json:"burn_after_read"`
 }
 
 // PasteSummaryDTO represents a lightweight representation of a paste for listing
@@ -36,17 +37,19 @@ type PasteSummaryDTO struct {
 	ID          uuid.UUID  `json:"id"`
 	IsPublic    bool       `json:"is_public"`
 	IsEncrypted bool       `json:"is_encrypted"`
+	BurnAfterRead bool     `json:"burn_after_read"`
 }
 
 // CreatePasteRequest is the payload to create a new paste
 type CreatePasteRequest struct {
-	Title     string     `json:"title"`
-	Content   string     `json:"content"`
-	Syntax    string     `json:"syntax"`
-	Password  string     `json:"password,omitempty"`
-	IsPublic  *bool      `json:"is_public,omitempty"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
-	TTL       string     `json:"ttl,omitempty"` // e.g. "1h", "1d", "7d", "30d", "never"
+	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
+	IsPublic      *bool      `json:"is_public,omitempty"`
+	BurnAfterRead *bool      `json:"burn_after_read,omitempty"`
+	Title         string     `json:"title"`
+	Content       string     `json:"content"`
+	Syntax        string     `json:"syntax"`
+	Password      string     `json:"password,omitempty"`
+	TTL           string     `json:"ttl,omitempty"` // e.g. "burn", "10m", "1h", "1d", "7d", "30d", "never"
 }
 
 // PastesListResponse is the response structure for listing pastes
