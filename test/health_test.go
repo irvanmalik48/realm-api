@@ -7,9 +7,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/irvanmalik48/realm-api/internal/config"
 	"github.com/irvanmalik48/realm-api/internal/handler"
 	"github.com/irvanmalik48/realm-api/internal/router"
+	"github.com/valyala/fasthttp"
 )
 
 func TestHealthHandler(t *testing.T) {
@@ -80,5 +82,21 @@ func TestHealthHandler(t *testing.T) {
 	}
 	if respV1Tel.StatusCode != http.StatusOK {
 		t.Fatalf("expected status 200 OK for /v1/telemetry, got %d", respV1Tel.StatusCode)
+	}
+
+	// Test GET /health/stream SSE setup
+	healthHdlr := handler.NewHealthHandler(nil)
+	testApp := fiber.New()
+	fiberCtx := testApp.AcquireCtx(&fasthttp.RequestCtx{})
+	defer testApp.ReleaseCtx(fiberCtx)
+
+	if err := healthHdlr.Stream(fiberCtx); err != nil {
+		t.Fatalf("health stream returned error: %v", err)
+	}
+	if ct := string(fiberCtx.Response().Header.ContentType()); ct != "text/event-stream" {
+		t.Errorf("expected Content-Type text/event-stream, got %s", ct)
+	}
+	if cc := string(fiberCtx.Response().Header.Peek("Cache-Control")); cc != "no-cache, no-transform" {
+		t.Errorf("expected Cache-Control no-cache, no-transform, got %s", cc)
 	}
 }
