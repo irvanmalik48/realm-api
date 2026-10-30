@@ -161,6 +161,10 @@ func (s *StorageServer) GetFile(req *realmv1.GetFileRequest, stream realmv1.Stor
 		rdr = readCloser
 	}
 
+	if rdr == nil || record == nil {
+		return status.Error(codes.NotFound, "File reader unavailable")
+	}
+
 	buf := make([]byte, 64*1024) // 64KB chunk
 	for {
 		n, err := rdr.Read(buf)
