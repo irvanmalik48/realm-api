@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"runtime"
+	"runtime/metrics"
 	"strconv"
 	"strings"
 
@@ -313,12 +313,17 @@ func RegisterSystemMetrics(m metric.Meter, cpuMon *CPUMonitor) error {
 				))
 			}
 
-			var mem runtime.MemStats
-			runtime.ReadMemStats(&mem)
-			o.ObserveInt64(goroutines, int64(runtime.NumGoroutine()))
-			o.ObserveInt64(memAlloc, int64(mem.Alloc))
-			o.ObserveInt64(memSys, int64(mem.Sys))
-			o.ObserveInt64(gcCycles, int64(mem.NumGC))
+			samples := []metrics.Sample{
+				{Name: "/sched/goroutines:goroutines"},
+				{Name: "/memory/classes/heap/objects:bytes"},
+				{Name: "/memory/classes/total:bytes"},
+				{Name: "/gc/cycles/total:gc-cycles"},
+			}
+			metrics.Read(samples)
+			o.ObserveInt64(goroutines, int64(samples[0].Value.Uint64()))
+			o.ObserveInt64(memAlloc, int64(samples[1].Value.Uint64()))
+			o.ObserveInt64(memSys, int64(samples[2].Value.Uint64()))
+			o.ObserveInt64(gcCycles, int64(samples[3].Value.Uint64()))
 
 			return nil
 		},
