@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -33,7 +34,7 @@ type s3Engine struct {
 
 func NewS3Engine(cfg *config.Config) (S3Engine, error) {
 	if cfg.S3Bucket == "" {
-		return nil, fmt.Errorf("S3_BUCKET is required when using s3 storage backend")
+		return nil, errors.New("S3_BUCKET is required when using s3 storage backend")
 	}
 
 	opts := []func(*awsConfig.LoadOptions) error{
@@ -73,11 +74,11 @@ func (e *s3Engine) BucketName() string {
 }
 
 func (e *s3Engine) FilePath(id uuid.UUID) string {
-	return fmt.Sprintf("%s.zst", id.String())
+	return id.String() + ".zst"
 }
 
 func (e *s3Engine) webpKey(id uuid.UUID) string {
-	return fmt.Sprintf("%s.webp.zst", id.String())
+	return id.String() + ".webp.zst"
 }
 
 func (e *s3Engine) Save(reader io.Reader, id uuid.UUID) (int64, int64, string, error) {
