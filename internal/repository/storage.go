@@ -145,7 +145,7 @@ func (r *storageRepository) List(ctx context.Context, limit, offset int, search,
 	}
 
 	// Count query
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM files %s", whereClauses)
+	countQuery := "SELECT COUNT(*) FROM files " + whereClauses
 	var total int
 	err := r.db.Pool.QueryRow(ctx, countQuery, args...).Scan(&total)
 	if err != nil {
