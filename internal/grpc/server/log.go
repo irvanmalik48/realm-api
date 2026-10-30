@@ -121,7 +121,7 @@ func (s *LogServer) StreamLogs(req *realmv1.StreamLogsRequest, stream realmv1.Lo
 
 	// Initial fetch of recent 20 logs
 	initialLogs, _, err := s.logRepo.GetLogs(ctx, 20, 0, req.GetLevel(), req.GetSearch(), "")
-	if err == nil {
+	if err == nil && len(initialLogs) > 0 {
 		// Send initial in reverse (oldest first)
 		for i := len(initialLogs) - 1; i >= 0; i-- {
 			if err := stream.Send(mapLogEntryToProto(&initialLogs[i])); err != nil {
