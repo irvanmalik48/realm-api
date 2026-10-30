@@ -169,41 +169,44 @@ func parseUserAgent(ua string) (browser, os, deviceType string) {
 	low := strings.ToLower(ua)
 
 	// Device type
-	if strings.Contains(low, "ipad") || strings.Contains(low, "tablet") {
+	switch {
+	case strings.Contains(low, "ipad") || strings.Contains(low, "tablet"):
 		deviceType = "Tablet"
-	} else if strings.Contains(low, "mobi") || strings.Contains(low, "android") || strings.Contains(low, "iphone") {
+	case strings.Contains(low, "mobi") || strings.Contains(low, "android") || strings.Contains(low, "iphone"):
 		deviceType = "Mobile"
-	} else {
+	default:
 		deviceType = "Desktop"
 	}
 
 	// Operating System
-	if strings.Contains(low, "windows") {
+	switch {
+	case strings.Contains(low, "windows"):
 		os = "Windows"
-	} else if strings.Contains(low, "macintosh") || strings.Contains(low, "mac os") {
+	case strings.Contains(low, "macintosh") || strings.Contains(low, "mac os"):
 		os = "macOS"
-	} else if strings.Contains(low, "android") {
+	case strings.Contains(low, "android"):
 		os = "Android"
-	} else if strings.Contains(low, "iphone") || strings.Contains(low, "ipad") {
+	case strings.Contains(low, "iphone") || strings.Contains(low, "ipad"):
 		os = "iOS"
-	} else if strings.Contains(low, "linux") {
+	case strings.Contains(low, "linux"):
 		os = "Linux"
-	} else {
+	default:
 		os = "Other"
 	}
 
 	// Browser
-	if strings.Contains(low, "edg/") {
+	switch {
+	case strings.Contains(low, "edg/"):
 		browser = "Edge"
-	} else if strings.Contains(low, "opr/") || strings.Contains(low, "opera") {
+	case strings.Contains(low, "opr/") || strings.Contains(low, "opera"):
 		browser = "Opera"
-	} else if strings.Contains(low, "chrome") || strings.Contains(low, "crios") {
+	case strings.Contains(low, "chrome") || strings.Contains(low, "crios"):
 		browser = "Chrome"
-	} else if strings.Contains(low, "firefox") || strings.Contains(low, "fxios") {
+	case strings.Contains(low, "firefox") || strings.Contains(low, "fxios"):
 		browser = "Firefox"
-	} else if strings.Contains(low, "safari") && !strings.Contains(low, "chrome") {
+	case strings.Contains(low, "safari") && !strings.Contains(low, "chrome"):
 		browser = "Safari"
-	} else {
+	default:
 		browser = "Other"
 	}
 
