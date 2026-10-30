@@ -78,7 +78,7 @@ func (s *storageService) Upload(ctx context.Context, filename string, reader io.
 
 	// Reconstruct the full reader with size limit check
 	maxBytes := int64(s.cfg.MaxUploadSizeMB) * 1024 * 1024
-	var limitedReader io.Reader = io.MultiReader(bytes.NewReader(sniffBuffer[:n]), reader)
+	limitedReader := io.MultiReader(bytes.NewReader(sniffBuffer[:n]), reader)
 	if maxBytes > 0 {
 		limitedReader = io.LimitReader(limitedReader, maxBytes+1)
 	}
@@ -118,7 +118,7 @@ func (s *storageService) Upload(ctx context.Context, filename string, reader io.
 
 	sanitizedFilename := filepath.Base(filename)
 	if sanitizedFilename == "" || sanitizedFilename == "." {
-		sanitizedFilename = fmt.Sprintf("file-%s", fileID.String())
+		sanitizedFilename = "file-" + fileID.String()
 	}
 
 	backend := "local"
@@ -280,10 +280,10 @@ func (s *storageService) recordToDTO(record *model.FileRecord) *model.FileDTO {
 		}
 	}
 
-	fileURL := fmt.Sprintf("/v1/storage/%s", record.ID.String())
+	fileURL := "/v1/storage/" + record.ID.String()
 	var webpURL *string
 	if storage.IsImageMime(record.ContentType) {
-		wURL := fmt.Sprintf("/v1/storage/%s?format=webp", record.ID.String())
+		wURL := "/v1/storage/" + record.ID.String() + "?format=webp"
 		webpURL = &wURL
 	}
 
