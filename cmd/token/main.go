@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -20,9 +21,16 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	if len(os.Args) < 2 {
 		printUsage()
-		os.Exit(1)
+		return errors.New("subcommand required")
 	}
 
 	cfg := config.Load()
@@ -31,7 +39,7 @@ func main() {
 
 	db, err := database.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v\nMake sure DATABASE_URL is set in environment or .env file", err)
+		return fmt.Errorf("failed to connect to database: %w\nMake sure DATABASE_URL is set in environment or .env file", err)
 	}
 	defer db.Close()
 
@@ -53,8 +61,9 @@ func main() {
 	default:
 		fmt.Printf("Unknown command: %s\n\n", subcommand)
 		printUsage()
-		os.Exit(1)
+		return fmt.Errorf("unknown command: %s", subcommand)
 	}
+	return nil
 }
 
 func printUsage() {
