@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -134,7 +135,7 @@ func (m *CPUMonitor) initStaticInfo() {
 		"/sys/devices/system/cpu/cpufreq/policy0/scaling_min_freq",
 	}
 	for _, p := range minPaths {
-		if minBytes, err := os.ReadFile(p); err == nil {
+		if minBytes, err := os.ReadFile(p); err == nil { // #nosec G304
 			if val, parseErr := strconv.ParseFloat(strings.TrimSpace(string(minBytes)), 64); parseErr == nil && val > 0 {
 				m.minFreqMHz = val / 1000.0
 				break
@@ -150,7 +151,7 @@ func (m *CPUMonitor) initStaticInfo() {
 		"/sys/devices/system/cpu/cpu0/cpufreq/bios_limit",
 	}
 	for _, p := range maxPaths {
-		if maxBytes, err := os.ReadFile(p); err == nil {
+		if maxBytes, err := os.ReadFile(p); err == nil { // #nosec G304
 			if val, parseErr := strconv.ParseFloat(strings.TrimSpace(string(maxBytes)), 64); parseErr == nil && val > 0 {
 				m.maxFreqMHz = val / 1000.0
 				break
@@ -230,11 +231,12 @@ func (m *CPUMonitor) sample() {
 
 	// If dynamic frequencies not found, fallback to static bounds or model clock
 	if avgFreq <= 0 {
-		if m.maxFreqMHz > 0 {
+		switch {
+		case m.maxFreqMHz > 0:
 			avgFreq = m.maxFreqMHz
-		} else if m.baseFreqMHz > 0 {
+		case m.baseFreqMHz > 0:
 			avgFreq = m.baseFreqMHz
-		} else if m.minFreqMHz > 0 {
+		case m.minFreqMHz > 0:
 			avgFreq = m.minFreqMHz
 		}
 		if avgFreq > 0 {
@@ -313,7 +315,7 @@ func (m *CPUMonitor) readCgroupCPUUsage() (float64, error) {
 		}
 	}
 	if usec == 0 {
-		return 0, fmt.Errorf("usage_usec not found")
+		return 0, errors.New("usage_usec not found")
 	}
 
 	now := time.Now()
@@ -338,6 +340,9 @@ func (m *CPUMonitor) readCgroupCPUUsage() (float64, error) {
 
 // GetStats returns the latest measured CPU stats.
 func (m *CPUMonitor) GetStats() CPUStats {
+	if m == nil {
+		return CPUStats{}
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.stats
@@ -345,6 +350,9 @@ func (m *CPUMonitor) GetStats() CPUStats {
 
 // Stop terminates the background sampling loop.
 func (m *CPUMonitor) Stop() {
+	if m == nil {
+		return
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.stopped {
@@ -409,14 +417,16 @@ func readCPUFrequencies(coreCount int) ([]float64, float64) {
 
 	// 1. Try sysfs per-cpu or policy directories
 	for i := 0; i < coreCount; i++ {
+		cpuStr := "cpu" + strconv.Itoa(i)
+		policyStr := "policy" + strconv.Itoa(i)
 		paths := []string{
-			filepath.Join("/sys/devices/system/cpu", fmt.Sprintf("cpu%d", i), "cpufreq/scaling_cur_freq"),
-			filepath.Join("/sys/devices/system/cpu", fmt.Sprintf("cpu%d", i), "cpufreq/cpuinfo_cur_freq"),
-			filepath.Join("/sys/devices/system/cpu/cpufreq", fmt.Sprintf("policy%d", i), "scaling_cur_freq"),
-			filepath.Join("/sys/devices/system/cpu/cpufreq", fmt.Sprintf("policy%d", i), "cpuinfo_cur_freq"),
+			filepath.Join("/sys/devices/system/cpu", cpuStr, "cpufreq/scaling_cur_freq"),
+			filepath.Join("/sys/devices/system/cpu", cpuStr, "cpufreq/cpuinfo_cur_freq"),
+			filepath.Join("/sys/devices/system/cpu/cpufreq", policyStr, "scaling_cur_freq"),
+			filepath.Join("/sys/devices/system/cpu/cpufreq", policyStr, "cpuinfo_cur_freq"),
 		}
 		for _, p := range paths {
-			if data, err := os.ReadFile(p); err == nil {
+			if data, err := os.ReadFile(p); err == nil { // #nosec G304
 				if khz, parseErr := strconv.ParseFloat(strings.TrimSpace(string(data)), 64); parseErr == nil && khz > 0 {
 					mhz := khz / 1000.0
 					freqs[i] = mhz
