@@ -14,8 +14,11 @@ import (
 	"github.com/irvanmalik48/realm-api/internal/config"
 	"github.com/irvanmalik48/realm-api/internal/database"
 	internalGRPC "github.com/irvanmalik48/realm-api/internal/grpc"
+	"github.com/irvanmalik48/realm-api/internal/queue"
+	"github.com/irvanmalik48/realm-api/internal/repository"
 	"github.com/irvanmalik48/realm-api/internal/router"
 	"github.com/irvanmalik48/realm-api/internal/security"
+	"github.com/irvanmalik48/realm-api/internal/service"
 	"github.com/irvanmalik48/realm-api/internal/storage"
 	"github.com/irvanmalik48/realm-api/internal/telemetry"
 	"golang.org/x/sys/unix"
@@ -107,11 +110,33 @@ func run() error {
 		_ = security.ApplyLandlockSandbox(cfg.StorageDir)
 	}
 
+	// Initialize Background Job Queue (River with PostgreSQL)
+	var jobQueue queue.Queue
+	if db != nil && db.Pool != nil {
+		storageRepo := repository.NewStorageRepository(db)
+		initialStorageSvc := service.NewStorageService(cfg, storageRepo, storageEngine)
+
+		qCtx, qCancel := context.WithTimeout(context.Background(), 20*time.Second)
+		var qErr error
+		jobQueue, qErr = queue.New(qCtx, db.Pool, initialStorageSvc)
+		qCancel()
+		if qErr != nil {
+			slog.Warn("Failed to initialize background job queue", "error", qErr)
+		} else {
+			if err := jobQueue.Start(context.Background()); err != nil {
+				slog.Warn("Failed to start background job queue", "error", err)
+			} else {
+				slog.Info("River background job queue is active")
+			}
+		}
+	}
+
 	// 1. Initialize & Start gRPC Server with SO_REUSEPORT
 	grpcServer := internalGRPC.NewServer(cfg, db, &internalGRPC.ServerDeps{
 		TokenCache:    tokenCache,
 		TokenLimiter:  tokenLimiter,
 		StorageEngine: storageEngine,
+		Queue:         jobQueue,
 	})
 	grpcAddr := ":" + cfg.GRPCPort
 
@@ -145,6 +170,7 @@ func run() error {
 		TokenCache:    tokenCache,
 		TokenLimiter:  tokenLimiter,
 		StorageEngine: storageEngine,
+		Queue:         jobQueue,
 	})
 	httpAddr := ":" + cfg.Port
 
@@ -157,6 +183,13 @@ func run() error {
 		<-sigint
 
 		slog.Info("Received shutdown signal, gracefully shutting down servers...")
+		if jobQueue != nil {
+			stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if err := jobQueue.Stop(stopCtx); err != nil {
+				slog.Warn("Error stopping background job queue", "error", err)
+			}
+			stopCancel()
+		}
 		grpcServer.GracefulStop()
 		if err := app.Shutdown(); err != nil {
 			slog.Error("HTTP server shutdown error", "error", err)
