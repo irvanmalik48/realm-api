@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -23,6 +25,7 @@ type S3Engine interface {
 	Engine
 	GeneratePresignedURL(ctx context.Context, id uuid.UUID, expiry time.Duration) (string, error)
 	BucketName() string
+	PublicURL(id uuid.UUID) string
 }
 
 type s3Engine struct {
@@ -222,6 +225,14 @@ func (e *s3Engine) Delete(id uuid.UUID) error {
 	return err
 }
 
+func (e *s3Engine) PublicURL(id uuid.UUID) string {
+	if e.publicDomain == "" {
+		return ""
+	}
+	base := strings.TrimRight(e.publicDomain, "/")
+	return fmt.Sprintf("%s/%s/%s", base, e.bucket, e.FilePath(id))
+}
+
 func (e *s3Engine) GeneratePresignedURL(ctx context.Context, id uuid.UUID, expiry time.Duration) (string, error) {
 	key := e.FilePath(id)
 	if expiry <= 0 {
@@ -236,7 +247,18 @@ func (e *s3Engine) GeneratePresignedURL(ctx context.Context, id uuid.UUID, expir
 		return "", fmt.Errorf("failed to presign get object: %w", err)
 	}
 
-	return req.URL, nil
+	resURL := req.URL
+	if e.publicDomain != "" {
+		if u, parseErr := url.Parse(req.URL); parseErr == nil {
+			if pubU, parseErr := url.Parse(e.publicDomain); parseErr == nil {
+				u.Scheme = pubU.Scheme
+				u.Host = pubU.Host
+				resURL = u.String()
+			}
+		}
+	}
+
+	return resURL, nil
 }
 
 type s3ZstdReadCloser struct {
