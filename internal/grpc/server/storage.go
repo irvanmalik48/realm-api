@@ -66,6 +66,7 @@ func mapFileDTOToProto(dto *model.FileDTO) *realmv1.FileMetadata {
 		S3Bucket:       dto.S3Bucket,
 		S3Key:          dto.S3Key,
 		S3Etag:         dto.S3ETag,
+		S3Url:          dto.S3URL,
 	}
 }
 
