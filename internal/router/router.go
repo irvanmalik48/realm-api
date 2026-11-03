@@ -16,6 +16,7 @@ import (
 	"github.com/irvanmalik48/realm-api/internal/handler"
 	"github.com/irvanmalik48/realm-api/internal/middleware"
 	"github.com/irvanmalik48/realm-api/internal/openapi"
+	"github.com/irvanmalik48/realm-api/internal/queue"
 	"github.com/irvanmalik48/realm-api/internal/repository"
 	"github.com/irvanmalik48/realm-api/internal/service"
 	"github.com/irvanmalik48/realm-api/internal/storage"
@@ -25,6 +26,7 @@ type ServerDeps struct {
 	TokenCache    *auth.TokenCache
 	TokenLimiter  *auth.TokenRateLimiter
 	StorageEngine storage.Engine
+	Queue         queue.Queue
 }
 
 func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
@@ -132,6 +134,9 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 	lastFMSvc := service.NewLastFMService(cfg.LastFMAPIKey, cfg.LastFMAPISecret)
 	contactSvc := service.NewContactService(cfg, contactRepo)
 	storageSvc := service.NewStorageService(cfg, storageRepo, storageEngine)
+	if len(deps) > 0 && deps[0] != nil && deps[0].Queue != nil {
+		storageSvc.SetQueue(deps[0].Queue)
+	}
 	tokenSvc := service.NewTokenService(tokenRepo, tokenCache, tokenLimiter)
 	oauthSvc := service.NewOAuthService(cfg)
 	authSvc := service.NewAuthService(userRepo, pasetoSvc)
