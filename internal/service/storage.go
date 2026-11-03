@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -34,6 +35,13 @@ type StorageService interface {
 	List(ctx context.Context, limit, offset int, search, backend string) ([]model.FileDTO, int, error)
 	GetStorageStats(ctx context.Context) (*model.StorageStatsDTO, error)
 	GeneratePresignedURL(ctx context.Context, id uuid.UUID, expiry time.Duration) (string, time.Time, error)
+	ProcessAsync(ctx context.Context, fileID uuid.UUID, generateWebP bool) error
+	SetQueue(q FileQueue)
+}
+
+// FileQueue decouples the background queue implementation from the storage service.
+type FileQueue interface {
+	EnqueueProcessFile(ctx context.Context, fileID uuid.UUID, generateWebP bool) error
 }
 
 type storageService struct {
@@ -41,6 +49,7 @@ type storageService struct {
 	repo        repository.StorageRepository
 	engine      storage.Engine
 	localEngine storage.Engine
+	queue       FileQueue
 }
 
 func NewStorageService(cfg *config.Config, repo repository.StorageRepository, engine storage.Engine, fallbackEngine ...storage.Engine) StorageService {
@@ -171,6 +180,12 @@ func (s *storageService) Upload(ctx context.Context, filename string, reader io.
 		if err := s.repo.Create(ctx, record); err != nil {
 			_ = s.engine.Delete(fileID)
 			return nil, fmt.Errorf("failed to persist file metadata: %w", err)
+		}
+	}
+
+	if s.queue != nil && storage.IsImageMime(contentType) {
+		if qErr := s.queue.EnqueueProcessFile(ctx, fileID, true); qErr != nil {
+			slog.Warn("Failed to enqueue background file processing job", "file_id", fileID, "error", qErr)
 		}
 	}
 
@@ -413,4 +428,45 @@ func (s *storageService) GeneratePresignedURL(ctx context.Context, id uuid.UUID,
 
 func (s *storageService) GetImageMetadataFromURL(ctx context.Context, targetURL string) (*storage.ImageMetadata, error) {
 	return storage.FetchAndProcessImage(ctx, targetURL)
+}
+
+func (s *storageService) SetQueue(q FileQueue) {
+	s.queue = q
+}
+
+func (s *storageService) ProcessAsync(ctx context.Context, fileID uuid.UUID, generateWebP bool) error {
+	if s.repo == nil {
+		return nil
+	}
+
+	record, err := s.repo.GetByID(ctx, fileID)
+	if err != nil {
+		return fmt.Errorf("failed to load file record: %w", err)
+	}
+
+	// 1. If image and dimensions/blurhash missing, compute and persist them
+	if storage.IsImageMime(record.ContentType) && (record.Blurhash == nil || record.Width == nil || record.Height == nil) {
+		engine := s.resolveEngine(record)
+		readCloser, err := engine.Open(fileID)
+		if err == nil {
+			info, imgErr := storage.ProcessImage(readCloser)
+			_ = readCloser.Close()
+			if imgErr == nil && info != nil {
+				w := info.Width
+				h := info.Height
+				bh := info.Blurhash
+				_ = s.repo.UpdateMetadata(ctx, fileID, &bh, &w, &h)
+			}
+		}
+	}
+
+	// 2. Pre-generate WebP format if requested
+	if generateWebP && storage.IsImageMime(record.ContentType) {
+		_, _, err := s.GetAsWebP(ctx, fileID)
+		if err != nil && !errors.Is(err, ErrUnsupportedFormat) {
+			slog.Warn("Async WebP pre-generation failed", "file_id", fileID, "error", err)
+		}
+	}
+
+	return nil
 }
