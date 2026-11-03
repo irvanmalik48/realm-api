@@ -61,6 +61,18 @@ func NewS3Engine(cfg *config.Config) (S3Engine, error) {
 
 	presignClient := s3.NewPresignClient(s3Client)
 
+	// Best-effort auto-create or verify bucket for local S3 / SeaweedFS / MinIO
+	initCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_, headErr := s3Client.HeadBucket(initCtx, &s3.HeadBucketInput{
+		Bucket: aws.String(cfg.S3Bucket),
+	})
+	if headErr != nil {
+		_, _ = s3Client.CreateBucket(initCtx, &s3.CreateBucketInput{
+			Bucket: aws.String(cfg.S3Bucket),
+		})
+	}
+
 	return &s3Engine{
 		client:        s3Client,
 		presignClient: presignClient,
