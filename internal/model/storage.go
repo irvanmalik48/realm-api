@@ -31,6 +31,7 @@ type FileDTO struct {
 	S3ETag         *string   `json:"s3_etag,omitempty"`
 	S3Key          *string   `json:"s3_key,omitempty"`
 	S3Bucket       *string   `json:"s3_bucket,omitempty"`
+	S3URL          *string   `json:"s3_url,omitempty"`
 	WebPURL        *string   `json:"webp_url,omitempty"`
 	Height         *int      `json:"height,omitempty"`
 	Blurhash       *string   `json:"blurhash,omitempty"`
