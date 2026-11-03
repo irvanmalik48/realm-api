@@ -109,7 +109,14 @@ func Load() *Config {
 	}
 
 	storageBackend := getEnv("STORAGE_BACKEND", "local")
-	s3UsePathStyle := getEnv("S3_USE_PATH_STYLE", "false") == "true"
+	s3UsePathStyleVal := getEnv("S3_USE_PATH_STYLE", "")
+	var s3UsePathStyle bool
+	if s3UsePathStyleVal != "" {
+		s3UsePathStyle = s3UsePathStyleVal == "true"
+	} else {
+		// Custom S3 endpoints (SeaweedFS, MinIO, LocalStack, Garage) require path-style by default
+		s3UsePathStyle = getEnv("S3_ENDPOINT", "") != ""
+	}
 
 	return &Config{
 		Port:                   port,
