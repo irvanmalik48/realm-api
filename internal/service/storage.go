@@ -313,6 +313,22 @@ func (s *storageService) recordToDTO(record *model.FileRecord) *model.FileDTO {
 		webpURL = &wURL
 	}
 
+	var s3URL *string
+	if record.StorageBackend == "s3" && s.cfg != nil && s.cfg.S3PublicDomain != "" {
+		domain := strings.TrimRight(s.cfg.S3PublicDomain, "/")
+		key := record.ID.String() + ".zst"
+		if record.S3Key != nil && *record.S3Key != "" {
+			key = *record.S3Key
+		}
+		var full string
+		if record.S3Bucket != nil && *record.S3Bucket != "" && !strings.Contains(domain, *record.S3Bucket) {
+			full = fmt.Sprintf("%s/%s/%s", domain, *record.S3Bucket, key)
+		} else {
+			full = fmt.Sprintf("%s/%s", domain, key)
+		}
+		s3URL = &full
+	}
+
 	return &model.FileDTO{
 		ID:             record.ID,
 		Filename:       record.Filename,
@@ -330,6 +346,7 @@ func (s *storageService) recordToDTO(record *model.FileRecord) *model.FileDTO {
 		S3Bucket:       record.S3Bucket,
 		S3Key:          record.S3Key,
 		S3ETag:         record.S3ETag,
+		S3URL:          s3URL,
 		CreatedAt:      record.CreatedAt,
 	}
 }
