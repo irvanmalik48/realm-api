@@ -2037,6 +2037,25 @@ components:
           type: string
           nullable: true
           example: /v1/storage/7fa84e72-d7b1-4bb2-b6be-4b95d0ef923b?format=webp
+        storage_backend:
+          type: string
+          example: s3
+        s3_bucket:
+          type: string
+          nullable: true
+          example: realm-storage
+        s3_key:
+          type: string
+          nullable: true
+          example: 7fa84e72-d7b1-4bb2-b6be-4b95d0ef923b.zst
+        s3_etag:
+          type: string
+          nullable: true
+          example: '"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"'
+        s3_url:
+          type: string
+          nullable: true
+          example: https://s3.irvanma.eu.org/realm-storage/7fa84e72-d7b1-4bb2-b6be-4b95d0ef923b.zst
         created_at:
           type: string
           format: date-time
