@@ -131,6 +131,7 @@ services:
     volumes:
       - seaweedfs_data:/data
     networks:
+      - caddy_net
       - internal_net
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8333/ || exit 1"]
