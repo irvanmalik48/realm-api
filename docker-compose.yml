@@ -108,7 +108,10 @@ services:
       - -c
       - |
         mkdir -p /etc/seaweedfs
-        cat <<EOF > /etc/seaweedfs/s3.json
+        if [ -f /config/s3.json ]; then
+          cp /config/s3.json /etc/seaweedfs/s3.json
+        else
+          cat <<EOF > /etc/seaweedfs/s3.json
         {
           "identities": [
             {
@@ -124,12 +127,14 @@ services:
           ]
         }
         EOF
+        fi
         exec weed server -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -s3.allowEmptyFolder=true -dir=/data
     ports:
       - "8333:8333"
       - "9333:9333"
     volumes:
       - seaweedfs_data:/data
+      - ./config/seaweedfs/s3.json:/config/s3.json:ro
     networks:
       - caddy_net
       - internal_net
