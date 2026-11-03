@@ -16,6 +16,7 @@ import (
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/google/uuid"
 	"github.com/irvanmalik48/realm-api/internal/config"
 	"github.com/klauspost/compress/zstd"
@@ -26,13 +27,14 @@ type S3Engine interface {
 	GeneratePresignedURL(ctx context.Context, id uuid.UUID, expiry time.Duration) (string, error)
 	BucketName() string
 	PublicURL(id uuid.UUID) string
+	EnsureBucketExists(ctx context.Context) error
 }
 
 type s3Engine struct {
-	client     *s3.Client
+	client        *s3.Client
 	presignClient *s3.PresignClient
-	bucket     string
-	publicDomain string
+	bucket        string
+	publicDomain  string
 }
 
 func NewS3Engine(cfg *config.Config) (S3Engine, error) {
@@ -64,24 +66,27 @@ func NewS3Engine(cfg *config.Config) (S3Engine, error) {
 
 	presignClient := s3.NewPresignClient(s3Client)
 
-	// Best-effort auto-create or verify bucket for local S3 / SeaweedFS / MinIO
-	initCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	_, headErr := s3Client.HeadBucket(initCtx, &s3.HeadBucketInput{
-		Bucket: aws.String(cfg.S3Bucket),
-	})
-	if headErr != nil {
-		_, _ = s3Client.CreateBucket(initCtx, &s3.CreateBucketInput{
-			Bucket: aws.String(cfg.S3Bucket),
-		})
-	}
-
-	return &s3Engine{
+	engine := &s3Engine{
 		client:        s3Client,
 		presignClient: presignClient,
 		bucket:        cfg.S3Bucket,
 		publicDomain:  cfg.S3PublicDomain,
-	}, nil
+	}
+
+	// Asynchronously verify or create bucket with retries while S3 backend boots
+	go func() {
+		for i := 0; i < 5; i++ {
+			initCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ensureErr := engine.EnsureBucketExists(initCtx)
+			cancel()
+			if ensureErr == nil {
+				return
+			}
+			time.Sleep(2 * time.Second)
+		}
+	}()
+
+	return engine, nil
 }
 
 func (e *s3Engine) BucketName() string {
@@ -94,6 +99,32 @@ func (e *s3Engine) FilePath(id uuid.UUID) string {
 
 func (e *s3Engine) webpKey(id uuid.UUID) string {
 	return id.String() + ".webp.zst"
+}
+
+func (e *s3Engine) EnsureBucketExists(ctx context.Context) error {
+	_, err := e.client.HeadBucket(ctx, &s3.HeadBucketInput{
+		Bucket: aws.String(e.bucket),
+	})
+	if err == nil {
+		return nil
+	}
+
+	createCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, createErr := e.client.CreateBucket(createCtx, &s3.CreateBucketInput{
+		Bucket: aws.String(e.bucket),
+	})
+	if createErr != nil {
+		var bne *types.BucketAlreadyExists
+		var boe *types.BucketAlreadyOwnedByYou
+		if errors.As(createErr, &bne) || errors.As(createErr, &boe) {
+			return nil
+		}
+		return fmt.Errorf("failed to create bucket %q: %w", e.bucket, createErr)
+	}
+
+	return nil
 }
 
 func (e *s3Engine) Save(reader io.Reader, id uuid.UUID) (int64, int64, string, error) {
@@ -117,13 +148,22 @@ func (e *s3Engine) Save(reader io.Reader, id uuid.UUID) (int64, int64, string, e
 	compressedData := compressedBuf.Bytes()
 	key := e.FilePath(id)
 
-	_, err := e.client.PutObject(context.Background(), &s3.PutObjectInput{
+	putInput := &s3.PutObjectInput{
 		Bucket:          aws.String(e.bucket),
 		Key:             aws.String(key),
 		Body:            bytes.NewReader(compressedData),
 		ContentLength:   aws.Int64(int64(len(compressedData))),
 		ContentEncoding: aws.String("zstd"),
-	})
+	}
+
+	_, err := e.client.PutObject(context.Background(), putInput)
+	if err != nil {
+		// Attempt to auto-create bucket in case it didn't exist yet, then retry PutObject once
+		if createErr := e.EnsureBucketExists(context.Background()); createErr == nil {
+			putInput.Body = bytes.NewReader(compressedData)
+			_, err = e.client.PutObject(context.Background(), putInput)
+		}
+	}
 	if err != nil {
 		return 0, 0, "", fmt.Errorf("failed to upload object to S3: %w", err)
 	}
@@ -173,13 +213,21 @@ func (e *s3Engine) SaveWebP(id uuid.UUID, reader io.Reader) error {
 	compressedData := compressedBuf.Bytes()
 	key := e.webpKey(id)
 
-	_, err := e.client.PutObject(context.Background(), &s3.PutObjectInput{
+	putInput := &s3.PutObjectInput{
 		Bucket:          aws.String(e.bucket),
 		Key:             aws.String(key),
 		Body:            bytes.NewReader(compressedData),
 		ContentLength:   aws.Int64(int64(len(compressedData))),
 		ContentEncoding: aws.String("zstd"),
-	})
+	}
+
+	_, err := e.client.PutObject(context.Background(), putInput)
+	if err != nil {
+		if createErr := e.EnsureBucketExists(context.Background()); createErr == nil {
+			putInput.Body = bytes.NewReader(compressedData)
+			_, err = e.client.PutObject(context.Background(), putInput)
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("failed to upload webp to S3: %w", err)
 	}
