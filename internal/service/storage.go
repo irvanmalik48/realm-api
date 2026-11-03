@@ -37,17 +37,35 @@ type StorageService interface {
 }
 
 type storageService struct {
-	cfg    *config.Config
-	repo   repository.StorageRepository
-	engine storage.Engine
+	cfg         *config.Config
+	repo        repository.StorageRepository
+	engine      storage.Engine
+	localEngine storage.Engine
 }
 
-func NewStorageService(cfg *config.Config, repo repository.StorageRepository, engine storage.Engine) StorageService {
-	return &storageService{
-		cfg:    cfg,
-		repo:   repo,
-		engine: engine,
+func NewStorageService(cfg *config.Config, repo repository.StorageRepository, engine storage.Engine, fallbackEngine ...storage.Engine) StorageService {
+	var localEng storage.Engine
+	if len(fallbackEngine) > 0 {
+		localEng = fallbackEngine[0]
+	} else if cfg != nil && cfg.StorageDir != "" {
+		if _, isS3 := engine.(storage.S3Engine); isS3 {
+			localEng, _ = storage.NewZstdEngine(cfg.StorageDir)
+		}
 	}
+
+	return &storageService{
+		cfg:         cfg,
+		repo:        repo,
+		engine:      engine,
+		localEngine: localEng,
+	}
+}
+
+func (s *storageService) resolveEngine(record *model.FileRecord) storage.Engine {
+	if record != nil && record.StorageBackend == "local" && s.localEngine != nil {
+		return s.localEngine
+	}
+	return s.engine
 }
 
 func (s *storageService) Upload(ctx context.Context, filename string, reader io.Reader, explicitContentType string) (*model.FileDTO, error) {
@@ -177,7 +195,8 @@ func (s *storageService) Get(ctx context.Context, id uuid.UUID) (*model.FileReco
 		}
 	}
 
-	readCloser, err := s.engine.Open(id)
+	engine := s.resolveEngine(record)
+	readCloser, err := engine.Open(id)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -206,8 +225,10 @@ func (s *storageService) GetAsWebP(ctx context.Context, id uuid.UUID) (*model.Fi
 		return nil, nil, ErrUnsupportedFormat
 	}
 
+	engine := s.resolveEngine(record)
+
 	// 1. Check if cached WebP derivative exists on disk
-	cachedWebP, err := s.engine.OpenWebP(id)
+	cachedWebP, err := engine.OpenWebP(id)
 	if err == nil {
 		convertedRecord := *record
 		convertedRecord.ContentType = "image/webp"
@@ -216,7 +237,7 @@ func (s *storageService) GetAsWebP(ctx context.Context, id uuid.UUID) (*model.Fi
 	}
 
 	// 2. Open original stream for conversion
-	readCloser, err := s.engine.Open(id)
+	readCloser, err := engine.Open(id)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -238,7 +259,7 @@ func (s *storageService) GetAsWebP(ctx context.Context, id uuid.UUID) (*model.Fi
 	}
 
 	// 4. Cache converted WebP asynchronously / best-effort
-	_ = s.engine.SaveWebP(id, bytes.NewReader(webpBuf.Bytes()))
+	_ = engine.SaveWebP(id, bytes.NewReader(webpBuf.Bytes()))
 
 	// Update record metadata for response headers
 	convertedRecord := *record
@@ -262,13 +283,18 @@ func (s *storageService) GetInfo(ctx context.Context, id uuid.UUID) (*model.File
 }
 
 func (s *storageService) Delete(ctx context.Context, id uuid.UUID) error {
+	targetEngine := s.engine
 	if s.repo != nil {
+		record, err := s.repo.GetByID(ctx, id)
+		if err == nil {
+			targetEngine = s.resolveEngine(record)
+		}
 		if err := s.repo.Delete(ctx, id); err != nil {
 			return err
 		}
 	}
 
-	return s.engine.Delete(id)
+	return targetEngine.Delete(id)
 }
 
 func (s *storageService) recordToDTO(record *model.FileRecord) *model.FileDTO {
