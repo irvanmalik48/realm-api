@@ -22,6 +22,7 @@ message FileMetadata {
   optional string s3_bucket = 15;
   optional string s3_key = 16;
   optional string s3_etag = 17;
+  optional string s3_url = 18;
 }
 
 message UploadFileRequest {
