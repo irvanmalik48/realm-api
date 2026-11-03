@@ -40,6 +40,7 @@ type FileMetadata struct {
 	S3Bucket       *string                `protobuf:"bytes,15,opt,name=s3_bucket,json=s3Bucket,proto3,oneof" json:"s3_bucket,omitempty"`
 	S3Key          *string                `protobuf:"bytes,16,opt,name=s3_key,json=s3Key,proto3,oneof" json:"s3_key,omitempty"`
 	S3Etag         *string                `protobuf:"bytes,17,opt,name=s3_etag,json=s3Etag,proto3,oneof" json:"s3_etag,omitempty"`
+	S3Url          *string                `protobuf:"bytes,18,opt,name=s3_url,json=s3Url,proto3,oneof" json:"s3_url,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -189,6 +190,13 @@ func (x *FileMetadata) GetS3Key() string {
 func (x *FileMetadata) GetS3Etag() string {
 	if x != nil && x.S3Etag != nil {
 		return *x.S3Etag
+	}
+	return ""
+}
+
+func (x *FileMetadata) GetS3Url() string {
+	if x != nil && x.S3Url != nil {
+		return *x.S3Url
 	}
 	return ""
 }
@@ -965,7 +973,7 @@ var File_realm_v1_storage_proto protoreflect.FileDescriptor
 
 const file_realm_v1_storage_proto_rawDesc = "" +
 	"\n" +
-	"\x16realm/v1/storage.proto\x12\brealm.v1\"\xef\x04\n" +
+	"\x16realm/v1/storage.proto\x12\brealm.v1\"\x96\x05\n" +
 	"\fFileMetadata\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\bfilename\x18\x02 \x01(\tR\bfilename\x12!\n" +
@@ -985,7 +993,8 @@ const file_realm_v1_storage_proto_rawDesc = "" +
 	"\x0fstorage_backend\x18\x0e \x01(\tR\x0estorageBackend\x12 \n" +
 	"\ts3_bucket\x18\x0f \x01(\tH\x04R\bs3Bucket\x88\x01\x01\x12\x1a\n" +
 	"\x06s3_key\x18\x10 \x01(\tH\x05R\x05s3Key\x88\x01\x01\x12\x1c\n" +
-	"\as3_etag\x18\x11 \x01(\tH\x06R\x06s3Etag\x88\x01\x01B\v\n" +
+	"\as3_etag\x18\x11 \x01(\tH\x06R\x06s3Etag\x88\x01\x01\x12\x1a\n" +
+	"\x06s3_url\x18\x12 \x01(\tH\aR\x05s3Url\x88\x01\x01B\v\n" +
 	"\t_blurhashB\b\n" +
 	"\x06_widthB\t\n" +
 	"\a_heightB\v\n" +
@@ -994,7 +1003,8 @@ const file_realm_v1_storage_proto_rawDesc = "" +
 	"_s3_bucketB\t\n" +
 	"\a_s3_keyB\n" +
 	"\n" +
-	"\b_s3_etag\"f\n" +
+	"\b_s3_etagB\t\n" +
+	"\a_s3_url\"f\n" +
 	"\x11UploadFileRequest\x12\x1a\n" +
 	"\bfilename\x18\x01 \x01(\tR\bfilename\x12!\n" +
 	"\fcontent_type\x18\x02 \x01(\tR\vcontentType\x12\x12\n" +
