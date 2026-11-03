@@ -1,0 +1,20 @@
+{
+  "identities": [
+    {
+      "name": "realm",
+      "credentials": [
+        {
+          "accessKey": "realm",
+          "secretKey": "realmsecret"
+        }
+      ],
+      "actions": [
+        "Admin",
+        "Read",
+        "Write",
+        "List",
+        "Tagging"
+      ]
+    }
+  ]
+}
