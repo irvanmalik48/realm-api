@@ -8,6 +8,7 @@ import (
 	"github.com/irvanmalik48/realm-api/internal/database"
 	"github.com/irvanmalik48/realm-api/internal/grpc/interceptors"
 	grpcServer "github.com/irvanmalik48/realm-api/internal/grpc/server"
+	"github.com/irvanmalik48/realm-api/internal/queue"
 	"github.com/irvanmalik48/realm-api/internal/repository"
 	"github.com/irvanmalik48/realm-api/internal/service"
 	"github.com/irvanmalik48/realm-api/internal/storage"
@@ -23,6 +24,7 @@ type ServerDeps struct {
 	TokenCache    *auth.TokenCache
 	TokenLimiter  *auth.TokenRateLimiter
 	StorageEngine storage.Engine
+	Queue         queue.Queue
 	TokenRepo     repository.TokenRepository
 	AdminRepo     repository.AdminRepository
 	PasteRepo     repository.PasteRepository
@@ -95,6 +97,9 @@ func NewServer(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *grpc.S
 	lastFMSvc := service.NewLastFMService(cfg.LastFMAPIKey, cfg.LastFMAPISecret)
 	contactSvc := service.NewContactService(cfg, contactRepo)
 	storageSvc := service.NewStorageService(cfg, storageRepo, storageEngine)
+	if len(deps) > 0 && deps[0] != nil && deps[0].Queue != nil {
+		storageSvc.SetQueue(deps[0].Queue)
+	}
 	tokenSvc := service.NewTokenService(tokenRepo, tokenCache, tokenLimiter)
 	authSvc := service.NewAuthService(userRepo, pasetoSvc)
 	reactionSvc := service.NewReactionService(reactionRepo)
