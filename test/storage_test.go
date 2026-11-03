@@ -68,6 +68,17 @@ func (m *mockStorageRepo) GetStats(ctx context.Context) (int64, int64, int64, fl
 	return int64(len(m.records)), 0, 0, 0, nil
 }
 
+func (m *mockStorageRepo) UpdateMetadata(ctx context.Context, id uuid.UUID, blurhash *string, width, height *int) error {
+	rec, ok := m.records[id]
+	if !ok {
+		return repository.ErrRecordNotFound
+	}
+	rec.Blurhash = blurhash
+	rec.Width = width
+	rec.Height = height
+	return nil
+}
+
 func createTestPNG() []byte {
 	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
 	// Draw colorful pattern
