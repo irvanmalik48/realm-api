@@ -21,6 +21,7 @@ type StorageRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, limit, offset int, search, backend string) ([]model.FileRecord, int, error)
 	GetStats(ctx context.Context) (totalFiles int64, totalOrigBytes int64, totalCompBytes int64, avgSavings float64, err error)
+	UpdateMetadata(ctx context.Context, id uuid.UUID, blurhash *string, width, height *int) error
 }
 
 type storageRepository struct {
@@ -220,4 +221,10 @@ func (r *storageRepository) GetStats(ctx context.Context) (int64, int64, int64, 
 	}
 
 	return totalFiles, totalOrigBytes, totalCompBytes, avgSavings, nil
+}
+
+func (r *storageRepository) UpdateMetadata(ctx context.Context, id uuid.UUID, blurhash *string, width, height *int) error {
+	query := `UPDATE files SET blurhash = $2, width = $3, height = $4 WHERE id = $1`
+	_, err := r.db.Pool.Exec(ctx, query, id, blurhash, width, height)
+	return err
 }
