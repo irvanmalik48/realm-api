@@ -72,6 +72,7 @@ func New(cfg *config.Config, db *database.DB, deps ...*ServerDeps) *fiber.App {
 		corsConfig.AllowCredentials = true
 	}
 	app.Use(cors.New(corsConfig))
+	app.Use(middleware.AbyssDefense())
 
 	// Repositories & Services
 	var contactRepo repository.ContactRepository
